@@ -1,85 +1,126 @@
 # CLAUDE.md
+始终以中文简体方式回答、编写文档
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# ZeeLinCode · 迭代与更新规范
 
-## Commands
+---
 
-- `pnpm dev` — Start development. Launches Vite dev server (port 5073) and Electron concurrently.
-- `pnpm dev:renderer` — Start Vite dev server only.
-- `pnpm dev:electron` — Start Electron only (waits for port 5073).
-- `pnpm build` — Build renderer for production (`dist/renderer`).
-- `pnpm start` — Run Electron in production mode (loads from `dist/renderer`).
-- `pnpm test` — Run unit tests with `node:test` (`src/**/*.test.js`).
-- `pnpm test:e2e` — Build then run Playwright E2E tests (`e2e/**/*.e2e.spec.js`).
+## 1. 需求变更流程
 
-## Architecture
+```
+产品想法
+  → 更新对应 flow-*.md（先改文档，不得先改代码）
+  → 如涉及新依赖，更新 docs/constraints.md Section 1
+  → 如涉及新 IPC channel，更新 shared/types.ts 的 IPC 枚举
+  → 将变更 diff 作为 context 注入 AI，执行对应 Task
+```
 
-### Electron Process Model
+**黄金规则：文档是代码的 source of truth。代码与文档不一致时，以文档为准，修代码。**
 
-Three layers separated by IPC:
+---
 
-- **Main** (`src/main/index.js`) — Window lifecycle, IPC handlers, SQLite DB, PTY orchestration. All business logic lives here.
-- **Preload** (`src/preload/index.js`) — `contextBridge` exposes a whitelisted `window.api` to the renderer. No Node APIs reach the renderer directly.
-- **Renderer** (`src/renderer/`) — React 18 + Vite. Single-page UI with a left sidebar (projects, sessions) and right panel (xterm.js terminal or settings form).
+## 2. 每次向 AI 下达任务的标准 Prompt 结构
 
-### Session & PTY Lifecycle
+```
+## 全局约束（必须每次携带）
+{粘贴 @docs/constraints.md 全文}
 
-`SessionManager` (`src/main/session/session-manager.js`) is the central coordinator:
+## 当前流程
+{粘贴对应 docs/flow-*.md 全文，或仅相关 Section}
 
-- Owns a `Map<sessionId, { adapter, runtime }>` for active PTY processes.
-- Delegates start/resume/stop/input to **provider adapters**.
-- Buffers output per session (max 200KB) and forwards it to the renderer via IPC.
-- Shell resolution: `zsh -l` on macOS/Linux, `powershell.exe -NoLogo` on Windows.
+## 本次任务
+实现 docs/flow-*.md Section 8 中的 Task N：
+{粘贴 Task 描述}
 
-`ClaudeAdapter` (`src/main/providers/claude.adapter.js`) is the only active provider. It spawns `claude` (or `ZEELIN_CLAUDE_START_CMD`) via `node-pty`. Resume uses `claude resume <sid>` (or `ZEELIN_CLAUDE_RESUME_CMD_TEMPLATE` with `{sessionId}` placeholder). Other providers (`codex`, `gemini`, `kimi`) are stubs that throw "Provider not enabled".
+## 相关上下文
+{粘贴与该 Task 直接相关的 Section，如 Section 5 IPC 接口 + Section 6 实现约束}
 
-### Data Layer
+## 要求
+- 只实现本 Task，不超出范围
+- 输出完整可运行代码，不使用省略号或 TODO
+- 如有歧义，先列出问题，等确认后再编码
+- 严格遵守 docs/constraints.md 中的进程边界约束
+```
 
-SQLite via `better-sqlite3` (`src/main/db/database.js`). Tables:
+---
 
-- `projects` — folder path, name, default provider.
-- `sessions` — project link, title, provider, `provider_session_id`, status (`idle`/`running`/`stopped`), cwd.
-- `app_settings` — key/value store (JSON). Currently holds `claude_startup_settings`.
+## 3. Task 执行顺序约束
 
-No chat content is persisted. Only metadata is stored. `provider_session_id` enables session recovery across app restarts.
+- 同一 flow 内的 Task **必须按编号顺序执行**，后序 Task 依赖前序 Task 的类型定义
+- 特别是：Task 1（types）→ Task 2-4（主进程）→ Task 5（preload）→ Task 6（bridge）→ Task 7（store）→ Task 8+（组件）
+- 跨 flow 的依赖在 flow 文件的 `依赖` 字段中声明，被依赖 flow 必须先完成
 
-### IPC Protocol (renderer ↔ main)
+---
 
-Exposed on `window.api`:
+## 4. 代码修改规范
 
-- `projects.list()`, `projects.add()`, `projects.remove(id)`
-- `sessions.list(projectId)`, `sessions.create({ projectId, title, provider })`, `sessions.start(sessionId)`, `sessions.resume(sessionId)`, `sessions.stop(sessionId)`, `sessions.buffer(sessionId)`
-- `terminal.input(sessionId, text)`, `terminal.onOutput(listener)`, `terminal.onExit(listener)`
-- `settings.getClaude()`, `settings.saveClaude(payload)`
+### 修改已有文件时，AI 必须：
 
-All settings payloads are validated with `zod` in the main process.
+1. 复述当前文件的关键逻辑和对外接口
+2. 说明本次修改的影响范围
+3. 输出修改后的完整文件（不得用 `// ...` 省略）
 
-### Environment Variables
+### 禁止的修改模式：
 
-- `ZEELIN_DB_PATH` — Override SQLite database file path.
-- `ZEELIN_CLAUDE_START_CMD` — Override the command used to start a Claude session.
-- `ZEELIN_CLAUDE_RESUME_CMD_TEMPLATE` — Override resume command; `{sessionId}` is interpolated.
-- `VITE_DEV_SERVER_URL` — Dev-only; URL the Electron window loads.
+- 禁止直接修改 `shared/types.ts` 的 IPC 枚举而不同步更新 preload.ts 和 bridge 层
+- 禁止修改 PtyService 的公共方法签名而不同步更新 pty.handler.ts
+- 禁止在渲染进程新增对 Node.js 模块的 import
 
-### Testing
+---
 
-**Unit tests** use `node:test` and `node:assert/strict`. They create temp SQLite files and clean up manually.
+## 5. 版本与分支策略
 
-**E2E tests** use Playwright with `electron.launch()`. Each test:
-1. Creates a temp directory and SQLite DB.
-2. Seeds `projects` and `sessions` via `node:sqlite` (`DatabaseSync`).
-3. Launches Electron with `ZEELIN_DB_PATH` pointing at the temp DB.
-4. Uses `window.__ZEELIN_TEST__` (exposed in `App.jsx`) to read session buffers and active session IDs for assertions.
-5. E2E tests that exercise Claude session startup override the command via `ZEELIN_CLAUDE_START_CMD` (e.g., `cat` or `printenv`) to avoid needing the real CLI.
+```
+main          ← 稳定版本，只接受来自 feature/* 的 PR
+feature/*     ← 每个 flow 对应一个 feature 分支，如 feature/terminal
+fix/*         ← bug 修复，从 main 切出，合回 main
+```
 
-Playwright config: single worker (`workers: 1`), `fullyParallel: false`, 120s timeout.
+### Commit 规范（Conventional Commits）
 
-## Native Dependencies
+```
+feat(terminal): add QuickLaunch component
+fix(pty): handle resize when terminal is hidden
+refactor(bridge): extract pty.bridge from session.bridge
+docs(flow): update terminal flow task list
+```
 
-`better-sqlite3` and `node-pty` are native Node modules. `pnpm-workspace.yaml` marks them as allowed builds for `electron-builder`/`electron-rebuild`. After installing dependencies, these may need a rebuild for the current Electron Node version.
+格式：`{type}({scope}): {description}`
 
-## Security Notes
+scope 对应目录：`terminal`、`sidebar`、`explorer`、`pty`、`bridge`、`store`、`ipc`
 
-- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: false` (required for `node-pty` preload).
-- IPC input validated with `zod`.
-- API keys and env vars entered in settings are stored in local SQLite and injected into the PTY environment at session start.
+---
+
+## 6. 变更分类与处理方式
+
+| 变更类型 | 影响范围 | 处理方式 |
+|----------|----------|----------|
+| 新增 UI 组件 | 仅渲染进程 | 更新对应 flow，执行对应 Task |
+| 新增 IPC channel | `shared/types.ts` + preload + bridge + handler | 严格按 Task 1→5→6→4 顺序执行 |
+| 修改 PTY 行为 | 主进程 services + ipc | 更新 flow-terminal.md Section 5/6 |
+| 新增 QuickLaunch 预设 | 仅 `shared/constants.ts` | 单文件修改，无依赖 |
+| 新增项目功能（文件树等）| 需新建 flow-*.md | 走完整流程 |
+| 性能优化 | 视范围 | 在对应 flow 中新增 Task，注明性能目标 |
+| 依赖升级 | `package.json` + docs/constraints.md | 必须评审，不得 AI 自行升级 |
+
+
+## 7. 参考文档
+Gemini Cli：https://geminicli.org.cn/docs/get-started/configuration/#available-settings-in-settingsjson
+Codex Cli：https://developers.openai.com/codex/cli/reference
+Claude Code：https://code.claude.com/docs/zh-CN/cli-reference
+
+
+---
+
+## 7. 上线验收清单
+
+每个 feature 分支合并前，逐项检查：
+
+- [ ] 对应 flow 文件的 Section 7 验收条件全部通过
+- [ ] 无 `console.log` 残留（使用 electron-log）
+- [ ] 无 `any` 类型（TypeScript strict 模式下无 error）
+- [ ] 渲染进程无 Node.js 模块 import（检查 `require`、`import fs`、`import pty`）
+- [ ] 所有 IPC channel 使用 `IPC.XXX` 枚举，无字符串字面量
+- [ ] 多 session 切换无内存泄漏（xterm 实例不被重复创建）
+- [ ] 应用退出时 PTY 进程全部被 kill（`destroyAll` 被调用）
+- [ ] CSS 无硬编码颜色值（全部使用 CSS 变量）

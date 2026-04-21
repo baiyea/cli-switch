@@ -1,5 +1,6 @@
 const Database = require("better-sqlite3");
 const crypto = require("node:crypto");
+const { DB_MODELS, buildSchemaSql } = require("./models");
 
 function now() {
   return new Date().toISOString();
@@ -13,45 +14,10 @@ function initDatabase(filePath) {
   const db = new Database(filePath);
   db.pragma("journal_mode = WAL");
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      default_provider TEXT NOT NULL DEFAULT 'claude',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      provider TEXT NOT NULL,
-      provider_session_id TEXT,
-      cwd TEXT NOT NULL,
-      status TEXT NOT NULL,
-      last_active_at TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      is_archived INTEGER NOT NULL DEFAULT 0,
-      archived_at TEXT,
-      FOREIGN KEY(project_id) REFERENCES projects(id)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
-    CREATE INDEX IF NOT EXISTS idx_sessions_provider_sid ON sessions(provider, provider_session_id);
-
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
+  db.exec(buildSchemaSql());
 
   // Migration for older local databases.
-  ensureColumn(db, "sessions", "is_archived", "INTEGER NOT NULL DEFAULT 0");
-  ensureColumn(db, "sessions", "archived_at", "TEXT");
+  ensureLegacyColumns(db);
 
   return db;
 }
@@ -60,6 +26,23 @@ function ensureColumn(db, tableName, columnName, columnDef) {
   const cols = db.prepare(`PRAGMA table_info(${tableName})`).all();
   if (cols.some((c) => c.name === columnName)) return;
   db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`);
+}
+
+function ensureLegacyColumns(db) {
+  const legacyColumns = [
+    { table: DB_MODELS.sessions.tableName, column: "is_archived", def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: DB_MODELS.sessions.tableName, column: "archived_at", def: "TEXT" },
+    { table: DB_MODELS.sessionArchives.tableName, column: "project_id", def: "TEXT" },
+    { table: DB_MODELS.sessionArchives.tableName, column: "provider", def: "TEXT NOT NULL DEFAULT 'claude'" },
+    { table: DB_MODELS.sessionArchives.tableName, column: "title", def: "TEXT" },
+    { table: DB_MODELS.sessionArchives.tableName, column: "cwd", def: "TEXT NOT NULL DEFAULT ''" },
+    { table: DB_MODELS.sessionArchives.tableName, column: "archived_at", def: "TEXT" },
+    { table: DB_MODELS.sessionArchives.tableName, column: "updated_at", def: "TEXT" }
+  ];
+
+  for (const item of legacyColumns) {
+    ensureColumn(db, item.table, item.column, item.def);
+  }
 }
 
 function projectsRepo(db) {
@@ -97,6 +80,11 @@ function projectsRepo(db) {
 
 function sessionsRepo(db) {
   return {
+    listAllActive() {
+      return db
+        .prepare("SELECT * FROM sessions WHERE is_archived = 0 ORDER BY updated_at DESC")
+        .all();
+    },
     listByProject(projectId) {
       return db
         .prepare("SELECT * FROM sessions WHERE project_id = ? AND is_archived = 0 ORDER BY created_at DESC")
@@ -166,6 +154,12 @@ function sessionsRepo(db) {
       db.prepare(
         "UPDATE sessions SET is_archived = 0, archived_at = NULL, updated_at = ? WHERE id = ?"
       ).run(timestamp, sessionId);
+    },
+    markAllStopped() {
+      const timestamp = now();
+      db.prepare(
+        "UPDATE sessions SET status = 'stopped', updated_at = ? WHERE status = 'running'"
+      ).run(timestamp);
     }
   };
 }
@@ -174,38 +168,139 @@ module.exports = {
   initDatabase,
   projectsRepo,
   sessionsRepo,
+  sessionArchiveRepo,
   settingsRepo
 };
 
+function sessionArchiveRepo(db) {
+  return {
+    list() {
+      return db
+        .prepare(
+          "SELECT session_id, provider, project_id, title, cwd, archived_at, updated_at FROM session_archives ORDER BY archived_at DESC"
+        )
+        .all();
+    },
+    listIds() {
+      const rows = db.prepare("SELECT session_id FROM session_archives").all();
+      return rows.map((row) => row.session_id);
+    },
+    archive({ sessionId, provider = "claude", projectId = null, title = null, cwd }) {
+      const archiveId = `${String(provider || "claude").toLowerCase()}:${sessionId}`;
+      const timestamp = now();
+      db.prepare(
+        `INSERT INTO session_archives (session_id, provider, project_id, title, cwd, archived_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(session_id) DO UPDATE SET
+           provider = excluded.provider,
+           project_id = excluded.project_id,
+           title = excluded.title,
+           cwd = excluded.cwd,
+           archived_at = excluded.archived_at,
+           updated_at = excluded.updated_at`
+      ).run(archiveId, provider, projectId, title, cwd, timestamp, timestamp);
+    },
+    restore(archiveId) {
+      db.prepare("DELETE FROM session_archives WHERE session_id = ?").run(archiveId);
+    }
+  };
+}
+
 function settingsRepo(db) {
-  const SETTINGS_KEY = "claude_startup_settings";
+  const SETTINGS_KEY = "provider_startup_settings";
   const defaultValue = {
-    apiUrl: "",
-    apiKey: "",
-    apiKeyEnvVarName: "ANTHROPIC_API_KEY",
-    model: "",
-    additionalEnvVars: []
+    providers: {
+      claude: {
+        defaultProfileId: "default",
+        profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
+      },
+      codex: {
+        defaultProfileId: "default",
+        profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
+      },
+      gemini: {
+        defaultProfileId: "default",
+        profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
+      }
+    }
   };
 
+  function ensureProviderShape(input) {
+    const normalized = { ...defaultValue, ...(input || {}) };
+    const providers = { ...(normalized.providers || {}) };
+    for (const provider of ["claude", "codex", "gemini"]) {
+      const current = providers[provider] || {};
+      const profiles = Array.isArray(current.profiles) && current.profiles.length > 0
+        ? current.profiles.map((profile, idx) => ({
+          id: String(profile?.id || `default-${idx + 1}`),
+          name: String(profile?.name || `Provider ${idx + 1}`),
+          envVars: Array.isArray(profile?.envVars) ? profile.envVars : []
+        }))
+        : [{ id: "default", name: "Default Provider", envVars: [] }];
+      const defaultProfileId = profiles.some((p) => p.id === current.defaultProfileId)
+        ? current.defaultProfileId
+        : profiles[0].id;
+      providers[provider] = { defaultProfileId, profiles };
+    }
+    return { providers };
+  }
+
   return {
-    getClaudeStartupSettings() {
+    getProviderStartupSettings() {
       const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(SETTINGS_KEY);
       if (!row) return defaultValue;
 
       try {
-        return { ...defaultValue, ...JSON.parse(row.value || "{}") };
+        const parsed = JSON.parse(row.value || "{}");
+
+        if (parsed?.providers && typeof parsed.providers === "object") {
+          return ensureProviderShape(parsed);
+        }
+
+        // Compatibility: migrate old simple envVars format.
+        if (Array.isArray(parsed?.envVars)) {
+          return ensureProviderShape({
+            providers: {
+              claude: {
+                defaultProfileId: "default",
+                profiles: [{ id: "default", name: "Default Provider", envVars: parsed.envVars }]
+              }
+            }
+          });
+        }
+
+        const migrated = [];
+        if (parsed?.apiUrl) migrated.push({ key: "ANTHROPIC_BASE_URL", value: parsed.apiUrl });
+        if (parsed?.apiKey) {
+          const keyName = parsed?.apiKeyEnvVarName || "ANTHROPIC_API_KEY";
+          migrated.push({ key: keyName, value: parsed.apiKey });
+        }
+        if (parsed?.model) migrated.push({ key: "ANTHROPIC_MODEL", value: parsed.model });
+        for (const pair of parsed?.additionalEnvVars || []) {
+          if (!pair?.key) continue;
+          migrated.push({ key: pair.key, value: pair.value || "" });
+        }
+        return ensureProviderShape({
+          providers: {
+            claude: {
+              defaultProfileId: "default",
+              profiles: [{ id: "default", name: "Default Provider", envVars: migrated }]
+            }
+          }
+        });
       } catch {
         return defaultValue;
       }
     },
-    setClaudeStartupSettings(value) {
+    setProviderStartupSettings(value) {
+      const normalized = ensureProviderShape(value);
       const timestamp = now();
       db.prepare(
         `INSERT INTO app_settings (key, value, updated_at)
          VALUES (?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
-      ).run(SETTINGS_KEY, JSON.stringify(value), timestamp);
-      return value;
+      ).run(SETTINGS_KEY, JSON.stringify(normalized), timestamp);
+      return normalized;
     }
   };
 }
