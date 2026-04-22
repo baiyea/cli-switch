@@ -18,6 +18,7 @@ function initDatabase(filePath) {
 
   // Migration for older local databases.
   ensureLegacyColumns(db);
+  ensureSessionUniqueIndex(db);
 
   return db;
 }
@@ -32,17 +33,44 @@ function ensureLegacyColumns(db) {
   const legacyColumns = [
     { table: DB_MODELS.sessions.tableName, column: "is_archived", def: "INTEGER NOT NULL DEFAULT 0" },
     { table: DB_MODELS.sessions.tableName, column: "archived_at", def: "TEXT" },
-    { table: DB_MODELS.sessionArchives.tableName, column: "project_id", def: "TEXT" },
-    { table: DB_MODELS.sessionArchives.tableName, column: "provider", def: "TEXT NOT NULL DEFAULT 'claude'" },
-    { table: DB_MODELS.sessionArchives.tableName, column: "title", def: "TEXT" },
-    { table: DB_MODELS.sessionArchives.tableName, column: "cwd", def: "TEXT NOT NULL DEFAULT ''" },
-    { table: DB_MODELS.sessionArchives.tableName, column: "archived_at", def: "TEXT" },
-    { table: DB_MODELS.sessionArchives.tableName, column: "updated_at", def: "TEXT" }
+    { table: DB_MODELS.sessions.tableName, column: "provider_session_id", def: "TEXT" },
+    { table: DB_MODELS.sessions.tableName, column: "cwd", def: "TEXT NOT NULL DEFAULT ''" },
+    { table: DB_MODELS.sessions.tableName, column: "session_file_path", def: "TEXT" }
   ];
 
   for (const item of legacyColumns) {
     ensureColumn(db, item.table, item.column, item.def);
   }
+}
+
+function ensureSessionUniqueIndex(db) {
+  // Backfill provider_session_id for old rows before adding unique index.
+  db.exec(`
+    UPDATE sessions
+    SET provider_session_id = COALESCE(provider_session_id, id)
+    WHERE provider_session_id IS NULL OR provider_session_id = '';
+  `);
+
+  // Keep newest row for duplicated provider/provider_session_id.
+  db.exec(`
+    DELETE FROM sessions
+    WHERE id IN (
+      SELECT s1.id
+      FROM sessions s1
+      JOIN sessions s2
+        ON s1.provider = s2.provider
+       AND s1.provider_session_id = s2.provider_session_id
+       AND (
+         COALESCE(s1.updated_at, s1.created_at, '') < COALESCE(s2.updated_at, s2.created_at, '')
+         OR (
+           COALESCE(s1.updated_at, s1.created_at, '') = COALESCE(s2.updated_at, s2.created_at, '')
+           AND s1.id < s2.id
+         )
+       )
+    );
+  `);
+
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_provider_sid_unique ON sessions(provider, provider_session_id);");
 }
 
 function projectsRepo(db) {
@@ -79,35 +107,55 @@ function projectsRepo(db) {
 }
 
 function sessionsRepo(db) {
+  function buildInClause(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return { sql: "", params: [] };
+    const placeholders = ids.map(() => "?").join(", ");
+    return { sql: ` AND s.project_id IN (${placeholders})`, params: ids };
+  }
+
+  function listByArchiveFlag(isArchived, projectIds = []) {
+    const { sql, params } = buildInClause(projectIds);
+    return db.prepare(
+      `SELECT s.*, p.path AS project_path
+       FROM sessions s
+       LEFT JOIN projects p ON p.id = s.project_id
+       WHERE s.is_archived = ?${sql}
+       ORDER BY s.updated_at DESC`
+    ).all(isArchived ? 1 : 0, ...params);
+  }
+
   return {
-    listAllActive() {
-      return db
-        .prepare("SELECT * FROM sessions WHERE is_archived = 0 ORDER BY updated_at DESC")
-        .all();
+    listAllActive(projectIds = []) {
+      return listByArchiveFlag(false, projectIds);
     },
     listByProject(projectId) {
-      return db
-        .prepare("SELECT * FROM sessions WHERE project_id = ? AND is_archived = 0 ORDER BY created_at DESC")
-        .all(projectId);
+      return listByArchiveFlag(false, [projectId]);
     },
     listArchivedByProject(projectId) {
-      return db
-        .prepare("SELECT * FROM sessions WHERE project_id = ? AND is_archived = 1 ORDER BY archived_at DESC")
-        .all(projectId);
+      return listByArchiveFlag(true, [projectId]);
+    },
+    listAllArchived(projectIds = []) {
+      return listByArchiveFlag(true, projectIds);
     },
     getById(sessionId) {
       return db.prepare("SELECT * FROM sessions WHERE id = ?").get(sessionId);
     },
-    create({ projectId, title, provider, cwd }) {
+    getByProviderSessionId({ provider, providerSessionId }) {
+      return db
+        .prepare("SELECT * FROM sessions WHERE provider = ? AND provider_session_id = ?")
+        .get(provider, providerSessionId);
+    },
+    create({ projectId, title, provider, providerSessionId, cwd = "", sessionFilePath = null, status = "idle" }) {
       const timestamp = now();
       const session = {
         id: id(),
         project_id: projectId,
         title,
         provider,
-        provider_session_id: null,
+        provider_session_id: providerSessionId,
         cwd,
-        status: "idle",
+        session_file_path: sessionFilePath,
+        status,
         last_active_at: timestamp,
         created_at: timestamp,
         updated_at: timestamp,
@@ -117,48 +165,77 @@ function sessionsRepo(db) {
 
       db.prepare(
         `INSERT INTO sessions (
-          id, project_id, title, provider, provider_session_id, cwd,
+          id, project_id, title, provider, provider_session_id, cwd, session_file_path,
           status, last_active_at, created_at, updated_at, is_archived, archived_at
         ) VALUES (
-          @id, @project_id, @title, @provider, @provider_session_id, @cwd,
+          @id, @project_id, @title, @provider, @provider_session_id, @cwd, @session_file_path,
           @status, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at
         )`
       ).run(session);
 
       return session;
     },
-    updateState({ sessionId, status }) {
+    upsertDiscovered({ projectId, title, provider, providerSessionId, cwd = "", sessionFilePath = null, createdAt }) {
+      const timestamp = now();
+      const createdAtIso = Number.isFinite(createdAt) ? new Date(createdAt).toISOString() : timestamp;
+      db.prepare(
+        `INSERT INTO sessions (
+          id, project_id, title, provider, provider_session_id, cwd, session_file_path,
+          status, last_active_at, created_at, updated_at, is_archived, archived_at
+        ) VALUES (
+          @id, @project_id, @title, @provider, @provider_session_id, @cwd, @session_file_path,
+          @status, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at
+        )
+        ON CONFLICT(provider, provider_session_id) DO UPDATE SET
+          project_id = excluded.project_id,
+          title = excluded.title,
+          cwd = excluded.cwd,
+          session_file_path = COALESCE(excluded.session_file_path, sessions.session_file_path),
+          updated_at = excluded.updated_at`
+      ).run({
+        id: id(),
+        project_id: projectId,
+        title,
+        provider,
+        provider_session_id: providerSessionId,
+        cwd,
+        session_file_path: sessionFilePath,
+        status: "exited",
+        last_active_at: createdAtIso,
+        created_at: createdAtIso,
+        updated_at: timestamp,
+        is_archived: 0,
+        archived_at: null
+      });
+    },
+    updateStateByProviderSessionId({ provider, providerSessionId, status }) {
       const timestamp = now();
       db.prepare(
-        "UPDATE sessions SET status = ?, last_active_at = ?, updated_at = ? WHERE id = ?"
-      ).run(status, timestamp, timestamp, sessionId);
+        "UPDATE sessions SET status = ?, last_active_at = ?, updated_at = ? WHERE provider = ? AND provider_session_id = ?"
+      ).run(status, timestamp, timestamp, provider, providerSessionId);
     },
-    updateProviderSessionId({ sessionId, providerSessionId }) {
+    renameByProviderSessionId({ provider, providerSessionId, title }) {
       const timestamp = now();
       db.prepare(
-        "UPDATE sessions SET provider_session_id = ?, updated_at = ? WHERE id = ?"
-      ).run(providerSessionId, timestamp, sessionId);
+        "UPDATE sessions SET title = ?, updated_at = ? WHERE provider = ? AND provider_session_id = ?"
+      ).run(title, timestamp, provider, providerSessionId);
     },
-    rename({ sessionId, title }) {
-      const timestamp = now();
-      db.prepare("UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?").run(title, timestamp, sessionId);
-    },
-    archive(sessionId) {
+    archiveByProviderSessionId({ provider, providerSessionId }) {
       const timestamp = now();
       db.prepare(
-        "UPDATE sessions SET is_archived = 1, archived_at = ?, updated_at = ? WHERE id = ?"
-      ).run(timestamp, timestamp, sessionId);
+        "UPDATE sessions SET is_archived = 1, archived_at = ?, updated_at = ? WHERE provider = ? AND provider_session_id = ?"
+      ).run(timestamp, timestamp, provider, providerSessionId);
     },
-    restore(sessionId) {
+    restoreByProviderSessionId({ provider, providerSessionId }) {
       const timestamp = now();
       db.prepare(
-        "UPDATE sessions SET is_archived = 0, archived_at = NULL, updated_at = ? WHERE id = ?"
-      ).run(timestamp, sessionId);
+        "UPDATE sessions SET is_archived = 0, archived_at = NULL, updated_at = ? WHERE provider = ? AND provider_session_id = ?"
+      ).run(timestamp, provider, providerSessionId);
     },
     markAllStopped() {
       const timestamp = now();
       db.prepare(
-        "UPDATE sessions SET status = 'stopped', updated_at = ? WHERE status = 'running'"
+        "UPDATE sessions SET status = 'exited', updated_at = ? WHERE status = 'running'"
       ).run(timestamp);
     }
   };
@@ -168,43 +245,8 @@ module.exports = {
   initDatabase,
   projectsRepo,
   sessionsRepo,
-  sessionArchiveRepo,
   settingsRepo
 };
-
-function sessionArchiveRepo(db) {
-  return {
-    list() {
-      return db
-        .prepare(
-          "SELECT session_id, provider, project_id, title, cwd, archived_at, updated_at FROM session_archives ORDER BY archived_at DESC"
-        )
-        .all();
-    },
-    listIds() {
-      const rows = db.prepare("SELECT session_id FROM session_archives").all();
-      return rows.map((row) => row.session_id);
-    },
-    archive({ sessionId, provider = "claude", projectId = null, title = null, cwd }) {
-      const archiveId = `${String(provider || "claude").toLowerCase()}:${sessionId}`;
-      const timestamp = now();
-      db.prepare(
-        `INSERT INTO session_archives (session_id, provider, project_id, title, cwd, archived_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(session_id) DO UPDATE SET
-           provider = excluded.provider,
-           project_id = excluded.project_id,
-           title = excluded.title,
-           cwd = excluded.cwd,
-           archived_at = excluded.archived_at,
-           updated_at = excluded.updated_at`
-      ).run(archiveId, provider, projectId, title, cwd, timestamp, timestamp);
-    },
-    restore(archiveId) {
-      db.prepare("DELETE FROM session_archives WHERE session_id = ?").run(archiveId);
-    }
-  };
-}
 
 function settingsRepo(db) {
   const SETTINGS_KEY = "provider_startup_settings";

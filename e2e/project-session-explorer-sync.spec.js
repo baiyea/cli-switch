@@ -82,8 +82,18 @@ async function launchApp() {
   return { app, win, projectAPath, projectBPath, sidA, sidB };
 }
 
+async function syncAllProjectHistory(win) {
+  const toggles = win.locator(".project-create-toggle");
+  const count = await toggles.count();
+  for (let i = 0; i < count; i += 1) {
+    await toggles.nth(i).click({ force: true });
+    await win.getByRole("button", { name: "读取历史会话" }).click({ force: true });
+  }
+}
+
 test("switching project session updates explorer cwd and active terminal", async () => {
   const { app, win, projectAPath, projectBPath, sidA, sidB } = await launchApp();
+  await syncAllProjectHistory(win);
 
   await expect(win.getByTestId(`session-item-${sidA}`)).toBeVisible();
   await expect(win.getByTestId(`session-item-${sidB}`)).toBeVisible();
@@ -98,4 +108,3 @@ test("switching project session updates explorer cwd and active terminal", async
 
   await app.close();
 });
-

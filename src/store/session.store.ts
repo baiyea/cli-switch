@@ -7,7 +7,7 @@ export type SessionStatus = "creating" | "running" | "exited";
 export interface TerminalSession {
   sessionId: string;
   projectId: string;
-  provider: "claude" | "codex" | "gemini" | "kimi";
+  provider: "claude" | "codex" | "gemini";
   providerSessionId: string;
   name: string;
   cwd: string;
@@ -16,7 +16,7 @@ export interface TerminalSession {
   exitCode?: number;
 }
 
-type ProviderId = "claude" | "codex" | "gemini" | "kimi" | "shell";
+type ProviderId = "claude" | "codex" | "gemini" | "shell";
 
 interface SessionStoreState {
   sessions: TerminalSession[];
@@ -38,7 +38,6 @@ function getPrefix(toolId?: string): string {
   if (normalized.includes("claude")) return "claude";
   if (normalized.includes("codex")) return "codex";
   if (normalized.includes("gemini")) return "gemini";
-  if (normalized.includes("kimi")) return "kimi";
   return "shell";
 }
 
@@ -149,7 +148,6 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   async ensureSessionRunning(sessionId: string) {
     const session = get().sessions.find((s) => s.sessionId === sessionId);
     if (!session) return;
-    if (session.status === "running") return;
 
     const started = await sessionBridge.start({
       sessionId,
@@ -179,9 +177,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     await sessionBridge.archive({
       sessionId: target.sessionId,
       provider: target.provider,
-      projectId: target.projectId || null,
-      name: target.name,
-      cwd: target.cwd
+      providerSessionId: target.providerSessionId || target.sessionId
     });
     set((state) => {
       const sessions = state.sessions.filter((s) => s.sessionId !== sessionId);

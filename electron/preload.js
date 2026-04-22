@@ -27,8 +27,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     list: (payload) => ipcRenderer.invoke(IPC.SESSION_LIST, payload),
     create: (payload) => ipcRenderer.invoke(IPC.SESSION_CREATE, payload),
     start: (payload) => ipcRenderer.invoke(IPC.SESSION_START, payload),
+    syncProject: (payload) => ipcRenderer.invoke(IPC.SESSION_SYNC_PROJECT, payload),
     archive: (payload) => ipcRenderer.invoke(IPC.SESSION_ARCHIVE, payload),
-    listArchived: () => ipcRenderer.invoke(IPC.SESSION_ARCHIVE_LIST),
+    listArchived: (payload) => ipcRenderer.invoke(IPC.SESSION_ARCHIVE_LIST, payload),
     restore: (sessionId) => ipcRenderer.invoke(IPC.SESSION_RESTORE, { sessionId })
   },
   settings: {

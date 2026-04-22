@@ -69,6 +69,11 @@ async function launchApp(options = {}) {
   return { app, win, projectDir };
 }
 
+async function syncFirstProjectHistory(win) {
+  await win.locator(".project-create-toggle").first().click({ force: true });
+  await win.getByRole("button", { name: "读取历史会话" }).click({ force: true });
+}
+
 test("Task acceptance: quick launch creates claude-01 and injects command", async () => {
   const { app, win } = await launchApp();
 
@@ -82,6 +87,7 @@ test("Task acceptance: quick launch creates claude-01 and injects command", asyn
 test("Task acceptance: switching sessions keeps both entries and switches active state", async () => {
   const { app, win } = await launchApp({ seedSession: true });
 
+  await syncFirstProjectHistory(win);
   await win.locator(".project-create-main").first().click({ force: true });
   await expect(win.locator(".session-item")).toHaveCount(2);
   const firstSessionId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

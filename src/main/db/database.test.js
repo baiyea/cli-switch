@@ -31,20 +31,28 @@ test("projects and sessions CRUD should work", () => {
     projectId: project.id,
     title: "New Chat",
     provider: "claude",
-    cwd: project.path
+    providerSessionId: "sid-0001",
+    sessionFilePath: "/tmp/demo-project/.claude/projects/demo/sid-0001.jsonl"
   });
 
   const list = sessions.listByProject(project.id);
   assert.equal(list.length, 1);
   assert.equal(list[0].id, session.id);
   assert.equal(list[0].status, "idle");
+  assert.equal(list[0].provider_session_id, "sid-0001");
 
-  sessions.updateState({ sessionId: session.id, status: "running" });
-  sessions.updateProviderSessionId({ sessionId: session.id, providerSessionId: "sid-123" });
+  sessions.updateStateByProviderSessionId({
+    provider: "claude",
+    providerSessionId: "sid-0001",
+    status: "running"
+  });
 
-  const updated = sessions.getById(session.id);
+  const updated = sessions.getByProviderSessionId({
+    provider: "claude",
+    providerSessionId: "sid-0001"
+  });
   assert.equal(updated.status, "running");
-  assert.equal(updated.provider_session_id, "sid-123");
+  assert.equal(updated.provider_session_id, "sid-0001");
 
   projects.remove(project.id);
   assert.equal(projects.list().length, 0);

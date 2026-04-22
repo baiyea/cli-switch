@@ -11,6 +11,7 @@ const IPC = Object.freeze({
   SESSION_LIST: "session:list",
   SESSION_CREATE: "session:create",
   SESSION_START: "session:start",
+  SESSION_SYNC_PROJECT: "session:sync:project",
   SESSION_ARCHIVE: "session:archive",
   SESSION_ARCHIVE_LIST: "session:archive:list",
   SESSION_RESTORE: "session:restore",

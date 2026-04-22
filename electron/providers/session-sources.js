@@ -238,6 +238,7 @@ function parseClaudeSession(filePath) {
     provider: PROVIDERS.CLAUDE,
     sessionId,
     providerSessionId: sessionId,
+    sessionFilePath: filePath,
     cwd: path.resolve(cwd),
     name: title,
     createdAt
@@ -255,6 +256,7 @@ function parseCodexSession(filePath) {
     provider: PROVIDERS.CODEX,
     sessionId,
     providerSessionId: sessionId,
+    sessionFilePath: filePath,
     cwd: path.resolve(cwd),
     name: title,
     createdAt
@@ -303,6 +305,7 @@ function parseGeminiSession(filePath) {
     provider: PROVIDERS.GEMINI,
     sessionId,
     providerSessionId: sessionId,
+    sessionFilePath: filePath,
     cwd: path.resolve(cwd),
     name: title,
     createdAt

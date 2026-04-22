@@ -127,8 +127,14 @@ async function launchAppWithFixtures() {
   return { app, win, ids };
 }
 
+async function syncFirstProjectHistory(win) {
+  await win.locator(".project-create-toggle").first().click({ force: true });
+  await win.getByRole("button", { name: "读取历史会话" }).click({ force: true });
+}
+
 test("multi provider sessions are discovered and resumed by provider", async () => {
   const { app, win, ids } = await launchAppWithFixtures();
+  await syncFirstProjectHistory(win);
 
   await expect(win.getByTestId(`session-item-${ids.claudeSid}`)).toBeVisible();
   await expect(win.getByTestId(`session-item-${ids.codexSid}`)).toBeVisible();
@@ -151,6 +157,7 @@ test("multi provider sessions are discovered and resumed by provider", async () 
 
 test("archive and restore uses provider+session archive id", async () => {
   const { app, win } = await launchAppWithFixtures();
+  await syncFirstProjectHistory(win);
 
   const codexItem = win.getByTestId("session-item-22222222-2222-4222-8222-222222222222");
   await expect(codexItem).toBeVisible();

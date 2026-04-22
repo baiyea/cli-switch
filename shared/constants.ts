@@ -1,6 +1,6 @@
 export const QUICK_LAUNCH: Record<string, string> = {
-  "Claude Code": "claude\n",
-  "Codex": "codex\n",
-  "Gemini": "gemini\n",
+  "Claude Code": "npx @anthropic-ai/claude-code@2.1.98 --dangerously-skip-permissions\n",
+  "Codex": "npx @openai/codex@0.121.0 --yolo\n",
+  "Gemini": "pnpx @google/gemini-cli@0.35.3 --approval-mode yolo\n",
   "Shell": ""
 };

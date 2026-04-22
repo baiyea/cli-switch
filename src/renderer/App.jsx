@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Tree } from "react-arborist";
-import { fileBridge, logBridge, projectBridge, sessionBridge, settingsBridge } from "../bridge";
+import { fileBridge, logBridge, projectBridge, ptyBridge, sessionBridge, settingsBridge } from "../bridge";
 import { TerminalPanel } from "../features/terminal/components/TerminalPanel";
 import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SettingsIcon } from "./icons/icon-registry";
 import { useSessionStore } from "../store/session.store";
@@ -25,8 +25,7 @@ const PRIMARY_SESSION_TOOL_ID = "claude";
 const PROVIDER_LABEL = {
   claude: "Claude Code",
   codex: "Codex CLI",
-  gemini: "Gemini CLI",
-  kimi: "Kimi CLI"
+  gemini: "Gemini CLI"
 };
 
 function App() {
@@ -54,6 +53,7 @@ function App() {
   const [explorerVisible, setExplorerVisible] = useState(false);
   const [explorerTreeHeight, setExplorerTreeHeight] = useState(300);
   const [openCreateMenuProjectId, setOpenCreateMenuProjectId] = useState(null);
+  const [createMenuPlacementByProject, setCreateMenuPlacementByProject] = useState({});
   const explorerTreeWrapRef = useRef(null);
 
   const sessions = useSessionStore((state) => state.sessions);
@@ -190,6 +190,17 @@ function App() {
     const currentTool = SESSION_TOOL_OPTIONS.find((item) => item.id === toolId) || SESSION_TOOL_OPTIONS[0];
     const sid = await createSession(project.id, project.path, currentTool.id);
     setActiveSession(sid);
+  }
+
+  async function onSyncProjectHistory(project) {
+    if (!project) return;
+    setAppError("");
+    try {
+      await sessionBridge.syncProject({ projectId: project.id });
+      await refreshSessions();
+    } catch (e) {
+      setAppError(`读取历史会话失败：${e?.message || "未知错误"}`);
+    }
   }
 
   async function onDiscardSettings() {
@@ -428,6 +439,27 @@ function App() {
     ensureSessionRunning(activeSessionId);
   }, [activeSessionId, ensureSessionRunning]);
 
+  function onExtractSkill() {
+    if (!activeSessionId || !activeSession) return;
+
+    if (activeSession.provider !== "claude") {
+      setAppError("提取技能目前需要 Claude Code 会话。");
+      return;
+    }
+
+    setAppError("");
+    logBridge.write({
+      level: "info",
+      scope: "app",
+      message: "Triggering skill extraction",
+      meta: { activeSessionId }
+    });
+    ptyBridge.input(
+      activeSessionId,
+      "请执行 $session-skill-extractor：从当前会话中提取可复用内容，通过与我沟通确认后，生成新的 skill，并保存到当前项目 .claude/skills 目录。\n"
+    );
+  }
+
   useEffect(() => {
     const profiles = currentProviderSettings.profiles || [];
     if (profiles.length === 0) return;
@@ -559,13 +591,30 @@ function App() {
                         aria-label="选择会话类型"
                         onClick={(e) => {
                           e.stopPropagation();
+                          const button = e.currentTarget;
+                          const block = button.closest(".block");
+                          const menuEstimatedHeight = 230;
+                          let placement = "down";
+                          if (block instanceof HTMLElement && button instanceof HTMLElement) {
+                            const blockRect = block.getBoundingClientRect();
+                            const buttonRect = button.getBoundingClientRect();
+                            const spaceBelow = blockRect.bottom - buttonRect.bottom;
+                            const spaceAbove = buttonRect.top - blockRect.top;
+                            if (spaceBelow < menuEstimatedHeight && spaceAbove > spaceBelow) {
+                              placement = "up";
+                            }
+                          }
+                          setCreateMenuPlacementByProject((prev) => ({ ...prev, [p.id]: placement }));
                           setOpenCreateMenuProjectId((prev) => (prev === p.id ? null : p.id));
                         }}
                       >
                         ▾
                       </button>
                       {openCreateMenuProjectId === p.id && (
-                        <div className="project-create-menu" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className={`project-create-menu ${createMenuPlacementByProject[p.id] === "up" ? "upward" : ""}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {SESSION_TOOL_OPTIONS.map((option) => (
                             <button
                               key={option.id}
@@ -581,6 +630,19 @@ function App() {
                               <span>{option.label}</span>
                             </button>
                           ))}
+                          <div className="project-create-divider" />
+                          <button
+                            type="button"
+                            className="project-create-item"
+                            onClick={async () => {
+                              setOpenCreateMenuProjectId(null);
+                              setActiveProjectId(p.id);
+                              await onSyncProjectHistory(p);
+                            }}
+                          >
+                            <span className="project-create-history-icon" aria-hidden="true">↻</span>
+                            <span>读取历史会话</span>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -671,6 +733,15 @@ function App() {
           </div>
 
           <div className="toolbar-actions">
+            <button
+              className="skill-extract-btn"
+              type="button"
+              onClick={onExtractSkill}
+              disabled={!activeSessionId}
+              title="从当前会话提取并生成项目 Skill"
+            >
+              提取技能
+            </button>
             <button
               className="archive-btn"
               type="button"

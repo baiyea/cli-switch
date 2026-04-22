@@ -1,34 +1,32 @@
 const PROVIDERS = Object.freeze({
   CLAUDE: "claude",
   CODEX: "codex",
-  GEMINI: "gemini",
-  KIMI: "kimi"
+  GEMINI: "gemini"
 });
 
 function normalizeProviderId(provider) {
   const value = String(provider || PROVIDERS.CLAUDE).toLowerCase();
   if (value.includes(PROVIDERS.CODEX)) return PROVIDERS.CODEX;
   if (value.includes(PROVIDERS.GEMINI)) return PROVIDERS.GEMINI;
-  if (value.includes(PROVIDERS.KIMI)) return PROVIDERS.KIMI;
   return PROVIDERS.CLAUDE;
 }
 
 function getLaunchCommandForProvider(provider) {
   const id = normalizeProviderId(provider);
+  if (id === PROVIDERS.CLAUDE) return "npx @anthropic-ai/claude-code@2.1.98 --dangerously-skip-permissions\n";
   if (id === PROVIDERS.CODEX) return "npx @openai/codex@0.121.0 --yolo\n";
   if (id === PROVIDERS.GEMINI) return "pnpx @google/gemini-cli@0.35.3 --approval-mode yolo\n";
-  if (id === PROVIDERS.KIMI) return "kimi\n";
-  return "npx @anthropic-ai/claude-code@2.1.98 --dangerously-skip-permissions\n";
+  return "";
 }
 
 function getResumeCommandForProvider(provider, sessionId) {
   const id = normalizeProviderId(provider);
   const sid = String(sessionId || "").trim();
   if (!sid) return "";
+  if (id === PROVIDERS.CLAUDE) return `npx @anthropic-ai/claude-code@2.1.98 --dangerously-skip-permissions -r ${sid}\n`;
   if (id === PROVIDERS.CODEX) return `npx @openai/codex@0.121.0 --yolo resume ${sid}\n`;
   if (id === PROVIDERS.GEMINI) return `pnpx @google/gemini-cli@0.35.3 --approval-mode yolo chat resume ${sid}\n`;
-  if (id === PROVIDERS.KIMI) return `kimi -r ${sid}\n`;
-  return `npx @anthropic-ai/claude-code@2.1.98 --dangerously-skip-permissions -r ${sid}\n`;
+  return "";
 }
 
 function applyProviderStartupEnv(provider, env) {

@@ -15,7 +15,7 @@ const {
   normalizeProviderId
 } = require("./providers/cli-launchers");
 const { listProviderSessions, mapSessionsToProjects } = require("./providers/session-sources");
-const { initDatabase, projectsRepo, sessionArchiveRepo, settingsRepo } = require("../src/main/db/database");
+const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../src/main/db/database");
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 let mainWindow = null;
@@ -55,7 +55,7 @@ function sendToRenderer(channel, payload) {
 const dbPath = process.env.ZEELIN_DB_PATH || path.join(app.getPath("userData"), "zeelincode.db");
 const db = initDatabase(dbPath);
 const projectStore = projectsRepo(db);
-const archiveStore = sessionArchiveRepo(db);
+const sessionStore = sessionsRepo(db);
 const appSettingsStore = settingsRepo(db);
 
 const providerSettingsSchema = z.object({
@@ -88,14 +88,14 @@ const providerSettingsSchema = z.object({
 });
 const sessionCreateSchema = z.object({
   projectId: z.string().min(1),
-  cwd: z.string().min(1),
+  cwd: z.string().optional(),
   title: z.string().optional(),
   provider: z.string().optional().default("claude")
 });
 const sessionStartSchema = z.object({
   sessionId: z.string().min(1),
   providerSessionId: z.string().optional(),
-  cwd: z.string().min(1),
+  cwd: z.string().optional(),
   name: z.string().optional(),
   provider: z.string().optional().default("claude")
 });
@@ -112,44 +112,36 @@ const fileOpenPathSchema = z.object({
 
 function toSessionView(row) {
   return {
-    sessionId: row.sessionId,
-    name: row.name,
-    cwd: row.cwd,
-    projectId: row.projectId,
+    sessionId: row.provider_session_id || row.providerSessionId || row.sessionId || row.id,
+    name: row.title || row.name || "New Chat",
+    cwd: row.project_path || row.cwd || "",
+    projectId: row.project_id || row.projectId || "",
     provider: normalizeProviderId(row.provider || "claude"),
-    providerSessionId: row.providerSessionId || "",
+    providerSessionId: row.provider_session_id || row.providerSessionId || "",
     status: row.status || "exited",
-    createdAt: row.createdAt || Date.now()
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : (row.createdAt || Date.now())
   };
 }
 
 function toArchivedView(row) {
-  const archiveId = row.session_id;
   const provider = normalizeProviderId(row.provider || "claude");
-  let sessionId = row.session_id;
-  if (typeof sessionId === "string" && sessionId.includes(":")) {
-    const parts = sessionId.split(":");
-    sessionId = parts.slice(1).join(":") || parts[0];
-  }
+  const sessionId = row.provider_session_id || row.providerSessionId || row.sessionId || row.id;
   return {
-    archiveId,
+    archiveId: `${provider}:${sessionId}`,
     sessionId,
     provider,
-    projectId: row.project_id || null,
-    name: row.title || `session-${String(row.session_id).slice(0, 8)}`,
-    cwd: row.cwd || "",
-    archivedAt: new Date(row.archived_at).getTime() || Date.now()
+    projectId: row.project_id || row.projectId || null,
+    name: row.title || row.name || `session-${String(sessionId).slice(0, 8)}`,
+    cwd: row.project_path || row.cwd || "",
+    archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : Date.now()
   };
-}
-
-function toArchiveId(provider, sessionId) {
-  return `${normalizeProviderId(provider)}:${sessionId}`;
 }
 
 function dedupeSessionViews(items) {
   const byKey = new Map();
   for (const item of items || []) {
-    const key = `${normalizeProviderId(item.provider)}:${item.sessionId}`;
+    const sid = item.provider_session_id || item.providerSessionId || item.sessionId;
+    const key = `${normalizeProviderId(item.provider)}:${sid}`;
     const prev = byKey.get(key);
     if (!prev || (item.createdAt || 0) >= (prev.createdAt || 0)) {
       byKey.set(key, item);
@@ -173,6 +165,21 @@ function normalizeArchivePayload(payload) {
     return { ...payload, ...payload.sessionId };
   }
   return payload;
+}
+
+function parseArchiveId(identifier, fallbackProvider = "claude") {
+  const raw = String(identifier || "");
+  if (raw.includes(":")) {
+    const [provider, ...rest] = raw.split(":");
+    return {
+      provider: normalizeProviderId(provider),
+      providerSessionId: rest.join(":")
+    };
+  }
+  return {
+    provider: normalizeProviderId(fallbackProvider),
+    providerSessionId: raw
+  };
 }
 
 function encodeClaudeProjectDir(cwd) {
@@ -451,6 +458,24 @@ function getStartupEnvForProvider(provider = "claude") {
   return applyProviderStartupEnv(provider, env);
 }
 
+function syncDiscoveredSessionsForProjects(projects) {
+  if (!Array.isArray(projects) || projects.length === 0) return 0;
+  const discovered = mapSessionsToProjects(listProviderSessions(), projects);
+  const deduped = dedupeSessionViews(discovered);
+  for (const session of deduped) {
+    sessionStore.upsertDiscovered({
+      projectId: session.projectId,
+      title: session.name,
+      provider: normalizeProviderId(session.provider),
+      providerSessionId: session.providerSessionId || session.sessionId,
+      cwd: session.cwd || "",
+      sessionFilePath: session.sessionFilePath || null,
+      createdAt: session.createdAt
+    });
+  }
+  return deduped.length;
+}
+
 const ptyService = new PtyService({
   getStartupEnv: ({ provider }) => getStartupEnvForProvider(provider),
   onData: ({ sessionId, data }) => sendToRenderer(IPC.PTY_DATA, { sessionId, data }),
@@ -503,10 +528,17 @@ function registerAppIpc() {
 
     if (result.canceled || result.filePaths.length === 0) return null;
     const folderPath = result.filePaths[0];
-    return projectStore.create({
+    const created = projectStore.create({
       name: path.basename(folderPath),
       path: folderPath
     });
+    const syncedCount = syncDiscoveredSessionsForProjects([created]);
+    logInfo("project", "Project created and sessions synced", {
+      projectId: created.id,
+      path: created.path,
+      syncedCount
+    });
+    return created;
   });
 
   registerIpc(IPC.PROJECT_REMOVE, async (_event, { id }) => projectStore.remove(id));
@@ -517,29 +549,41 @@ function registerAppIpc() {
     const selectedProjects = projectIds.length > 0
       ? allProjects.filter((p) => projectIds.includes(p.id))
       : allProjects;
-
-    const archivedIds = new Set(archiveStore.listIds());
-    const discovered = mapSessionsToProjects(listProviderSessions(), selectedProjects);
-    return dedupeSessionViews(discovered)
-      .filter((session) => providers.length === 0 || providers.includes(normalizeProviderId(session.provider)))
-      .filter((session) => !archivedIds.has(toArchiveId(session.provider, session.sessionId)) && !archivedIds.has(session.sessionId))
-      .map(toSessionView);
+    const rows = sessionStore.listAllActive(selectedProjects.map((p) => p.id));
+    return rows
+      .map(toSessionView)
+      .filter((session) => providers.length === 0 || providers.includes(normalizeProviderId(session.provider)));
+  });
+  registerIpc(IPC.SESSION_SYNC_PROJECT, async (_event, payload) => {
+    const parsed = z.object({ projectId: z.string().min(1) }).parse(payload);
+    const project = projectStore.getById(parsed.projectId);
+    if (!project) throw new Error("Project not found");
+    const count = syncDiscoveredSessionsForProjects([project]);
+    logInfo("session", "Manual project session sync complete", {
+      projectId: project.id,
+      path: project.path,
+      syncedCount: count
+    });
+    return { ok: true, count };
   });
   registerIpc(IPC.SESSION_CREATE, async (_event, payload) => {
     const parsed = sessionCreateSchema.parse(payload);
     const provider = normalizeProviderId(parsed.provider);
-    const localSessionId = `local-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    const localSessionId = `${provider}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     const name = parsed.title || "New Chat";
     const launchCommand = getLaunchCommandForProvider(provider);
+    const project = projectStore.getById(parsed.projectId);
+    const cwd = project?.path || parsed.cwd || "";
+    if (!cwd) throw new Error("Project path not found");
     logInfo("session", "Creating session", {
       sessionId: localSessionId,
       projectId: parsed.projectId,
       provider,
-      cwd: parsed.cwd
+      cwd
     });
 
     ptyService.create({
-      cwd: parsed.cwd,
+      cwd,
       name,
       provider,
       sessionId: localSessionId
@@ -548,13 +592,28 @@ function registerAppIpc() {
       ptyService.write(localSessionId, launchCommand);
     }
 
-    return toSessionView({
-      sessionId: localSessionId,
-      name,
-      cwd: parsed.cwd,
+    sessionStore.create({
       projectId: parsed.projectId,
+      title: name,
       provider,
-      providerSessionId: "",
+      providerSessionId: localSessionId,
+      cwd,
+      sessionFilePath: null,
+      status: "running"
+    });
+    sessionStore.updateStateByProviderSessionId({
+      provider,
+      providerSessionId: localSessionId,
+      status: "running"
+    });
+
+    return toSessionView({
+      provider_session_id: localSessionId,
+      title: name,
+      project_path: cwd,
+      project_id: parsed.projectId,
+      provider,
+      provider_session_id: localSessionId,
       status: "running"
     });
   });
@@ -562,88 +621,79 @@ function registerAppIpc() {
     const parsed = sessionStartSchema.parse(payload);
     const provider = normalizeProviderId(parsed.provider);
     const providerSessionId = parsed.providerSessionId || parsed.sessionId;
+    const record = sessionStore.getByProviderSessionId({ provider, providerSessionId });
+    const project = record?.project_id ? projectStore.getById(record.project_id) : null;
+    const sessionCwd = project?.path || parsed.cwd || "";
+    if (!sessionCwd) throw new Error("Session project path not found");
     logInfo("session", "Starting session", {
       sessionId: parsed.sessionId,
       provider,
       providerSessionId,
-      cwd: parsed.cwd
+      cwd: sessionCwd
     });
-    if (parsed.sessionId.startsWith("local-")) {
-      return toSessionView({
-        sessionId: parsed.sessionId,
-        name: parsed.name || parsed.sessionId,
-        cwd: parsed.cwd,
-        projectId: "",
-        provider,
-        providerSessionId: "",
-        status: "running",
-        createdAt: Date.now()
-      });
-    }
 
     if (!ptyService.hasSession(parsed.sessionId)) {
       ptyService.create({
-        cwd: parsed.cwd,
+        cwd: sessionCwd,
         name: parsed.name || `session-${parsed.sessionId.slice(0, 8)}`,
         provider,
         sessionId: parsed.sessionId
       });
-      ptyService.write(parsed.sessionId, `cd "${parsed.cwd.replace(/"/g, '\\"')}"\n`);
+      ptyService.write(parsed.sessionId, `cd "${sessionCwd.replace(/"/g, '\\"')}"\n`);
       const resumeCommand = getResumeCommandForProvider(provider, providerSessionId);
       if (resumeCommand) ptyService.write(parsed.sessionId, resumeCommand);
     }
-
-    return toSessionView({
-      sessionId: parsed.sessionId,
-      name: parsed.name || `session-${parsed.sessionId.slice(0, 8)}`,
-      cwd: parsed.cwd,
-      projectId: "",
+    sessionStore.updateStateByProviderSessionId({
       provider,
       providerSessionId,
-      status: "running",
-      createdAt: Date.now()
+      status: "running"
+    });
+
+    return toSessionView({
+      ...(record || {}),
+      provider,
+      provider_session_id: providerSessionId,
+      title: parsed.name || record?.title || `session-${parsed.sessionId.slice(0, 8)}`,
+      project_path: sessionCwd,
+      status: "running"
     });
   });
   registerIpc(IPC.SESSION_ARCHIVE, async (_event, payload) => {
     const parsed = z.object({
       sessionId: z.string().min(1),
       provider: z.string().optional().default("claude"),
-      projectId: z.string().optional().nullable(),
-      name: z.string().optional(),
-      cwd: z.string().optional().default("")
+      providerSessionId: z.string().optional()
     }).parse(normalizeArchivePayload(payload));
     const provider = normalizeProviderId(parsed.provider);
-    ptyService.destroy(parsed.sessionId);
+    const providerSessionId = parsed.providerSessionId || parsed.sessionId;
+    ptyService.destroy(providerSessionId);
     logInfo("session", "Archiving session", {
-      sessionId: parsed.sessionId,
-      provider,
-      projectId: parsed.projectId || null,
-      cwd: parsed.cwd
+      sessionId: providerSessionId,
+      provider
     });
-    archiveStore.archive({
-      sessionId: parsed.sessionId,
+    sessionStore.archiveByProviderSessionId({
       provider,
-      projectId: parsed.projectId || null,
-      title: parsed.name || null,
-      cwd: parsed.cwd
+      providerSessionId
     });
     return { ok: true };
   });
-  registerIpc(IPC.SESSION_ARCHIVE_LIST, async () => archiveStore.list().map(toArchivedView));
+  registerIpc(IPC.SESSION_ARCHIVE_LIST, async (_event, payload = {}) => {
+    const projectIds = Array.isArray(payload.projectIds) ? payload.projectIds : [];
+    return sessionStore.listAllArchived(projectIds).map(toArchivedView);
+  });
   registerIpc(IPC.SESSION_RESTORE, async (_event, payload) => {
     const parsed = z.object({
       archiveId: z.string().optional(),
       sessionId: z.string().optional(),
       provider: z.string().optional().default("claude")
     }).parse(payload || {});
-    const archiveId = parsed.archiveId
-      || (parsed.sessionId && parsed.sessionId.includes(":")
-        ? parsed.sessionId
-        : toArchiveId(parsed.provider, parsed.sessionId || ""));
-    if (!archiveId || !archiveId.includes(":")) {
-      throw new Error("Invalid archive identifier");
-    }
-    archiveStore.restore(archiveId);
+    const source = parsed.archiveId || parsed.sessionId || "";
+    const archive = parseArchiveId(source, parsed.provider);
+    if (!archive.providerSessionId) throw new Error("Invalid archive identifier");
+    sessionStore.restoreByProviderSessionId({
+      provider: archive.provider,
+      providerSessionId: archive.providerSessionId
+    });
     return { ok: true };
   });
   registerIpc(IPC.FILE_TREE_READ, async (_event, payload) => {

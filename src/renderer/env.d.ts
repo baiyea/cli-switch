@@ -27,36 +27,37 @@ declare global {
           name: string;
           cwd: string;
           projectId: string;
-          provider: "claude" | "codex" | "gemini" | "kimi";
+          provider: "claude" | "codex" | "gemini";
           providerSessionId: string;
           status: "creating" | "running" | "exited";
           createdAt: number;
         }>>;
-        create: (payload: { projectId: string; cwd: string; title?: string; provider?: string }) => Promise<{
+        create: (payload: { projectId: string; cwd?: string; title?: string; provider?: string }) => Promise<{
           sessionId: string;
           name: string;
           cwd: string;
           projectId: string;
-          provider: "claude" | "codex" | "gemini" | "kimi";
+          provider: "claude" | "codex" | "gemini";
           providerSessionId: string;
           status: "creating" | "running" | "exited";
           createdAt: number;
         }>;
-        start: (payload: { sessionId: string; cwd: string; name?: string; provider?: string; providerSessionId?: string }) => Promise<{
+        start: (payload: { sessionId: string; cwd?: string; name?: string; provider?: string; providerSessionId?: string }) => Promise<{
           sessionId: string;
           name: string;
           cwd: string;
           projectId: string;
-          provider: "claude" | "codex" | "gemini" | "kimi";
+          provider: "claude" | "codex" | "gemini";
           providerSessionId: string;
           status: "creating" | "running" | "exited";
           createdAt: number;
         }>;
-        archive: (payload: { sessionId: string; provider?: string; projectId?: string | null; name?: string; cwd: string }) => Promise<{ ok: boolean }>;
-        listArchived: () => Promise<Array<{
+        syncProject: (payload: { projectId: string }) => Promise<{ ok: boolean; count: number }>;
+        archive: (payload: { sessionId: string; provider?: string; providerSessionId?: string }) => Promise<{ ok: boolean }>;
+        listArchived: (payload?: { projectIds?: string[] }) => Promise<Array<{
           archiveId: string;
           sessionId: string;
-          provider: "claude" | "codex" | "gemini" | "kimi";
+          provider: "claude" | "codex" | "gemini";
           projectId: string | null;
           name: string;
           cwd: string;
