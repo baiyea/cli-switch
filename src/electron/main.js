@@ -2,10 +2,11 @@ const path = require("node:path");
 const os = require("node:os");
 const fs = require("node:fs");
 const { spawnSync } = require("node:child_process");
-const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage } = require("electron");
 const log = require("electron-log");
 const { z } = require("zod");
 const { IPC } = require("../shared/types.js");
+const { APP_NAME, APP_ID, DB_FILENAME } = require("../shared/app-config.js");
 const { registerAllIpc } = require("./ipc");
 const { PtyService } = require("./services/PtyService");
 const {
@@ -15,15 +16,47 @@ const {
   normalizeProviderId
 } = require("./providers/cli-launchers");
 const { listProviderSessions, mapSessionsToProjects } = require("./providers/session-sources");
-const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../src/main/db/database");
+const { createSkillgenRunner } = require("./services/skillgen/runner");
+const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../main/db/database");
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 let mainWindow = null;
+let tray = null;
+const appHomeDir = path.join(os.homedir(), `.${APP_ID}`);
+const appLogsDir = path.join(appHomeDir, "logs");
+const appCacheDir = path.join(appHomeDir, "cache");
+
+function ensureDirSafe(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function configureAppDataPaths() {
+  ensureDirSafe(appHomeDir);
+  ensureDirSafe(appLogsDir);
+  ensureDirSafe(appCacheDir);
+
+  app.setPath("userData", appHomeDir);
+  try {
+    app.setAppLogsPath(appLogsDir);
+  } catch {}
+  try {
+    app.setPath("logs", appLogsDir);
+  } catch {}
+  try {
+    app.setPath("sessionData", appCacheDir);
+  } catch {}
+  try {
+    app.setPath("cache", appCacheDir);
+  } catch {}
+}
+
+configureAppDataPaths();
 
 log.transports.file.level = "info";
 log.transports.console.level = "info";
 log.transports.file.maxSize = 5 * 1024 * 1024;
 log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}";
+log.transports.file.resolvePathFn = () => path.join(appLogsDir, "main.log");
 
 function toLogError(error) {
   if (!error) return {};
@@ -52,7 +85,87 @@ function sendToRenderer(channel, payload) {
   wc.send(channel, payload);
 }
 
-const dbPath = process.env.ZEELIN_DB_PATH || path.join(app.getPath("userData"), "zeelincode.db");
+function resolveAssetPath(...parts) {
+  return path.join(__dirname, "assets", ...parts);
+}
+
+function pickExistingPath(candidates) {
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) return candidate;
+  }
+  return "";
+}
+
+function getWindowIconPath() {
+  return pickExistingPath([
+    process.platform === "win32" ? resolveAssetPath("icons", "win", "app.ico") : "",
+    resolveAssetPath("icons", "png", "icon_512x512.png"),
+    resolveAssetPath("icons", "png", "icon_256x256.png")
+  ]);
+}
+
+function createMacTray() {
+  if (process.platform !== "darwin" || tray) return;
+
+  const trayPath = pickExistingPath([
+    resolveAssetPath("icons", "tray", "macos-trayTemplate@2x.png"),
+    resolveAssetPath("icons", "tray", "macos-trayTemplate.png"),
+    resolveAssetPath("icons", "png", "icon_16x16.png")
+  ]);
+  if (!trayPath) return;
+
+  let trayImage = nativeImage.createFromPath(trayPath);
+  if (trayImage.isEmpty()) return;
+  trayImage = trayImage.resize({ width: 16, height: 16 });
+  trayImage.setTemplateImage(true);
+
+  tray = new Tray(trayImage);
+  tray.setToolTip(APP_NAME);
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: `Show ${APP_NAME}`,
+        click: () => {
+          if (!mainWindow || mainWindow.isDestroyed()) {
+            createWindow();
+            return;
+          }
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+      {
+        label: `Hide ${APP_NAME}`,
+        click: () => {
+          if (!mainWindow || mainWindow.isDestroyed()) return;
+          mainWindow.hide();
+        }
+      },
+      { type: "separator" },
+      {
+        label: "Quit",
+        click: () => app.quit()
+      }
+    ])
+  );
+
+  tray.on("click", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow();
+      return;
+    }
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+      return;
+    }
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
+const dbPath = process.env.ZEELIN_DB_PATH || path.join(app.getPath("userData"), DB_FILENAME);
 const db = initDatabase(dbPath);
 const projectStore = projectsRepo(db);
 const sessionStore = sessionsRepo(db);
@@ -114,7 +227,7 @@ function toSessionView(row) {
   return {
     sessionId: row.provider_session_id || row.providerSessionId || row.sessionId || row.id,
     name: row.title || row.name || "New Chat",
-    cwd: row.project_path || row.cwd || "",
+    cwd: row.cwd || row.project_path || "",
     projectId: row.project_id || row.projectId || "",
     provider: normalizeProviderId(row.provider || "claude"),
     providerSessionId: row.provider_session_id || row.providerSessionId || "",
@@ -132,7 +245,7 @@ function toArchivedView(row) {
     provider,
     projectId: row.project_id || row.projectId || null,
     name: row.title || row.name || `session-${String(sessionId).slice(0, 8)}`,
-    cwd: row.project_path || row.cwd || "",
+    cwd: row.cwd || row.project_path || "",
     archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : Date.now()
   };
 }
@@ -148,6 +261,13 @@ function dedupeSessionViews(items) {
     }
   }
   return Array.from(byKey.values());
+}
+
+function sessionBelongsToProjectRoot(row) {
+  const cwd = row?.cwd || row?.project_path || "";
+  const projectPath = row?.project_path || "";
+  if (!cwd || !projectPath) return true;
+  return path.resolve(cwd) === path.resolve(projectPath);
 }
 
 function normalizeArchivePayload(payload) {
@@ -482,8 +602,16 @@ const ptyService = new PtyService({
   onExit: ({ sessionId, exitCode }) => {
     logInfo("pty", "Session exited", { sessionId, exitCode });
     sendToRenderer(IPC.PTY_EXIT, { sessionId, exitCode });
+    // Auto skill learning is disabled by product decision.
+    // Keep manual-only mode via IPC.SKILLGEN_RUN.
+    // if (skillgenRunner) {
+    //   skillgenRunner.runForSession({ sessionId }, "session-exit").catch((error) => {
+    //     logError("skillgen", "Failed on session-exit trigger", error, { sessionId });
+    //   });
+    // }
   }
 });
+let skillgenRunner = null;
 
 function registerAppIpc() {
   const registerIpc = (channel, handler) => {
@@ -551,6 +679,7 @@ function registerAppIpc() {
       : allProjects;
     const rows = sessionStore.listAllActive(selectedProjects.map((p) => p.id));
     return rows
+      .filter(sessionBelongsToProjectRoot)
       .map(toSessionView)
       .filter((session) => providers.length === 0 || providers.includes(normalizeProviderId(session.provider)));
   });
@@ -623,7 +752,7 @@ function registerAppIpc() {
     const providerSessionId = parsed.providerSessionId || parsed.sessionId;
     const record = sessionStore.getByProviderSessionId({ provider, providerSessionId });
     const project = record?.project_id ? projectStore.getById(record.project_id) : null;
-    const sessionCwd = project?.path || parsed.cwd || "";
+    const sessionCwd = record?.cwd || parsed.cwd || project?.path || "";
     if (!sessionCwd) throw new Error("Session project path not found");
     logInfo("session", "Starting session", {
       sessionId: parsed.sessionId,
@@ -666,6 +795,24 @@ function registerAppIpc() {
     }).parse(normalizeArchivePayload(payload));
     const provider = normalizeProviderId(parsed.provider);
     const providerSessionId = parsed.providerSessionId || parsed.sessionId;
+    // Auto skill learning is disabled by product decision.
+    // Keep manual-only mode via IPC.SKILLGEN_RUN.
+    // if (skillgenRunner) {
+    //   try {
+    //     await Promise.race([
+    //       skillgenRunner.runForSession(
+    //         { provider, providerSessionId, sessionId: providerSessionId },
+    //         "archive-pre"
+    //       ),
+    //       new Promise((_, reject) => setTimeout(() => reject(new Error("archive-pre timeout")), 5 * 1000))
+    //     ]);
+    //   } catch (error) {
+    //     logError("skillgen", "Failed on archive-pre trigger", error, {
+    //       provider,
+    //       providerSessionId
+    //     });
+    //   }
+    // }
     ptyService.destroy(providerSessionId);
     logInfo("session", "Archiving session", {
       sessionId: providerSessionId,
@@ -723,16 +870,30 @@ function registerAppIpc() {
     const parsed = providerSettingsSchema.parse(payload);
     return appSettingsStore.setProviderStartupSettings(parsed);
   });
+  registerIpc(IPC.SKILLGEN_RUN, async (_event, payload = {}) => {
+    const parsed = z.object({
+      projectId: z.string().min(1).optional(),
+      trigger: z.string().optional().default("manual"),
+      force: z.boolean().optional().default(false)
+    }).parse(payload || {});
+    if (!skillgenRunner) throw new Error("Skillgen runner not initialized");
+    if (parsed.projectId) {
+      return skillgenRunner.runForProjectId(parsed.projectId, parsed.trigger, parsed.force);
+    }
+    return skillgenRunner.runStartupCompensation();
+  });
 }
 
 function createWindow() {
   logInfo("app", "Creating main window", { isDev });
+  const iconPath = getWindowIconPath();
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 860,
     minWidth: 1000,
     minHeight: 680,
-    title: "ZeeLinCode",
+    title: APP_NAME,
+    icon: iconPath || undefined,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -770,8 +931,32 @@ app.whenReady().then(() => {
     platform: process.platform,
     isDev
   });
+  skillgenRunner = createSkillgenRunner({
+    projectStore,
+    sessionStore,
+    logInfo,
+    logWarn,
+    logError
+  });
   registerAppIpc();
+  if (process.platform === "darwin" && app.dock) {
+    const dockIconPath = pickExistingPath([
+      resolveAssetPath("icons", "mac", "dock-icon.png"),
+      resolveAssetPath("icons", "png", "icon_512x512.png"),
+      resolveAssetPath("icons", "png", "icon_256x256.png")
+    ]);
+    if (dockIconPath) app.dock.setIcon(dockIconPath);
+  }
   createWindow();
+  createMacTray();
+  // Auto skill learning is disabled by product decision.
+  // Keep manual-only mode via IPC.SKILLGEN_RUN.
+  // setTimeout(() => {
+  //   if (!skillgenRunner) return;
+  //   skillgenRunner.runStartupCompensation().catch((error) => {
+  //     logError("skillgen", "Failed on startup-compensation trigger", error);
+  //   });
+  // }, 15 * 1000);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -781,6 +966,10 @@ app.whenReady().then(() => {
 app.on("before-quit", () => {
   logInfo("app", "Before quit: destroying PTY sessions");
   ptyService.destroyAll();
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
 });
 
 app.on("window-all-closed", () => {

@@ -600,6 +600,119 @@ select {
   font-weight: 500;
 }
 
+.skillgen-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  background: rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.skillgen-modal {
+  width: min(460px, calc(100vw - 40px));
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+
+.skillgen-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.skillgen-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--outline);
+}
+
+.skillgen-dot.running {
+  background: #175cd3;
+  animation: skillgen-pulse 1.2s ease-in-out infinite;
+}
+
+.skillgen-dot.success {
+  background: #067647;
+}
+
+.skillgen-dot.info {
+  background: #155eef;
+}
+
+.skillgen-dot.error {
+  background: #b42318;
+}
+
+.skillgen-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.skillgen-body {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px 6px;
+}
+
+.skillgen-line {
+  font-size: 14px;
+  color: #344054;
+  line-height: 1.5;
+}
+
+.skillgen-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 16px 14px;
+}
+
+.skillgen-close-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #344054;
+  border-radius: 8px;
+  height: 32px;
+  padding: 0 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.skillgen-close-btn:hover:not(:disabled) {
+  background: var(--surface-container-low);
+}
+
+.skillgen-close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes skillgen-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .main-content {
   flex: 1;
   display: flex;
@@ -619,9 +732,9 @@ select {
 .main-panel {
   flex: 1;
   min-width: 0;
-  background: var(--bg-stage);
+  background: #0c0c0c;
   border-radius: var(--radius-xl);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02), 0 10px 32px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -630,7 +743,7 @@ select {
 .main-panel .xterm,
 .main-panel .xterm-viewport,
 .main-panel .xterm-screen {
-  background: transparent !important;
+  background: #0c0c0c !important;
 }
 
 .explorer {

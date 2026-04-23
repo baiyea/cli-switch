@@ -1,5 +1,5 @@
 import React from "react";
-import { QUICK_LAUNCH } from "../../../../shared/constants";
+import { QUICK_LAUNCH } from "../../../shared/constants";
 import styles from "./QuickLaunch.module.css";
 
 type Props = {

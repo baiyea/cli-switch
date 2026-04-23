@@ -1,9 +1,10 @@
 .terminalPane {
-  width: calc(100% - 16px);
-  height: calc(100% - 14px);
+  width: calc(100% - 12px);
+  height: calc(100% - 10px);
   min-height: 0;
   position: absolute;
-  inset: 14px 0 0 16px;
+  inset: 10px 0 0 12px;
+  background: #0c0c0c;
 }
 
 .active {

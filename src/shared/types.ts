@@ -11,14 +11,16 @@ export enum IPC {
   SESSION_LIST = "session:list",
   SESSION_CREATE = "session:create",
   SESSION_START = "session:start",
+  SESSION_SYNC_PROJECT = "session:sync:project",
   SESSION_ARCHIVE = "session:archive",
   SESSION_ARCHIVE_LIST = "session:archive:list",
   SESSION_RESTORE = "session:restore",
   FILE_TREE_READ = "file:tree:read",
   FILE_OPEN_PATH = "file:open:path",
   APP_LOG = "app:log",
-  SETTINGS_PROVIDER_GET = "settings:provider:get",
-  SETTINGS_PROVIDER_SAVE = "settings:provider:save"
+  SETTINGS_CLAUDE_GET = "settings:claude:get",
+  SETTINGS_CLAUDE_SAVE = "settings:claude:save",
+  SKILLGEN_RUN = "skillgen:run"
 }
 
 export type PtySessionStatus = "creating" | "running" | "exited";

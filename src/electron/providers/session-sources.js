@@ -57,12 +57,8 @@ function extractPromptTitle(content) {
   return normalizeTitle(trimmed, 40);
 }
 
-function isSubPath(candidate, rootPath) {
-  const root = path.resolve(rootPath);
-  const full = path.resolve(candidate);
-  if (root === full) return true;
-  const withSep = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
-  return full.startsWith(withSep);
+function isSamePath(candidate, rootPath) {
+  return path.resolve(candidate) === path.resolve(rootPath);
 }
 
 function findFiles(root, matcher, acc = []) {
@@ -382,8 +378,9 @@ function mapSessionsToProjects(sessions, projects) {
       let owner = null;
       for (const project of projects || []) {
         if (!project?.path) continue;
-        if (isSubPath(session.cwd, project.path)) {
-          if (!owner || project.path.length > owner.path.length) owner = project;
+        if (isSamePath(session.cwd, project.path)) {
+          owner = project;
+          break;
         }
       }
       if (!owner) return null;

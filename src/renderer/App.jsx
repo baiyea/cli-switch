@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Tree } from "react-arborist";
-import { fileBridge, logBridge, projectBridge, ptyBridge, sessionBridge, settingsBridge } from "../bridge";
+import { fileBridge, logBridge, projectBridge, sessionBridge, settingsBridge, skillgenBridge } from "../bridge";
 import { TerminalPanel } from "../features/terminal/components/TerminalPanel";
 import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SettingsIcon } from "./icons/icon-registry";
 import { useSessionStore } from "../store/session.store";
@@ -45,6 +45,12 @@ function App() {
   const [settingsError, setSettingsError] = useState("");
   const [settingsSavedAt, setSettingsSavedAt] = useState(0);
   const [appError, setAppError] = useState("");
+  const [skillgenDialog, setSkillgenDialog] = useState({
+    open: false,
+    status: "idle",
+    title: "",
+    lines: []
+  });
   const [explorerTree, setExplorerTree] = useState([]);
   const [explorerCwd, setExplorerCwd] = useState("");
   const [explorerLoading, setExplorerLoading] = useState(false);
@@ -439,25 +445,125 @@ function App() {
     ensureSessionRunning(activeSessionId);
   }, [activeSessionId, ensureSessionRunning]);
 
-  function onExtractSkill() {
-    if (!activeSessionId || !activeSession) return;
-
-    if (activeSession.provider !== "claude") {
-      setAppError("提取技能目前需要 Claude Code 会话。");
-      return;
+  function buildSkillgenDialog(result) {
+    if (Array.isArray(result)) {
+      const totalCreated = result.reduce((sum, item) => sum + Number(item?.created || 0), 0);
+      const totalUpdated = result.reduce((sum, item) => sum + Number(item?.updated || 0), 0);
+      const totalDrafted = result.reduce((sum, item) => sum + Number(item?.drafted || 0), 0);
+      const totalExtracted = totalCreated + totalUpdated;
+      if (totalExtracted > 0) {
+        return {
+          status: "success",
+          title: "提取完成",
+          lines: [`已提取 ${totalExtracted} 个 Skill（新建 ${totalCreated}，更新 ${totalUpdated}）。`]
+        };
+      }
+      if (totalDrafted > 0) {
+        return {
+          status: "info",
+          title: "提取完成",
+          lines: [`未提取到高置信 Skill，已生成 ${totalDrafted} 个候选草稿。`]
+        };
+      }
+      return {
+        status: "info",
+        title: "提取完成",
+        lines: ["未提取到有价值的内容。"]
+      };
     }
 
+    if (!result || typeof result !== "object") {
+      return {
+        status: "info",
+        title: "提取完成",
+        lines: ["未提取到有价值的内容。"]
+      };
+    }
+
+    if (result.ok === false) {
+      return {
+        status: "error",
+        title: "提取失败",
+        lines: [result.error || result.reason || "未知错误"]
+      };
+    }
+
+    const created = Number(result.created || 0);
+    const updated = Number(result.updated || 0);
+    const drafted = Number(result.drafted || 0);
+    const processed = Number(result.processed || 0);
+    const extracted = created + updated;
+
+    if (extracted > 0) {
+      return {
+        status: "success",
+        title: "提取完成",
+        lines: [
+          `已提取 ${extracted} 个 Skill（新建 ${created}，更新 ${updated}）。`,
+          processed > 0 ? `本次分析消息数：${processed}` : ""
+        ].filter(Boolean)
+      };
+    }
+
+    if (drafted > 0) {
+      return {
+        status: "info",
+        title: "提取完成",
+        lines: [
+          `未提取到高置信 Skill，已生成 ${drafted} 个候选草稿。`,
+          processed > 0 ? `本次分析消息数：${processed}` : ""
+        ].filter(Boolean)
+      };
+    }
+
+    return {
+      status: "info",
+      title: "提取完成",
+      lines: ["未提取到有价值的内容。"]
+    };
+  }
+
+  async function onExtractSkill() {
+    if (!activeSessionId || !activeSession) return;
+
     setAppError("");
+    setSkillgenDialog({
+      open: true,
+      status: "running",
+      title: "正在提取中",
+      lines: ["正在提取中，请稍候..."]
+    });
     logBridge.write({
       level: "info",
       scope: "app",
       message: "Triggering skill extraction",
-      meta: { activeSessionId }
+      meta: {
+        activeSessionId,
+        projectId: activeSession.projectId || activeProjectId || null,
+        trigger: "manual-button"
+      }
     });
-    ptyBridge.input(
-      activeSessionId,
-      "请执行 $session-skill-extractor：从当前会话中提取可复用内容，通过与我沟通确认后，生成新的 skill，并保存到当前项目 .claude/skills 目录。\n"
-    );
+    try {
+      const result = await skillgenBridge.run({
+        projectId: activeSession.projectId || activeProjectId || undefined,
+        trigger: "manual-button",
+        force: true
+      });
+      const next = buildSkillgenDialog(result);
+      setSkillgenDialog({
+        open: true,
+        status: next.status,
+        title: next.title,
+        lines: next.lines
+      });
+    } catch (e) {
+      setSkillgenDialog({
+        open: true,
+        status: "error",
+        title: "提取失败",
+        lines: [e?.message || "未知错误"]
+      });
+    }
   }
 
   useEffect(() => {
@@ -737,7 +843,7 @@ function App() {
               className="skill-extract-btn"
               type="button"
               onClick={onExtractSkill}
-              disabled={!activeSessionId}
+              disabled={!activeSessionId || skillgenDialog.status === "running"}
               title="从当前会话提取并生成项目 Skill"
             >
               提取技能
@@ -763,6 +869,38 @@ function App() {
         </header>
 
         {appError && <div className="banner-error">{appError}</div>}
+
+        {skillgenDialog.open && (
+          <div
+            className="skillgen-modal-backdrop"
+            onClick={() => {
+              if (skillgenDialog.status === "running") return;
+              setSkillgenDialog((prev) => ({ ...prev, open: false }));
+            }}
+          >
+            <div className="skillgen-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="skillgen-modal-header">
+                <div className={`skillgen-dot ${skillgenDialog.status}`} />
+                <div className="skillgen-title">{skillgenDialog.title}</div>
+              </div>
+              <div className="skillgen-body">
+                {skillgenDialog.lines.map((line, idx) => (
+                  <div key={`${line}-${idx}`} className="skillgen-line">{line}</div>
+                ))}
+              </div>
+              <div className="skillgen-footer">
+                <button
+                  type="button"
+                  className="skillgen-close-btn"
+                  onClick={() => setSkillgenDialog((prev) => ({ ...prev, open: false }))}
+                  disabled={skillgenDialog.status === "running"}
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className={`main-content ${explorerVisible ? "" : "explorer-hidden"}`}>
           <section className="main-panel">

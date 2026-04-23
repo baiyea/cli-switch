@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getClaude: () => ipcRenderer.invoke(IPC.SETTINGS_CLAUDE_GET),
     saveClaude: (payload) => ipcRenderer.invoke(IPC.SETTINGS_CLAUDE_SAVE, payload)
   },
+  skillgen: {
+    run: (payload) => ipcRenderer.invoke(IPC.SKILLGEN_RUN, payload)
+  },
   logs: {
     write: (payload) => ipcRenderer.send(IPC.APP_LOG, payload)
   },

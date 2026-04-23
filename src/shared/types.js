@@ -19,7 +19,8 @@ const IPC = Object.freeze({
   FILE_OPEN_PATH: "file:open:path",
   APP_LOG: "app:log",
   SETTINGS_CLAUDE_GET: "settings:claude:get",
-  SETTINGS_CLAUDE_SAVE: "settings:claude:save"
+  SETTINGS_CLAUDE_SAVE: "settings:claude:save",
+  SKILLGEN_RUN: "skillgen:run"
 });
 
 module.exports = { IPC };

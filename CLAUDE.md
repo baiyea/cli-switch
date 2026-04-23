@@ -5,13 +5,31 @@
 
 ---
 
+## 0. 当前项目目录结构
+
+ZeeLinCode 是一个 Electron + React 的桌面应用，核心形态是“左侧项目/会话管理 + 中间 xterm 终端 + 右侧文件树”。主进程负责 Node 能力、PTY、SQLite、文件系统和 Provider 会话扫描；渲染进程只负责 React UI，通过 bridge 调用 preload 暴露的安全 IPC。
+
+```text
+.
+├── src/                       # 应用源码：Electron 主进程、渲染进程、共享类型、数据库模块
+├── docs/                      # 产品流程、架构约束、设计文档
+├── e2e/                       # Playwright Electron 端到端测试
+├── .claude/                   # 项目级 Claude 配置与 skills
+├── package.json               # 脚本、依赖、Electron main 入口
+├── vite.config.mjs            # Vite 渲染进程构建配置
+├── playwright.config.js       # E2E 测试配置
+└── pnpm-workspace.yaml        # pnpm workspace 配置
+```
+
+---
+
 ## 1. 需求变更流程
 
 ```
 产品想法
   → 更新对应 flow-*.md（先改文档，不得先改代码）
   → 如涉及新依赖，更新 docs/constraints.md Section 1
-  → 如涉及新 IPC channel，更新 shared/types.ts 的 IPC 枚举
+  → 如涉及新 IPC channel，更新 src/shared/types.ts 的 IPC 枚举
   → 将变更 diff 作为 context 注入 AI，执行对应 Task
 ```
 
@@ -62,7 +80,7 @@
 
 ### 禁止的修改模式：
 
-- 禁止直接修改 `shared/types.ts` 的 IPC 枚举而不同步更新 preload.ts 和 bridge 层
+- 禁止直接修改 `src/shared/types.ts` 的 IPC 枚举而不同步更新 preload.ts 和 bridge 层
 - 禁止修改 PtyService 的公共方法签名而不同步更新 pty.handler.ts
 - 禁止在渲染进程新增对 Node.js 模块的 import
 
@@ -96,9 +114,9 @@ scope 对应目录：`terminal`、`sidebar`、`explorer`、`pty`、`bridge`、`s
 | 变更类型 | 影响范围 | 处理方式 |
 |----------|----------|----------|
 | 新增 UI 组件 | 仅渲染进程 | 更新对应 flow，执行对应 Task |
-| 新增 IPC channel | `shared/types.ts` + preload + bridge + handler | 严格按 Task 1→5→6→4 顺序执行 |
+| 新增 IPC channel | `src/shared/types.ts` + preload + bridge + handler | 严格按 Task 1→5→6→4 顺序执行 |
 | 修改 PTY 行为 | 主进程 services + ipc | 更新 flow-terminal.md Section 5/6 |
-| 新增 QuickLaunch 预设 | 仅 `shared/constants.ts` | 单文件修改，无依赖 |
+| 新增 QuickLaunch 预设 | 仅 `src/shared/constants.ts` | 单文件修改，无依赖 |
 | 新增项目功能（文件树等）| 需新建 flow-*.md | 走完整流程 |
 | 性能优化 | 视范围 | 在对应 flow 中新增 Task，注明性能目标 |
 | 依赖升级 | `package.json` + docs/constraints.md | 必须评审，不得 AI 自行升级 |
@@ -112,7 +130,7 @@ Claude Code：https://code.claude.com/docs/zh-CN/cli-reference
 
 ---
 
-## 7. 上线验收清单
+## 8. 上线验收清单
 
 每个 feature 分支合并前，逐项检查：
 

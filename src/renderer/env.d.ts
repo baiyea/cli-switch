@@ -96,6 +96,13 @@ declare global {
           }>;
         }>;
       };
+      skillgen: {
+        run: (payload?: {
+          projectId?: string;
+          trigger?: string;
+          force?: boolean;
+        }) => Promise<unknown>;
+      };
       logs: {
         write: (payload: {
           level?: "debug" | "info" | "warn" | "error";
