@@ -18,9 +18,17 @@ export interface PtyExitEvent {
   exitCode: number;
 }
 
+export interface PtySnapshotResult {
+  sessionId: string;
+  data: string;
+}
+
 export const ptyBridge = {
   create(payload: PtyCreatePayload): Promise<PtyCreateResult> {
     return window.electronAPI.pty.create(payload);
+  },
+  snapshot(sessionId: string): Promise<PtySnapshotResult> {
+    return window.electronAPI.pty.snapshot({ sessionId });
   },
   input(sessionId: string, data: string): void {
     window.electronAPI.pty.input({ sessionId, data });

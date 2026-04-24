@@ -143,13 +143,13 @@ test("multi provider sessions are discovered and resumed by provider", async () 
   await expect(win.getByTestId(`session-item-${ids.claudeSubAgentSid}`)).toHaveCount(0);
 
   await win.getByTestId(`session-item-${ids.codexSid}`).click();
-  await expect(win.locator(".provider-name")).toHaveText("Codex CLI");
-  await expect(win.getByText("running").first()).toBeVisible();
+  await expect(win.locator(".toolbar-provider-icon[title='Codex CLI']")).toBeVisible();
+  await expect(win.locator(".status-chip")).toBeVisible();
   await expect(win.locator(`[data-session-id="${ids.codexSid}"]`)).toBeVisible();
 
   await win.getByTestId(`session-item-${ids.geminiSid}`).click();
-  await expect(win.locator(".provider-name")).toHaveText("Gemini CLI");
-  await expect(win.getByText("running").first()).toBeVisible();
+  await expect(win.locator(".toolbar-provider-icon[title='Gemini CLI']")).toBeVisible();
+  await expect(win.locator(".status-chip")).toBeVisible();
   await expect(win.locator(`[data-session-id="${ids.geminiSid}"]`)).toBeVisible();
 
   await app.close();

@@ -1,13 +1,16 @@
 import React from "react";
+import claudeIcon from "../assets/provider-icons/claude.png";
+import codexIcon from "../assets/provider-icons/codex.png";
+import geminiIcon from "../assets/provider-icons/gemini.png";
 
 function mergeClassName(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
 const PROVIDER_META = {
-  claude: { title: "Claude Code", color: "#d57a58" },
-  codex: { title: "Codex CLI", color: "#5f7cf3" },
-  gemini: { title: "Gemini CLI", color: "#6d86ea" }
+  claude: { title: "Claude Code", icon: claudeIcon },
+  codex: { title: "Codex CLI", icon: codexIcon },
+  gemini: { title: "Gemini CLI", icon: geminiIcon }
 };
 
 export function ProviderIcon({
@@ -18,55 +21,27 @@ export function ProviderIcon({
   ...rest
 }) {
   const key = PROVIDER_META[provider] ? provider : "claude";
-  const color = variant === "muted" ? "#a8b4c1" : PROVIDER_META[key].color;
-  const stroke = variant === "muted" ? 1.35 : 1.6;
-  const style = { width: size, height: size, color };
-
-  if (key === "codex") {
-    return (
-      <svg
-        className={mergeClassName("icon provider-icon provider-icon-codex", className)}
-        style={style}
-        viewBox="0 0 16 16"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-        {...rest}
-      >
-        <path d="M4.5 3.5L8.5 8L4.5 12.5" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M10.5 12.3H13" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
-      </svg>
-    );
-  }
-
-  if (key === "gemini") {
-    return (
-      <svg
-        className={mergeClassName("icon provider-icon provider-icon-gemini", className)}
-        style={style}
-        viewBox="0 0 16 16"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-        {...rest}
-      >
-        <path d="M8 2.7L9.5 6.5L13.3 8L9.5 9.5L8 13.3L6.5 9.5L2.7 8L6.5 6.5L8 2.7Z" stroke="currentColor" strokeWidth={stroke} strokeLinejoin="round" />
-      </svg>
-    );
-  }
+  const style = { width: size, height: size };
+  const imageStyle = variant === "muted"
+    ? { filter: "grayscale(1) saturate(0.15) brightness(1.1)", opacity: 0.88 }
+    : undefined;
+  const mergedStyle = imageStyle ? { ...style, ...imageStyle } : style;
+  const providerClassName = `provider-icon-${key}`;
 
   return (
-    <svg
-      className={mergeClassName("icon provider-icon provider-icon-claude", className)}
-      style={style}
-      viewBox="0 0 16 16"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+    <img
+      src={PROVIDER_META[key].icon}
+      alt=""
       aria-hidden="true"
+      draggable="false"
+      className={mergeClassName("icon provider-icon", providerClassName, className)}
+      style={mergedStyle}
+      title={PROVIDER_META[key].title}
+      role="presentation"
+      loading="lazy"
+      decoding="async"
       {...rest}
-    >
-      <path d="M8 2.2L9.35 5.1L12.5 5.5L10.2 7.65L10.8 10.8L8 9.25L5.2 10.8L5.8 7.65L3.5 5.5L6.65 5.1L8 2.2Z" stroke="currentColor" strokeWidth={stroke} strokeLinejoin="round" />
-    </svg>
+    />
   );
 }
 
@@ -83,6 +58,35 @@ export function ArchiveIcon({ className = "", size = 12 }) {
       <rect x="2" y="3" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2" />
       <path d="M3.5 6.5V12.5C3.5 13.05 3.95 13.5 4.5 13.5H11.5C12.05 13.5 12.5 13.05 12.5 12.5V6.5" stroke="currentColor" strokeWidth="1.2" />
       <path d="M6 9H10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function SkillExtractIcon({ className = "", size = 14 }) {
+  return (
+    <svg
+      className={mergeClassName("icon skill-extract-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M8.2 1.8L8.85 3.65L10.7 4.3L8.85 4.95L8.2 6.8L7.55 4.95L5.7 4.3L7.55 3.65L8.2 1.8Z"
+        fill="currentColor"
+      />
+      <path
+        d="M4.35 7.2L4.85 8.65L6.3 9.15L4.85 9.65L4.35 11.1L3.85 9.65L2.4 9.15L3.85 8.65L4.35 7.2Z"
+        fill="currentColor"
+      />
+      <path
+        d="M10.1 7.1L10.95 8.05C11.35 8.49 11.97 8.65 12.53 8.45L13.1 8.24L12.89 8.81C12.69 9.37 12.85 9.99 13.29 10.39L14.24 11.24L13.03 11.43C12.46 11.52 11.98 11.91 11.76 12.44L11.3 13.55L10.84 12.44C10.62 11.91 10.14 11.52 9.57 11.43L8.36 11.24L9.31 10.39C9.75 9.99 9.91 9.37 9.71 8.81L9.5 8.24L10.07 8.45C10.63 8.65 11.25 8.49 11.65 8.05L12.5 7.1"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

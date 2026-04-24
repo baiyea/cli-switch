@@ -10,6 +10,7 @@ declare global {
     electronAPI: {
       pty: {
         create: (payload: { cwd: string; name?: string }) => Promise<{ sessionId: string; name: string }>;
+        snapshot: (payload: { sessionId: string }) => Promise<{ sessionId: string; data: string }>;
         input: (payload: { sessionId: string; data: string }) => void;
         resize: (payload: { sessionId: string; cols: number; rows: number }) => void;
         destroy: (payload: { sessionId: string }) => void;
@@ -52,6 +53,7 @@ declare global {
           status: "creating" | "running" | "exited";
           createdAt: number;
         }>;
+        rename: (payload: { sessionId: string; title: string; provider?: string; providerSessionId?: string }) => Promise<{ ok: boolean }>;
         syncProject: (payload: { projectId: string }) => Promise<{ ok: boolean; count: number }>;
         archive: (payload: { sessionId: string; provider?: string; providerSessionId?: string }) => Promise<{ ok: boolean }>;
         listArchived: (payload?: { projectIds?: string[] }) => Promise<Array<{
@@ -69,6 +71,7 @@ declare global {
         getClaude: () => Promise<{
           providers: Record<string, {
             defaultProfileId: string;
+            enabledProfileId?: string;
             profiles: Array<{
               id: string;
               name: string;
@@ -79,6 +82,7 @@ declare global {
         saveClaude: (payload: {
           providers: Record<string, {
             defaultProfileId: string;
+            enabledProfileId?: string;
             profiles: Array<{
               id: string;
               name: string;
@@ -88,12 +92,21 @@ declare global {
         }) => Promise<{
           providers: Record<string, {
             defaultProfileId: string;
+            enabledProfileId?: string;
             profiles: Array<{
               id: string;
               name: string;
               envVars: Array<{ key: string; value: string }>;
             }>;
           }>;
+        }>;
+        testProvider: (payload: {
+          provider: "claude" | "codex" | "gemini";
+          profileId: string;
+          envVars: Array<{ key: string; value: string }>;
+        }) => Promise<{
+          ok: boolean;
+          message: string;
         }>;
       };
       skillgen: {

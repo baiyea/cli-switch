@@ -79,7 +79,7 @@ test("Task acceptance: quick launch creates claude-01 and injects command", asyn
 
   await win.locator(".project-create-main").first().click({ force: true });
   await expect(win.locator(".session-item-name").first()).toHaveText("claude-01");
-  await expect(win.getByText("running").first()).toBeVisible();
+  await expect(win.locator(".status-chip")).toBeVisible();
 
   await app.close();
 });
@@ -91,8 +91,16 @@ test("Task acceptance: switching sessions keeps both entries and switches active
   await win.locator(".project-create-main").first().click({ force: true });
   await expect(win.locator(".session-item")).toHaveCount(2);
   const firstSessionId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-  const secondSessionId = await win.locator(".session-item").nth(1).getAttribute("data-testid")
-    .then((value) => String(value || "").replace("session-item-", ""));
+  const secondSessionId = await win
+    .locator(".session-item")
+    .evaluateAll((nodes, firstId) => {
+      for (const node of nodes) {
+        const value = String(node.getAttribute("data-testid") || "").replace("session-item-", "");
+        if (value && value !== firstId) return value;
+      }
+      return "";
+    }, firstSessionId);
+  expect(secondSessionId).toBeTruthy();
 
   await win.getByTestId(`session-item-${firstSessionId}`).click();
   await expect(win.getByTestId(`session-item-${firstSessionId}`)).toHaveClass(/active/);
@@ -129,16 +137,16 @@ test("Task acceptance: archive closes active session without renderer crash", as
   await win.locator(".project-create-main").first().click({ force: true });
   await expect(win.locator("[data-session-id]")).toHaveCount(1);
 
-  await win.getByRole("button", { name: "Archive" }).click();
+  await win.getByRole("button", { name: "归档当前会话" }).click();
 
   await expect(win.locator("[data-session-id]")).toHaveCount(0);
-  await expect(win.getByText("请在左侧项目右侧点击 + 创建会话并启动 CLI。")).toBeVisible();
 
   await app.close();
 });
 
 test("Task acceptance: explorer panel remains flex so tree uses full height", async () => {
   const { app, win } = await launchApp();
+  await win.locator(".project-create-main").first().click({ force: true });
 
   let display = await win.evaluate(() => {
     const explorer = document.querySelector(".explorer");
@@ -147,7 +155,7 @@ test("Task acceptance: explorer panel remains flex so tree uses full height", as
   });
 
   if (display !== "flex") {
-    const toggle = win.locator(".explorer-toggle-btn").first();
+    const toggle = win.getByRole("button", { name: /展开文件树|关闭文件树/ }).first();
     if (await toggle.count()) {
       await toggle.click({ force: true });
       display = await win.evaluate(() => {

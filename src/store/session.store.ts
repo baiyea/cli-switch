@@ -3,6 +3,13 @@ import { ptyBridge } from "../bridge/pty.bridge";
 import { sessionBridge, type PersistedSessionItem } from "../bridge/session.bridge";
 
 export type SessionStatus = "creating" | "running" | "exited";
+export type SessionRuntimeStatus =
+  | "starting"
+  | "streaming"
+  | "awaiting_input"
+  | "awaiting_confirmation"
+  | "error"
+  | "exited";
 
 export interface TerminalSession {
   sessionId: string;
@@ -12,6 +19,8 @@ export interface TerminalSession {
   name: string;
   cwd: string;
   status: SessionStatus;
+  runtimeStatus: SessionRuntimeStatus;
+  lastOutputAt?: number;
   createdAt: number;
   exitCode?: number;
 }
@@ -26,11 +35,20 @@ interface SessionStoreState {
   loadSessionsByProjects: (projectIds: string[]) => Promise<void>;
   createSession: (projectId: string, cwd: string, toolId?: ProviderId | string) => Promise<string>;
   ensureSessionRunning: (sessionId: string) => Promise<void>;
+  renameSession: (sessionId: string, title: string) => Promise<void>;
   setActiveSession: (sessionId: string) => void;
   destroySession: (sessionId: string) => Promise<void>;
   destroyAll: () => void;
+  ingestOutput: (sessionId: string, chunk: string) => void;
+  refreshRuntimeStatuses: () => void;
   markExited: (sessionId: string, exitCode: number) => void;
 }
+
+const AWAITING_CONFIRMATION_PATTERN =
+  /(accept edits|shift\+tab|press enter|press\s+y|approve|approval|run\s+\/login|continue\?|waiting for .*initialize|choose from existing sessions|等待确认|确认|是否继续|按回车|输入 y)/i;
+const ERROR_PATTERN =
+  /(error:|failed|not logged in|permission error|command not found|no such file or directory|api error|unable to|no saved session found|exception|handler failed)/i;
+const IDLE_AFTER_MS = 1600;
 
 function getPrefix(toolId?: string): string {
   if (!toolId || toolId === "shell") return "shell";
@@ -42,6 +60,7 @@ function getPrefix(toolId?: string): string {
 }
 
 function toTerminalSession(item: PersistedSessionItem): TerminalSession {
+  const runtimeStatus: SessionRuntimeStatus = item.status === "exited" ? "exited" : "awaiting_input";
   return {
     sessionId: item.sessionId,
     projectId: item.projectId,
@@ -50,6 +69,7 @@ function toTerminalSession(item: PersistedSessionItem): TerminalSession {
     name: item.name,
     cwd: item.cwd,
     status: item.status,
+    runtimeStatus,
     createdAt: item.createdAt
   };
 }
@@ -131,6 +151,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     });
 
     const mapped = toTerminalSession({ ...created, cwd });
+    mapped.runtimeStatus = "starting";
 
     set((state) => {
       const exists = state.sessions.some((s) => sessionIdentity(s) === sessionIdentity(mapped));
@@ -157,12 +178,39 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       name: session.name
     });
     const mapped = toTerminalSession(started);
+    mapped.runtimeStatus = "starting";
 
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.sessionId === sessionId
-          ? { ...s, ...mapped, projectId: mapped.projectId || s.projectId, status: "running" }
+          ? {
+            ...s,
+            ...mapped,
+            projectId: mapped.projectId || s.projectId,
+            status: "running",
+            runtimeStatus: "starting"
+          }
           : s
+      )
+    }));
+  },
+
+  async renameSession(sessionId: string, title: string) {
+    const trimmed = String(title || "").trim();
+    if (!trimmed) return;
+    const target = get().sessions.find((s) => s.sessionId === sessionId);
+    if (!target) return;
+
+    await sessionBridge.rename({
+      sessionId: target.sessionId,
+      title: trimmed,
+      provider: target.provider,
+      providerSessionId: target.providerSessionId || target.sessionId
+    });
+
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.sessionId === sessionId ? { ...s, name: trimmed } : s
       )
     }));
   },
@@ -197,11 +245,49 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     set({ sessions: [], activeSessionId: null });
   },
 
+  ingestOutput(sessionId, chunk) {
+    const now = Date.now();
+    const runtimeStatus: SessionRuntimeStatus = AWAITING_CONFIRMATION_PATTERN.test(chunk)
+      ? "awaiting_confirmation"
+      : ERROR_PATTERN.test(chunk)
+        ? "error"
+        : "streaming";
+
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.sessionId === sessionId
+          ? {
+            ...s,
+            status: s.status === "exited" ? "running" : s.status,
+            runtimeStatus,
+            lastOutputAt: now
+          }
+          : s
+      )
+    }));
+  },
+
+  refreshRuntimeStatuses() {
+    const now = Date.now();
+    set((state) => ({
+      sessions: state.sessions.map((s) => {
+        if (s.status === "exited" || s.runtimeStatus === "exited" || s.runtimeStatus === "awaiting_confirmation" || s.runtimeStatus === "error") {
+          return s;
+        }
+        const lastOutputAt = s.lastOutputAt || 0;
+        if (lastOutputAt > 0 && now - lastOutputAt > IDLE_AFTER_MS) {
+          return { ...s, runtimeStatus: "awaiting_input" };
+        }
+        return s;
+      })
+    }));
+  },
+
   markExited(sessionId: string, exitCode: number) {
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.sessionId === sessionId
-          ? { ...s, status: "exited", exitCode }
+          ? { ...s, status: "exited", runtimeStatus: "exited", exitCode }
           : s
       )
     }));

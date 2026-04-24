@@ -4,6 +4,7 @@ const { IPC } = require("../shared/types.js");
 contextBridge.exposeInMainWorld("electronAPI", {
   pty: {
     create: (payload) => ipcRenderer.invoke(IPC.PTY_CREATE, payload),
+    snapshot: (payload) => ipcRenderer.invoke(IPC.PTY_SNAPSHOT, payload),
     input: (payload) => ipcRenderer.send(IPC.PTY_INPUT, payload),
     resize: (payload) => ipcRenderer.send(IPC.PTY_RESIZE, payload),
     destroy: (payload) => ipcRenderer.send(IPC.PTY_DESTROY, payload),
@@ -27,6 +28,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     list: (payload) => ipcRenderer.invoke(IPC.SESSION_LIST, payload),
     create: (payload) => ipcRenderer.invoke(IPC.SESSION_CREATE, payload),
     start: (payload) => ipcRenderer.invoke(IPC.SESSION_START, payload),
+    rename: (payload) => ipcRenderer.invoke(IPC.SESSION_RENAME, payload),
     syncProject: (payload) => ipcRenderer.invoke(IPC.SESSION_SYNC_PROJECT, payload),
     archive: (payload) => ipcRenderer.invoke(IPC.SESSION_ARCHIVE, payload),
     listArchived: (payload) => ipcRenderer.invoke(IPC.SESSION_ARCHIVE_LIST, payload),
@@ -34,7 +36,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   settings: {
     getClaude: () => ipcRenderer.invoke(IPC.SETTINGS_CLAUDE_GET),
-    saveClaude: (payload) => ipcRenderer.invoke(IPC.SETTINGS_CLAUDE_SAVE, payload)
+    saveClaude: (payload) => ipcRenderer.invoke(IPC.SETTINGS_CLAUDE_SAVE, payload),
+    testProvider: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_TEST, payload)
   },
   skillgen: {
     run: (payload) => ipcRenderer.invoke(IPC.SKILLGEN_RUN, payload)

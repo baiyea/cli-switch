@@ -4,6 +4,9 @@ const PROVIDERS = Object.freeze({
   GEMINI: "gemini"
 });
 
+const path = require("node:path");
+const fs = require("node:fs");
+
 function normalizeProviderId(provider) {
   const value = String(provider || PROVIDERS.CLAUDE).toLowerCase();
   if (value.includes(PROVIDERS.CODEX)) return PROVIDERS.CODEX;
@@ -11,34 +14,116 @@ function normalizeProviderId(provider) {
   return PROVIDERS.CLAUDE;
 }
 
+function quotePosix(value) {
+  return `'${String(value || "").replace(/'/g, `'\\''`)}'`;
+}
+
+function quotePowerShell(value) {
+  return `'${String(value || "").replace(/'/g, "''")}'`;
+}
+
+function fileExists(targetPath) {
+  try {
+    return fs.existsSync(targetPath);
+  } catch {
+    return false;
+  }
+}
+
+function resolveProjectRoot() {
+  return path.resolve(__dirname, "../../..");
+}
+
+function normalizeArch(arch) {
+  const value = String(arch || process.arch).toLowerCase();
+  if (value === "x64" || value === "arm64") return value;
+  return value;
+}
+
+function normalizePlatform(platform) {
+  const value = String(platform || process.platform).toLowerCase();
+  if (value === "win32" || value === "darwin" || value === "linux") return value;
+  return value;
+}
+
+function platformKey(platform = process.platform, arch = process.arch) {
+  return `${normalizePlatform(platform)}-${normalizeArch(arch)}`;
+}
+
+function resolveCliRuntimeDir() {
+  const key = platformKey();
+  const candidates = [
+    process.env.ZEELIN_CLI_RUNTIME_DIR || "",
+    path.join(process.resourcesPath || "", "cli-runtime", key),
+    path.join(resolveProjectRoot(), "build", "cli-runtime", key)
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fileExists(candidate)) return candidate;
+  }
+  return "";
+}
+
+function resolveCliEntrypoint(provider, runtimeDir) {
+  const roots = [runtimeDir, resolveProjectRoot()].filter(Boolean);
+  for (const root of roots) {
+    const entryByProvider = {
+      [PROVIDERS.CLAUDE]: path.join(root, "node_modules", "@anthropic-ai", "claude-code", "cli.js"),
+      [PROVIDERS.CODEX]: path.join(root, "node_modules", "@openai", "codex", "bin", "codex.js"),
+      [PROVIDERS.GEMINI]: path.join(root, "node_modules", "@google", "gemini-cli", "dist", "index.js")
+    };
+    const target = entryByProvider[provider];
+    if (target && fileExists(target)) return target;
+  }
+  return "";
+}
+
+function buildNodeRunnerCommand(entrypoint, args = []) {
+  if (!entrypoint) return "";
+  const executable = process.execPath;
+  const isWin = process.platform === "win32";
+  const quote = isWin ? quotePowerShell : quotePosix;
+  const joinedArgs = [entrypoint, ...args].map((item) => quote(item)).join(" ");
+  if (isWin) {
+    return `$env:ELECTRON_RUN_AS_NODE='1'; & ${quote(executable)} ${joinedArgs}\n`;
+  }
+  return `ELECTRON_RUN_AS_NODE=1 ${quote(executable)} ${joinedArgs}\n`;
+}
+
 function getLaunchCommandForProvider(provider) {
   const id = normalizeProviderId(provider);
-  if (id === PROVIDERS.CLAUDE) return "npx @anthropic-ai/claude-code@2.1.98 --dangerously-skip-permissions\n";
-  if (id === PROVIDERS.CODEX) return "npx @openai/codex@0.121.0 --yolo\n";
-  if (id === PROVIDERS.GEMINI) return "pnpx @google/gemini-cli@0.35.3 --approval-mode yolo\n";
+  const runtimeDir = resolveCliRuntimeDir();
+  const entrypoint = resolveCliEntrypoint(id, runtimeDir);
+  if (!entrypoint) return "";
+  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["--dangerously-skip-permissions"]);
+  if (id === PROVIDERS.CODEX) return buildNodeRunnerCommand(entrypoint, ["--dangerously-bypass-approvals-and-sandbox"]);
+  if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--approval-mode", "yolo"]);
   return "";
+}
+
+function isLocalGeneratedSessionId(provider, sessionId) {
+  const id = normalizeProviderId(provider);
+  const sid = String(sessionId || "").trim();
+  return new RegExp(`^${id}-\\d+-[a-f0-9]+$`, "i").test(sid);
 }
 
 function getResumeCommandForProvider(provider, sessionId) {
   const id = normalizeProviderId(provider);
   const sid = String(sessionId || "").trim();
   if (!sid) return "";
-  if (id === PROVIDERS.CLAUDE) return `npx @anthropic-ai/claude-code@2.1.98 --dangerously-skip-permissions -r ${sid}\n`;
-  if (id === PROVIDERS.CODEX) return `npx @openai/codex@0.121.0 --yolo resume ${sid}\n`;
-  if (id === PROVIDERS.GEMINI) return `pnpx @google/gemini-cli@0.35.3 --approval-mode yolo chat resume ${sid}\n`;
+  if (isLocalGeneratedSessionId(id, sid)) return "";
+  const runtimeDir = resolveCliRuntimeDir();
+  const entrypoint = resolveCliEntrypoint(id, runtimeDir);
+  if (!entrypoint) return "";
+  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["--dangerously-skip-permissions", "-r", sid]);
+  if (id === PROVIDERS.CODEX) return buildNodeRunnerCommand(entrypoint, ["resume", sid, "--dangerously-bypass-approvals-and-sandbox"]);
+  if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--approval-mode", "yolo", "--resume", sid]);
   return "";
 }
 
 function applyProviderStartupEnv(provider, env) {
   const id = normalizeProviderId(provider);
   const nextEnv = { ...(env || {}) };
-
-  // Keep terminal output monochrome by default on light backgrounds.
-  // User-specified env vars still win if explicitly configured.
-  // if (!("NO_COLOR" in nextEnv) && !("FORCE_COLOR" in nextEnv)) {
-  //   nextEnv.NO_COLOR = "1";
-  //   nextEnv.CLICOLOR = "0";
-  // }
 
   // Gemini CLI currently needs proxy in this user's setup.
   if (id === PROVIDERS.GEMINI) {
@@ -54,5 +139,6 @@ module.exports = {
   normalizeProviderId,
   getLaunchCommandForProvider,
   getResumeCommandForProvider,
+  isLocalGeneratedSessionId,
   applyProviderStartupEnv
 };

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { usePty } from "../hooks/usePty";
 import { useSessionStore } from "../../../store/session.store";
 import { TerminalPane } from "./TerminalPane";
@@ -16,6 +16,18 @@ export function TerminalPanel({ projectId, cwd }: Props) {
   void projectId;
   void cwd;
   const activeSession = sessions.find((session) => session.sessionId === activeSessionId) || null;
+  const sessionIds = useMemo(() => new Set(sessions.map((session) => session.sessionId)), [sessions]);
+  const [mountedSessionIds, setMountedSessionIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setMountedSessionIds((prev) => {
+      const next = prev.filter((sessionId) => sessionIds.has(sessionId));
+      if (activeSessionId && sessionIds.has(activeSessionId) && !next.includes(activeSessionId)) {
+        next.push(activeSessionId);
+      }
+      return next;
+    });
+  }, [activeSessionId, sessionIds]);
 
   return (
     <section className={styles.panel}>
@@ -23,14 +35,14 @@ export function TerminalPanel({ projectId, cwd }: Props) {
         {!activeSession && (
           <div className={styles.empty}>请在左侧项目右侧点击 + 创建会话并启动 CLI。</div>
         )}
-        {activeSession && (
+        {mountedSessionIds.map((sessionId) => (
           <TerminalPane
-            key={activeSession.sessionId}
-            sessionId={activeSession.sessionId}
-            active
+            key={sessionId}
+            sessionId={sessionId}
+            active={sessionId === activeSessionId}
             registerPane={setPaneRef}
           />
-        )}
+        ))}
       </div>
     </section>
   );

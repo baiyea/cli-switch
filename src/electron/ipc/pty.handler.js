@@ -5,6 +5,10 @@ function registerPtyHandlers(ipcMain, ptyService) {
     return ptyService.create(payload);
   });
 
+  ipcMain.handle(IPC.PTY_SNAPSHOT, async (_event, payload) => {
+    return ptyService.getSnapshot(payload.sessionId);
+  });
+
   ipcMain.on(IPC.PTY_INPUT, (_event, payload) => {
     ptyService.write(payload.sessionId, payload.data);
   });

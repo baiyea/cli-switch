@@ -8,16 +8,17 @@
     "dev": "concurrently -k \"pnpm dev:renderer\" \"pnpm dev:electron\"",
     "dev:renderer": "vite",
     "dev:electron": "wait-on tcp:5073 && cross-env VITE_DEV_SERVER_URL=http://localhost:5073 electron .",
+    "prepare:cli-runtime": "node scripts/prepare-cli-runtime.js",
     "build": "vite build",
     "prepack:electron": "electron-builder install-app-deps",
     "pretest": "pnpm rebuild better-sqlite3",
     "postinstall": "electron-builder install-app-deps",
-    "dist:mac:x64": "pnpm prepack:electron && pnpm build && electron-builder --mac --x64 --config electron-builder.json",
-    "dist:mac:arm64": "pnpm prepack:electron && pnpm build && electron-builder --mac --arm64 --config electron-builder.json",
-    "dist:win": "pnpm prepack:electron && pnpm build && electron-builder --win --x64 --config electron-builder.json",
+    "dist:mac:x64": "pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=darwin CLI_TARGET_ARCH=x64 pnpm prepare:cli-runtime && pnpm build && electron-builder --mac --x64 --config electron-builder.json",
+    "dist:mac:arm64": "pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=darwin CLI_TARGET_ARCH=arm64 pnpm prepare:cli-runtime && pnpm build && electron-builder --mac --arm64 --config electron-builder.json",
+    "dist:win": "pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=win32 CLI_TARGET_ARCH=x64 pnpm prepare:cli-runtime && pnpm build && electron-builder --win --x64 --config electron-builder.json",
     "start": "electron .",
     "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron --test src/**/*.test.js",
-    "test:e2e": "pnpm build && playwright test"
+    "test:e2e": "pnpm prepare:cli-runtime && pnpm build && playwright test"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
@@ -32,12 +33,16 @@
     "react": "^18.3.1",
     "react-arborist": "^3.4.3",
     "react-dom": "^18.3.1",
+    "react-files-icons": "^0.7.0",
     "zod": "^3.24.1",
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-code": "2.1.98",
     "@electron/notarize": "^2.5.0",
     "@electron/rebuild": "^4.0.3",
+    "@google/gemini-cli": "0.35.3",
+    "@openai/codex": "0.121.0",
     "@playwright/test": "^1.54.2",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",

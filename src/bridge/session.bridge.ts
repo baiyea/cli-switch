@@ -29,6 +29,9 @@ export const sessionBridge = {
   start(payload: { sessionId: string; cwd?: string; name?: string; provider?: string; providerSessionId?: string }): Promise<PersistedSessionItem> {
     return window.electronAPI.sessions.start(payload);
   },
+  rename(payload: { sessionId: string; title: string; provider?: string; providerSessionId?: string }): Promise<{ ok: boolean }> {
+    return window.electronAPI.sessions.rename(payload);
+  },
   syncProject(payload: { projectId: string }): Promise<{ ok: boolean; count: number }> {
     return window.electronAPI.sessions.syncProject(payload);
   },

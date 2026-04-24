@@ -107,6 +107,11 @@ function projectsRepo(db) {
 }
 
 function sessionsRepo(db) {
+  function isLocalGeneratedProviderSessionId(provider, providerSessionId) {
+    const value = String(providerSessionId || "");
+    return new RegExp(`^${String(provider || "").toLowerCase()}-\\d+-[a-f0-9]+$`, "i").test(value);
+  }
+
   function buildInClause(ids) {
     if (!Array.isArray(ids) || ids.length === 0) return { sql: "", params: [] };
     const placeholders = ids.map(() => "?").join(", ");
@@ -208,6 +213,60 @@ function sessionsRepo(db) {
         archived_at: null
       });
     },
+    reconcileDiscovered({ projectId, title, provider, providerSessionId, cwd = "", sessionFilePath = null, createdAt }) {
+      const existing = db
+        .prepare("SELECT * FROM sessions WHERE provider = ? AND provider_session_id = ?")
+        .get(provider, providerSessionId);
+      if (existing) {
+        this.upsertDiscovered({ projectId, title, provider, providerSessionId, cwd, sessionFilePath, createdAt });
+        return { ok: true, fromProviderSessionId: providerSessionId, toProviderSessionId: providerSessionId, reconciled: false };
+      }
+
+      const candidate = db.prepare(
+        `SELECT *
+         FROM sessions
+         WHERE provider = ?
+           AND project_id = ?
+           AND cwd = ?
+           AND is_archived = 0
+           AND session_file_path IS NULL
+         ORDER BY updated_at DESC`
+      ).all(provider, projectId, cwd).find((row) => isLocalGeneratedProviderSessionId(provider, row.provider_session_id));
+
+      if (!candidate) {
+        this.upsertDiscovered({ projectId, title, provider, providerSessionId, cwd, sessionFilePath, createdAt });
+        return { ok: true, fromProviderSessionId: providerSessionId, toProviderSessionId: providerSessionId, reconciled: false };
+      }
+
+      const timestamp = now();
+      const createdAtIso = Number.isFinite(createdAt) ? new Date(createdAt).toISOString() : timestamp;
+      const shouldReplaceTitle = new RegExp(`^${String(provider)}-\\d+`, "i").test(String(candidate.title || ""));
+      db.prepare(
+        `UPDATE sessions
+         SET provider_session_id = ?,
+             title = ?,
+             cwd = ?,
+             session_file_path = ?,
+             last_active_at = ?,
+             updated_at = ?
+         WHERE id = ?`
+      ).run(
+        providerSessionId,
+        shouldReplaceTitle ? title : candidate.title,
+        cwd,
+        sessionFilePath,
+        createdAtIso,
+        timestamp,
+        candidate.id
+      );
+
+      return {
+        ok: true,
+        fromProviderSessionId: candidate.provider_session_id,
+        toProviderSessionId: providerSessionId,
+        reconciled: true
+      };
+    },
     updateStateByProviderSessionId({ provider, providerSessionId, status }) {
       const timestamp = now();
       db.prepare(
@@ -254,14 +313,17 @@ function settingsRepo(db) {
     providers: {
       claude: {
         defaultProfileId: "default",
+        enabledProfileId: "default",
         profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
       },
       codex: {
         defaultProfileId: "default",
+        enabledProfileId: "default",
         profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
       },
       gemini: {
         defaultProfileId: "default",
+        enabledProfileId: "default",
         profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
       }
     }
@@ -282,7 +344,13 @@ function settingsRepo(db) {
       const defaultProfileId = profiles.some((p) => p.id === current.defaultProfileId)
         ? current.defaultProfileId
         : profiles[0].id;
-      providers[provider] = { defaultProfileId, profiles };
+      let enabledProfileId = defaultProfileId;
+      if (current.enabledProfileId === "") {
+        enabledProfileId = "";
+      } else if (profiles.some((p) => p.id === current.enabledProfileId)) {
+        enabledProfileId = current.enabledProfileId;
+      }
+      providers[provider] = { defaultProfileId, enabledProfileId, profiles };
     }
     return { providers };
   }

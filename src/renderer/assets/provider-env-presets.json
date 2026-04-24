@@ -1,0 +1,35 @@
+{
+  "claude": {
+    "profiles": [
+      {
+        "id": "kimi-code-plan",
+        "name": "Kimi Code Plan",
+        "envVars": [
+          { "key": "ANTHROPIC_API_KEY", "value": null },
+          { "key": "ANTHROPIC_MODEL", "value": "kimi-for-coding" },
+          { "key": "ANTHROPIC_BASE_URL", "value": "https://api.kimi.com/coding/" }
+        ]
+      },
+      {
+        "id": "minimax-code-plan",
+        "name": "MiniMax Code Plan",
+        "envVars": [
+          { "key": "ANTHROPIC_AUTH_TOKEN", "value": null },
+          { "key": "ANTHROPIC_BASE_URL", "value": "https://api.minimax.io/anthropic" },
+          { "key": "ANTHROPIC_MODEL", "value": "MiniMax-M2.5" }
+        ]
+      }
+    ]
+  },
+  "codex": [
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "OPENAI_MODEL"
+  ],
+  "gemini": [
+    "GOOGLE_GEMINI_BASE_URL",
+    "GEMINI_API_KEY",
+    "GEMINI_MODEL",
+    "HTTP_PROXY"
+  ]
+}

@@ -1,12 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Tree } from "react-arborist";
+import { SuspendedFileIcon, SuspendedFolderIcon, SuspendedOpenFolderIcon } from "react-files-icons/suspended";
 import { fileBridge, logBridge, projectBridge, sessionBridge, settingsBridge, skillgenBridge } from "../bridge";
 import { TerminalPanel } from "../features/terminal/components/TerminalPanel";
-import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SettingsIcon } from "./icons/icon-registry";
+import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SettingsIcon, SkillExtractIcon } from "./icons/icon-registry";
 import { useSessionStore } from "../store/session.store";
+import appLogo from "./assets/brand/app-logo.png";
+import providerEnvPresets from "./assets/provider-env-presets.json";
 
 const DEFAULT_PROVIDER_SETTINGS = {
   defaultProfileId: "default",
+  enabledProfileId: "default",
   profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
 };
 const DEFAULT_SETTINGS = {
@@ -27,6 +31,171 @@ const PROVIDER_LABEL = {
   codex: "Codex CLI",
   gemini: "Gemini CLI"
 };
+const RUNTIME_STATUS_LABEL = {
+  starting: "启动中",
+  streaming: "输出中",
+  awaiting_input: "等待输入",
+  awaiting_confirmation: "等待确认",
+  error: "异常",
+  exited: "已退出",
+  creating: "启动中",
+  running: "运行中"
+};
+const PROVIDER_IDS = ["claude", "codex", "gemini"];
+
+function normalizeProviderId(provider) {
+  const value = String(provider || "").toLowerCase();
+  if (value === "claude" || value === "codex" || value === "gemini") return value;
+  return "claude";
+}
+
+function getProviderPresetConfig(providerId) {
+  const raw = providerEnvPresets?.[providerId];
+  if (providerId === "claude" && raw && Array.isArray(raw.profiles)) {
+    return {
+      type: "fixedProfiles",
+      profiles: raw.profiles.map((profile) => ({
+        id: String(profile?.id || ""),
+        name: String(profile?.name || ""),
+        envVars: Array.isArray(profile?.envVars)
+          ? profile.envVars.map((item) => ({
+            key: String(item?.key || "").trim(),
+            value: item?.value === null ? null : String(item?.value || "")
+          }))
+          : []
+      }))
+    };
+  }
+  return {
+    type: "keyList",
+    keys: Array.isArray(raw) ? raw.map((key) => String(key || "").trim()).filter(Boolean) : []
+  };
+}
+
+const PROVIDER_PRESET_CONFIG = {
+  claude: getProviderPresetConfig("claude"),
+  codex: getProviderPresetConfig("codex"),
+  gemini: getProviderPresetConfig("gemini")
+};
+
+function mergeEnvVarsWithPreset(presetVars = [], envVars = []) {
+  const presetMap = new Map();
+  for (const preset of (presetVars || [])) {
+    const key = String(preset?.key || "").trim();
+    if (!key) continue;
+    presetMap.set(key, preset?.value === null ? null : String(preset?.value || ""));
+  }
+
+  const dbMap = new Map();
+  for (const pair of (envVars || [])) {
+    const key = String(pair?.key || "").trim();
+    if (!key) continue;
+    dbMap.set(key, String(pair?.value || ""));
+  }
+
+  const orderedKeys = [...presetMap.keys()];
+  for (const key of dbMap.keys()) {
+    if (!presetMap.has(key)) orderedKeys.push(key);
+  }
+
+  return orderedKeys.map((key) => {
+    const hasPreset = presetMap.has(key);
+    const presetValue = hasPreset ? presetMap.get(key) : null;
+    const editable = hasPreset ? presetValue === null : true;
+    const required = hasPreset ? presetValue === null : false;
+    const keyEditable = !hasPreset;
+    const removable = !hasPreset;
+    const dbValue = dbMap.has(key) ? dbMap.get(key) : undefined;
+    return {
+      key,
+      value: dbValue !== undefined ? dbValue : (presetValue === null ? "" : presetValue),
+      editable,
+      required,
+      keyEditable,
+      removable
+    };
+  });
+}
+
+function presetEnvVars(providerId, envVars = [], profileId = "") {
+  const config = PROVIDER_PRESET_CONFIG[providerId] || { type: "keyList", keys: [] };
+  if (config.type === "fixedProfiles") {
+    const presetProfile = (config.profiles || []).find((item) => item.id === profileId) || config.profiles?.[0];
+    return mergeEnvVarsWithPreset(presetProfile?.envVars || [], envVars);
+  }
+  return mergeEnvVarsWithPreset(
+    (config.keys || []).map((key) => ({ key, value: null })),
+    envVars
+  );
+}
+
+function normalizeProviderEntry(providerId, entry = {}) {
+  const config = PROVIDER_PRESET_CONFIG[providerId] || { type: "keyList", keys: [] };
+  let profiles = [];
+
+  if (config.type === "fixedProfiles") {
+    const savedProfiles = Array.isArray(entry.profiles) ? entry.profiles : [];
+    const savedProfileById = new Map(savedProfiles.map((profile) => [String(profile?.id || ""), profile]));
+    profiles = (config.profiles || []).map((presetProfile) => ({
+      id: presetProfile.id,
+      name: presetProfile.name || presetProfile.id,
+      envVars: presetEnvVars(
+        providerId,
+        savedProfileById.get(presetProfile.id)?.envVars || [],
+        presetProfile.id
+      )
+    }));
+    const presetIds = new Set((config.profiles || []).map((item) => item.id));
+    const dbOnlyProfiles = savedProfiles
+      .filter((profile) => {
+        const id = String(profile?.id || "");
+        return id && !presetIds.has(id);
+      })
+      .map((profile, idx) => ({
+        id: String(profile?.id || `provider-${idx + 1}`),
+        name: String(profile?.name || profile?.id || `Provider ${idx + 1}`),
+        envVars: mergeEnvVarsWithPreset([], profile?.envVars || [])
+      }));
+    profiles = [...profiles, ...dbOnlyProfiles];
+  } else {
+    const sourceProfiles = Array.isArray(entry.profiles) && entry.profiles.length > 0
+      ? entry.profiles
+      : [{ id: "default", name: "Default Provider", envVars: [] }];
+    profiles = sourceProfiles.map((profile, idx) => ({
+      id: String(profile?.id || `provider-${idx + 1}`),
+      name: String(profile?.name || `Provider ${idx + 1}`),
+      envVars: presetEnvVars(providerId, profile?.envVars || [])
+    }));
+  }
+  if (profiles.length === 0) {
+    profiles = [{ id: "default", name: "Default Provider", envVars: [] }];
+  }
+
+  const defaultProfileId = profiles.some((item) => item.id === entry.defaultProfileId)
+    ? entry.defaultProfileId
+    : profiles[0].id;
+  let enabledProfileId = defaultProfileId;
+  if (entry.enabledProfileId === "") {
+    enabledProfileId = "";
+  } else if (profiles.some((item) => item.id === entry.enabledProfileId)) {
+    enabledProfileId = entry.enabledProfileId;
+  }
+  return { defaultProfileId, enabledProfileId, profiles };
+}
+
+function normalizeProviderSettings(inputProviders = {}) {
+  return {
+    claude: normalizeProviderEntry("claude", inputProviders.claude || {}),
+    codex: normalizeProviderEntry("codex", inputProviders.codex || {}),
+    gemini: normalizeProviderEntry("gemini", inputProviders.gemini || {})
+  };
+}
+
+function getMissingRequiredKeys(profile) {
+  return (profile?.envVars || [])
+    .filter((pair) => pair?.required && !String(pair?.value || "").trim())
+    .map((pair) => pair.key);
+}
 
 function App() {
   const [projects, setProjects] = useState([]);
@@ -60,13 +229,22 @@ function App() {
   const [explorerTreeHeight, setExplorerTreeHeight] = useState(300);
   const [openCreateMenuProjectId, setOpenCreateMenuProjectId] = useState(null);
   const [createMenuPlacementByProject, setCreateMenuPlacementByProject] = useState({});
+  const [showAllSessionsByProject, setShowAllSessionsByProject] = useState({});
+  const [providerTestStateByKey, setProviderTestStateByKey] = useState({});
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitleSessionId, setEditingTitleSessionId] = useState("");
+  const [editingTitleValue, setEditingTitleValue] = useState("");
   const explorerTreeWrapRef = useRef(null);
+  const titleInputRef = useRef(null);
+  const titleEditSubmittingRef = useRef(false);
+  const titleEditSkipCommitRef = useRef(false);
 
   const sessions = useSessionStore((state) => state.sessions);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const createSession = useSessionStore((state) => state.createSession);
   const loadSessionsByProjects = useSessionStore((state) => state.loadSessionsByProjects);
   const ensureSessionRunning = useSessionStore((state) => state.ensureSessionRunning);
+  const renameSession = useSessionStore((state) => state.renameSession);
   const setActiveSession = useSessionStore((state) => state.setActiveSession);
   const destroySession = useSessionStore((state) => state.destroySession);
 
@@ -81,6 +259,25 @@ function App() {
   const activeWorkspaceCwd = activeSession?.cwd || activeProject?.path || "";
   const currentProviderSettings = settingsModel.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
   const editingProfileId = editingProfileByProvider[providerTab] || currentProviderSettings.defaultProfileId || "default";
+  const currentProviderPresetConfig = PROVIDER_PRESET_CONFIG[providerTab] || { type: "keyList", keys: [] };
+  const isFixedProfileProvider = currentProviderPresetConfig.type === "fixedProfiles";
+  const currentProviderTestKey = `${providerTab}:${editingProfileId}`;
+  const currentProviderTestState = providerTestStateByKey[currentProviderTestKey] || { status: "idle", message: "" };
+  const enabledProviderIds = useMemo(
+    () => PROVIDER_IDS.filter((id) => {
+      const providerSettings = settingsModel.providers?.[id];
+      if (!providerSettings) return false;
+      const enabledProfileId = providerSettings.enabledProfileId;
+      if (!enabledProfileId) return false;
+      return (providerSettings.profiles || []).some((profile) => profile.id === enabledProfileId);
+    }),
+    [settingsModel]
+  );
+  const enabledSessionToolOptions = useMemo(
+    () => SESSION_TOOL_OPTIONS.filter((item) => enabledProviderIds.includes(item.id)),
+    [enabledProviderIds]
+  );
+  const primarySessionTool = enabledSessionToolOptions[0] || null;
 
   async function loadProjects() {
     const list = await projectBridge.list();
@@ -102,22 +299,7 @@ function App() {
 
   async function loadSettings() {
     const value = await settingsBridge.getClaude();
-    const merged = {
-      providers: {
-        claude: {
-          ...DEFAULT_PROVIDER_SETTINGS,
-          ...(value?.providers?.claude || {})
-        },
-        codex: {
-          ...DEFAULT_PROVIDER_SETTINGS,
-          ...(value?.providers?.codex || {})
-        },
-        gemini: {
-          ...DEFAULT_PROVIDER_SETTINGS,
-          ...(value?.providers?.gemini || {})
-        }
-      }
-    };
+    const merged = { providers: normalizeProviderSettings(value?.providers || {}) };
     setSettingsModel(merged);
     setEditingProfileByProvider((prev) => ({
       claude: prev.claude || merged.providers.claude.defaultProfileId || merged.providers.claude.profiles?.[0]?.id || "default",
@@ -158,7 +340,7 @@ function App() {
     }
     setExplorerLoading(true);
     try {
-      const result = await fileBridge.readTree({ cwd, depth: 4 });
+      const result = await fileBridge.readTree({ cwd, depth: 6 });
       setExplorerTree(result.items || []);
       setExplorerCwd(result.cwd || cwd);
       setExplorerIsGitRepo(Boolean(result.isGitRepo));
@@ -194,6 +376,16 @@ function App() {
     if (!project) return;
     setSettingsOpen(false);
     const currentTool = SESSION_TOOL_OPTIONS.find((item) => item.id === toolId) || SESSION_TOOL_OPTIONS[0];
+    const providerSettings = settingsModel.providers?.[currentTool.id] || DEFAULT_PROVIDER_SETTINGS;
+    const enabledProfileId = providerSettings.enabledProfileId;
+    const enabledProfile = (providerSettings.profiles || []).find((profile) => profile.id === enabledProfileId);
+    if (!enabledProfileId || !enabledProfile) {
+      setAppError(`${currentTool.label} 未启用，请先在 Settings -> Providers 中测试连接并启用。`);
+      setSettingsOpen(true);
+      setSettingsSection("providers");
+      setProviderTab(currentTool.id);
+      return;
+    }
     const sid = await createSession(project.id, project.path, currentTool.id);
     setActiveSession(sid);
   }
@@ -228,6 +420,9 @@ function App() {
       const nextProfiles = (prev.providers?.[providerTab]?.profiles || []).map((profile) => {
         if (profile.id !== editingProfileId) return profile;
         const nextEnv = [...(profile.envVars || [])];
+        if (!nextEnv[index]) return profile;
+        if (key === "key" && nextEnv[index].keyEditable === false) return profile;
+        if (key === "value" && nextEnv[index].editable === false) return profile;
         nextEnv[index] = { ...nextEnv[index], [key]: value };
         return { ...profile, envVars: nextEnv };
       });
@@ -242,43 +437,72 @@ function App() {
         }
       };
     });
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [`${providerTab}:${editingProfileId}`]: { status: "idle", message: "配置已变更，请重新测试连接" }
+    }));
   }
 
   function addEnvVar() {
+    if (!editingProfileId) return;
     setSettingsError("");
     setSettingsSavedAt(0);
-    setSettingsModel((prev) => ({
-      ...prev,
-      providers: {
-        ...(prev.providers || {}),
-        [providerTab]: {
-          ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
-          profiles: (prev.providers?.[providerTab]?.profiles || []).map((profile) =>
-            profile.id === editingProfileId
-              ? { ...profile, envVars: [...(profile.envVars || []), { key: "", value: "" }] }
-              : profile
-          )
+    setSettingsModel((prev) => {
+      const currentProvider = prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
+      const nextProfiles = (currentProvider.profiles || []).map((profile) => {
+        if (profile.id !== editingProfileId) return profile;
+        return {
+          ...profile,
+          envVars: [
+            ...(profile.envVars || []),
+            { key: "", value: "", editable: true, required: false, keyEditable: true, removable: true }
+          ]
+        };
+      });
+      return {
+        ...prev,
+        providers: {
+          ...(prev.providers || {}),
+          [providerTab]: {
+            ...currentProvider,
+            profiles: nextProfiles
+          }
         }
-      }
+      };
+    });
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [`${providerTab}:${editingProfileId}`]: { status: "idle", message: "配置已变更，请重新测试连接" }
     }));
   }
 
   function removeEnvVar(index) {
+    if (!editingProfileId) return;
     setSettingsError("");
     setSettingsSavedAt(0);
-    setSettingsModel((prev) => ({
-      ...prev,
-      providers: {
-        ...(prev.providers || {}),
-        [providerTab]: {
-          ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
-          profiles: (prev.providers?.[providerTab]?.profiles || []).map((profile) =>
-            profile.id === editingProfileId
-              ? { ...profile, envVars: (profile.envVars || []).filter((_, i) => i !== index) }
-              : profile
-          )
+    setSettingsModel((prev) => {
+      const currentProvider = prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
+      const nextProfiles = (currentProvider.profiles || []).map((profile) => {
+        if (profile.id !== editingProfileId) return profile;
+        const nextEnv = [...(profile.envVars || [])];
+        if (!nextEnv[index] || nextEnv[index].removable === false) return profile;
+        nextEnv.splice(index, 1);
+        return { ...profile, envVars: nextEnv };
+      });
+      return {
+        ...prev,
+        providers: {
+          ...(prev.providers || {}),
+          [providerTab]: {
+            ...currentProvider,
+            profiles: nextProfiles
+          }
         }
-      }
+      };
+    });
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [`${providerTab}:${editingProfileId}`]: { status: "idle", message: "配置已变更，请重新测试连接" }
     }));
   }
 
@@ -294,7 +518,11 @@ function App() {
           ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
           profiles: [
             ...(prev.providers?.[providerTab]?.profiles || []),
-            { id, name: `Provider ${(prev.providers?.[providerTab]?.profiles || []).length + 1}`, envVars: [] }
+            {
+              id,
+              name: `Provider ${(prev.providers?.[providerTab]?.profiles || []).length + 1}`,
+              envVars: presetEnvVars(providerTab, [], id)
+            }
           ]
         }
       }
@@ -316,6 +544,10 @@ function App() {
           )
         }
       }
+    }));
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [`${providerTab}:${profileId}`]: { status: "idle", message: "配置已变更，请重新测试连接" }
     }));
   }
 
@@ -343,6 +575,7 @@ function App() {
       const next = (currentProvider.profiles || []).filter((profile) => profile.id !== profileId);
       if (next.length === 0) return prev;
       const defaultProfileId = currentProvider.defaultProfileId === profileId ? next[0].id : currentProvider.defaultProfileId;
+      const enabledProfileId = currentProvider.enabledProfileId === profileId ? defaultProfileId : currentProvider.enabledProfileId;
       if (editingProfileId === profileId) {
         setEditingProfileByProvider((p) => ({ ...p, [providerTab]: defaultProfileId }));
       }
@@ -353,6 +586,7 @@ function App() {
           [providerTab]: {
             ...currentProvider,
             defaultProfileId,
+            enabledProfileId,
             profiles: next
           }
         }
@@ -360,17 +594,96 @@ function App() {
     });
   }
 
+  async function onToggleProviderProfile(profileId, nextEnabled) {
+    if (!editingProfile || !profileId) return;
+    const stateKey = `${providerTab}:${profileId}`;
+    if (!nextEnabled) {
+      setSettingsError("");
+      setSettingsSavedAt(0);
+      setSettingsModel((prev) => ({
+        ...prev,
+        providers: {
+          ...(prev.providers || {}),
+          [providerTab]: {
+            ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
+            enabledProfileId: prev.providers?.[providerTab]?.enabledProfileId === profileId
+              ? ""
+              : (prev.providers?.[providerTab]?.enabledProfileId || "")
+          }
+        }
+      }));
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: { status: "idle", message: "已关闭启用状态" }
+      }));
+      return;
+    }
+
+    const missingKeys = getMissingRequiredKeys(editingProfile);
+    if (missingKeys.length > 0) {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: {
+          status: "failed",
+          message: `请先填写：${missingKeys.join(", ")}`
+        }
+      }));
+      return;
+    }
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [stateKey]: { status: "testing", message: "启用校验中..." }
+    }));
+    try {
+      const result = await settingsBridge.testProvider({
+        provider: providerTab,
+        profileId,
+        envVars: editingProfile.envVars || []
+      });
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: {
+          status: result.ok ? "success" : "failed",
+          message: result.message || (result.ok ? "连接成功，已启用" : "连接失败，保持关闭")
+        }
+      }));
+      if (result.ok) {
+        setSettingsError("");
+        setSettingsSavedAt(0);
+        setSettingsModel((prev) => ({
+          ...prev,
+          providers: {
+            ...(prev.providers || {}),
+            [providerTab]: {
+              ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
+              enabledProfileId: profileId,
+              defaultProfileId: profileId
+            }
+          }
+        }));
+      }
+    } catch (e) {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: {
+          status: "failed",
+          message: e?.message || "连接测试失败，保持关闭"
+        }
+      }));
+    }
+  }
+
   async function onSaveSettings() {
-    const providerKeys = ["claude", "codex", "gemini"];
+    const providerKeys = PROVIDER_IDS;
     const providersPayload = {};
     for (const providerKey of providerKeys) {
       const source = settingsModel.providers?.[providerKey] || DEFAULT_PROVIDER_SETTINGS;
-      const profiles = (source.profiles || []).map((profile, idx) => ({
+      const normalizedSource = normalizeProviderEntry(providerKey, source);
+      const profiles = (normalizedSource.profiles || []).map((profile, idx) => ({
         id: String(profile.id || `provider-${idx + 1}`),
         name: String(profile.name || `Provider ${idx + 1}`).trim() || `Provider ${idx + 1}`,
         envVars: (profile.envVars || [])
-          .map((pair) => ({ key: (pair.key || "").trim().toUpperCase(), value: pair.value || "" }))
-          .filter((pair) => pair.key)
+          .map((pair) => ({ key: pair.key, value: pair.value || "" }))
       }));
 
       if (profiles.length === 0) {
@@ -391,15 +704,23 @@ function App() {
         }
       }
 
-      const defaultProfileId = profiles.some((p) => p.id === source.defaultProfileId)
-        ? source.defaultProfileId
+      const defaultProfileId = profiles.some((p) => p.id === normalizedSource.defaultProfileId)
+        ? normalizedSource.defaultProfileId
         : profiles[0].id;
-      providersPayload[providerKey] = { defaultProfileId, profiles };
+      let enabledProfileId = defaultProfileId;
+      if (normalizedSource.enabledProfileId === "") {
+        enabledProfileId = "";
+      } else if (profiles.some((p) => p.id === normalizedSource.enabledProfileId)) {
+        enabledProfileId = normalizedSource.enabledProfileId;
+      }
+      providersPayload[providerKey] = { defaultProfileId, enabledProfileId, profiles };
     }
 
     try {
       const saved = await settingsBridge.saveClaude({ providers: providersPayload });
-      setSettingsModel({ ...DEFAULT_SETTINGS, ...(saved || {}) });
+      setSettingsModel({
+        providers: normalizeProviderSettings(saved?.providers || providersPayload)
+      });
       setSettingsSavedAt(Date.now());
       setSettingsError("");
     } catch (e) {
@@ -566,6 +887,71 @@ function App() {
     }
   }
 
+  function startTitleEdit() {
+    if (!activeSession?.sessionId) return;
+    setAppError("");
+    titleEditSkipCommitRef.current = false;
+    setIsEditingTitle(true);
+    setEditingTitleSessionId(activeSession.sessionId);
+    setEditingTitleValue(activeSession.name || "");
+  }
+
+  function cancelTitleEdit(skipCommit = false) {
+    titleEditSkipCommitRef.current = skipCommit;
+    setIsEditingTitle(false);
+    setEditingTitleSessionId("");
+    setEditingTitleValue("");
+    titleEditSubmittingRef.current = false;
+  }
+
+  async function commitTitleEdit() {
+    if (titleEditSkipCommitRef.current) {
+      titleEditSkipCommitRef.current = false;
+      return;
+    }
+    if (!isEditingTitle || !editingTitleSessionId || titleEditSubmittingRef.current) return;
+    titleEditSubmittingRef.current = true;
+    const targetSession = sessions.find((item) => item.sessionId === editingTitleSessionId);
+    const originalTitle = targetSession?.name || "";
+    const nextTitle = String(editingTitleValue || "").trim();
+
+    try {
+      if (!nextTitle) {
+        setAppError("会话标题不能为空");
+        cancelTitleEdit();
+        return;
+      }
+      if (nextTitle !== originalTitle) {
+        await renameSession(editingTitleSessionId, nextTitle);
+      }
+      cancelTitleEdit();
+    } catch (e) {
+      setAppError(`重命名会话失败：${e?.message || "未知错误"}`);
+      cancelTitleEdit();
+    } finally {
+      titleEditSubmittingRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    if (!isEditingTitle) return;
+    const input = titleInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [isEditingTitle]);
+
+  useEffect(() => {
+    if (!isEditingTitle) return;
+    if (!activeSession?.sessionId) {
+      cancelTitleEdit();
+      return;
+    }
+    if (activeSession.sessionId !== editingTitleSessionId) {
+      cancelTitleEdit();
+    }
+  }, [activeSession?.sessionId, editingTitleSessionId, isEditingTitle]);
+
   useEffect(() => {
     const profiles = currentProviderSettings.profiles || [];
     if (profiles.length === 0) return;
@@ -645,7 +1031,7 @@ function App() {
     <div className="layout">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-icon">▣</div>
+          <img className="brand-icon" src={appLogo} alt="ZeeLinCode logo" />
           <div>
             <div className="brand-title">ZeeLinCode</div>
             <div className="brand-subtitle">ARCHITECTURAL EDITOR</div>
@@ -661,10 +1047,21 @@ function App() {
               const expanded = expandedProjects[p.id] !== false;
               const projectSessions = sessions.filter(
                 (s) =>
-                  s.projectId === p.id
-                  || s.cwd === p.path
-                  || s.cwd.startsWith(`${p.path}${p.path.endsWith("/") ? "" : "/"}`)
+                  (s.projectId === p.id
+                    || s.cwd === p.path
+                    || s.cwd.startsWith(`${p.path}${p.path.endsWith("/") ? "" : "/"}`))
+                  && enabledProviderIds.includes(normalizeProviderId(s.provider))
               );
+              const sortedProjectSessions = [...projectSessions].sort(
+                (a, b) => (b.createdAt || 0) - (a.createdAt || 0)
+              );
+              const hiddenSessionCount = Math.max(0, sortedProjectSessions.length - 5);
+              const activeSessionInHidden = hiddenSessionCount > 0
+                && sortedProjectSessions.slice(5).some((item) => item.sessionId === activeSessionId);
+              const showAllSessions = Boolean(showAllSessionsByProject[p.id]) || activeSessionInHidden;
+              const visibleProjectSessions = showAllSessions
+                ? sortedProjectSessions
+                : sortedProjectSessions.slice(0, 5);
               return (
                 <div key={p.id} className="project-node" data-testid={`project-${p.id}`}>
                   <div
@@ -677,89 +1074,94 @@ function App() {
                   >
                     <span className="project-caret">{expanded ? "▾" : "▸"}</span>
                     <span className="project-name">{p.name}</span>
-                    <div className={`project-create-wrap ${openCreateMenuProjectId === p.id ? "open" : ""}`}>
-                      <button
-                        className="project-create-main"
-                        title={`新建会话（${(SESSION_TOOL_OPTIONS.find((item) => item.id === PRIMARY_SESSION_TOOL_ID) || SESSION_TOOL_OPTIONS[0]).label}）`}
-                        aria-label={`为项目 ${p.name} 新建会话`}
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          setOpenCreateMenuProjectId(null);
-                          setActiveProjectId(p.id);
-                          await createSessionForProject(p, PRIMARY_SESSION_TOOL_ID);
-                        }}
-                      >
-                        <ProviderIcon provider={PRIMARY_SESSION_TOOL_ID} className="project-tool-icon" />
-                      </button>
-                      <button
-                        className="project-create-toggle"
-                        title="选择会话类型"
-                        aria-label="选择会话类型"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const button = e.currentTarget;
-                          const block = button.closest(".block");
-                          const menuEstimatedHeight = 230;
-                          let placement = "down";
-                          if (block instanceof HTMLElement && button instanceof HTMLElement) {
-                            const blockRect = block.getBoundingClientRect();
-                            const buttonRect = button.getBoundingClientRect();
-                            const spaceBelow = blockRect.bottom - buttonRect.bottom;
-                            const spaceAbove = buttonRect.top - blockRect.top;
-                            if (spaceBelow < menuEstimatedHeight && spaceAbove > spaceBelow) {
-                              placement = "up";
-                            }
-                          }
-                          setCreateMenuPlacementByProject((prev) => ({ ...prev, [p.id]: placement }));
-                          setOpenCreateMenuProjectId((prev) => (prev === p.id ? null : p.id));
-                        }}
-                      >
-                        ▾
-                      </button>
-                      {openCreateMenuProjectId === p.id && (
-                        <div
-                          className={`project-create-menu ${createMenuPlacementByProject[p.id] === "up" ? "upward" : ""}`}
-                          onClick={(e) => e.stopPropagation()}
+                    {primarySessionTool && (
+                      <div className={`project-create-wrap ${openCreateMenuProjectId === p.id ? "open" : ""}`}>
+                        <button
+                          className="project-create-main"
+                          title={`新建会话（${primarySessionTool.label}）`}
+                          aria-label={`为项目 ${p.name} 新建会话`}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setOpenCreateMenuProjectId(null);
+                            setActiveProjectId(p.id);
+                            await createSessionForProject(p, primarySessionTool.id);
+                          }}
                         >
-                          {SESSION_TOOL_OPTIONS.map((option) => (
+                          <ProviderIcon provider={primarySessionTool.id} className="project-tool-icon" />
+                        </button>
+                        <button
+                          className="project-create-toggle"
+                          title="选择会话类型"
+                          aria-label="选择会话类型"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const button = e.currentTarget;
+                            const block = button.closest(".block");
+                            const menuEstimatedHeight = 230;
+                            let placement = "down";
+                            if (block instanceof HTMLElement && button instanceof HTMLElement) {
+                              const blockRect = block.getBoundingClientRect();
+                              const buttonRect = button.getBoundingClientRect();
+                              const spaceBelow = blockRect.bottom - buttonRect.bottom;
+                              const spaceAbove = buttonRect.top - blockRect.top;
+                              if (spaceBelow < menuEstimatedHeight && spaceAbove > spaceBelow) {
+                                placement = "up";
+                              }
+                            }
+                            setCreateMenuPlacementByProject((prev) => ({ ...prev, [p.id]: placement }));
+                            setOpenCreateMenuProjectId((prev) => (prev === p.id ? null : p.id));
+                          }}
+                        >
+                          ▾
+                        </button>
+                        {openCreateMenuProjectId === p.id && (
+                          <div
+                            className={`project-create-menu ${createMenuPlacementByProject[p.id] === "up" ? "upward" : ""}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {enabledSessionToolOptions.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                className={`project-create-item ${primarySessionTool.id === option.id ? "active" : ""}`}
+                                onClick={async () => {
+                                  setOpenCreateMenuProjectId(null);
+                                  setActiveProjectId(p.id);
+                                  await createSessionForProject(p, option.id);
+                                }}
+                              >
+                                <ProviderIcon provider={option.id} className="project-tool-icon" />
+                                <span>{option.label}</span>
+                              </button>
+                            ))}
+                            <div className="project-create-divider" />
                             <button
-                              key={option.id}
                               type="button"
-                              className={`project-create-item ${PRIMARY_SESSION_TOOL_ID === option.id ? "active" : ""}`}
+                              className="project-create-item"
                               onClick={async () => {
                                 setOpenCreateMenuProjectId(null);
                                 setActiveProjectId(p.id);
-                                await createSessionForProject(p, option.id);
+                                await onSyncProjectHistory(p);
                               }}
                             >
-                              <ProviderIcon provider={option.id} className="project-tool-icon" />
-                              <span>{option.label}</span>
+                              <span className="project-create-history-icon" aria-hidden="true">↻</span>
+                              <span>读取历史会话</span>
                             </button>
-                          ))}
-                          <div className="project-create-divider" />
-                          <button
-                            type="button"
-                            className="project-create-item"
-                            onClick={async () => {
-                              setOpenCreateMenuProjectId(null);
-                              setActiveProjectId(p.id);
-                              await onSyncProjectHistory(p);
-                            }}
-                          >
-                            <span className="project-create-history-icon" aria-hidden="true">↻</span>
-                            <span>读取历史会话</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {expanded && (
                     <div className="project-content">
-                      {projectSessions.length === 0 ? (
+                      {sortedProjectSessions.length === 0 ? (
                         <div className="session-empty">暂无会话</div>
                       ) : (
-                        projectSessions.map((session) => (
+                        visibleProjectSessions.map((session) => {
+                          const sessionStatus = session.runtimeStatus || session.status || "";
+                          const hasVisualStatus = Boolean(sessionStatus) && sessionStatus !== "idle";
+                          return (
                           <div
                             key={session.sessionId}
                             className={`session-item ${session.sessionId === activeSessionId ? "active" : ""}`}
@@ -768,7 +1170,6 @@ function App() {
                               setSettingsOpen(false);
                               setActiveProjectId(p.id);
                               setActiveSession(session.sessionId);
-                              ensureSessionRunning(session.sessionId);
                             }}
                             role="button"
                             tabIndex={0}
@@ -778,16 +1179,24 @@ function App() {
                               setSettingsOpen(false);
                               setActiveProjectId(p.id);
                               setActiveSession(session.sessionId);
-                              ensureSessionRunning(session.sessionId);
                             }}
                           >
-                            <ProviderIcon
-                              provider={session.provider || "claude"}
-                              className="project-tool-icon session-provider-icon"
-                              variant="muted"
-                              size={12}
-                              title={PROVIDER_LABEL[session.provider] || session.provider || "Claude Code"}
-                            />
+                            <span
+                              className={`session-provider-ring ${sessionStatus} ${hasVisualStatus ? "" : "no-status"}`}
+                              title={
+                                hasVisualStatus
+                                  ? `${PROVIDER_LABEL[session.provider] || session.provider || "Claude Code"} · ${RUNTIME_STATUS_LABEL[sessionStatus] || sessionStatus}`
+                                  : (PROVIDER_LABEL[session.provider] || session.provider || "Claude Code")
+                              }
+                            >
+                              <ProviderIcon
+                                provider={session.provider || "claude"}
+                                className="project-tool-icon session-provider-icon"
+                                variant="muted"
+                                size={12}
+                                title={PROVIDER_LABEL[session.provider] || session.provider || "Claude Code"}
+                              />
+                            </span>
                             <span className="session-item-name">{session.name}</span>
                             <button
                               type="button"
@@ -803,7 +1212,22 @@ function App() {
                               <ArchiveIcon size={12} />
                             </button>
                           </div>
-                        ))
+                          );
+                        })
+                      )}
+                      {hiddenSessionCount > 0 && (
+                        <button
+                          type="button"
+                          className="session-collapse-toggle"
+                          onClick={() => {
+                            setShowAllSessionsByProject((prev) => ({
+                              ...prev,
+                              [p.id]: !showAllSessions
+                            }));
+                          }}
+                        >
+                          {showAllSessions ? "收起" : `展开显示（+${hiddenSessionCount}）`}
+                        </button>
                       )}
                     </div>
                   )}
@@ -827,43 +1251,80 @@ function App() {
       <main className="main">
         <header className="toolbar">
           <div className="toolbar-title-group">
-            <span className="toolbar-title">
-              {activeSession ? activeSession.name : "ready"}
-            </span>
             {activeSession && (
-              <span className={`status-chip ${activeSession.status}`}>
-                {activeSession.status}
+              <ProviderIcon
+                provider={activeSession.provider || "claude"}
+                className="toolbar-provider-icon"
+                size={20}
+              />
+            )}
+            {activeSession && isEditingTitle && editingTitleSessionId === activeSession.sessionId ? (
+              <input
+                ref={titleInputRef}
+                className="toolbar-title-input"
+                value={editingTitleValue}
+                maxLength={64}
+                onChange={(e) => setEditingTitleValue(e.target.value)}
+                onBlur={() => {
+                  void commitTitleEdit();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void commitTitleEdit();
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelTitleEdit(true);
+                  }
+                }}
+              />
+            ) : (
+              <span
+                className={`toolbar-title ${activeSession ? "editable" : ""}`}
+                onDoubleClick={startTitleEdit}
+                title={activeSession ? "双击可重命名会话" : ""}
+              >
+                {activeSession ? activeSession.name : "ready"}
               </span>
             )}
-            <span className="provider-name">{PROVIDER_LABEL[activeSession?.provider || "claude"] || "Claude Code"}</span>
+            {activeSession && (
+              <span className={`status-chip ${activeSession.runtimeStatus || activeSession.status}`}>
+                {RUNTIME_STATUS_LABEL[activeSession.runtimeStatus || activeSession.status] || activeSession.runtimeStatus || activeSession.status}
+              </span>
+            )}
           </div>
 
           <div className="toolbar-actions">
             <button
-              className="skill-extract-btn"
+              className="toolbar-icon-btn"
               type="button"
               onClick={onExtractSkill}
               disabled={!activeSessionId || skillgenDialog.status === "running"}
               title="从当前会话提取并生成项目 Skill"
+              aria-label="提取技能"
             >
-              提取技能
+              <SkillExtractIcon size={14} />
             </button>
             <button
-              className="archive-btn"
+              className="toolbar-icon-btn"
               type="button"
               onClick={() => activeSessionId && destroySession(activeSessionId)}
+              title="归档当前会话"
+              aria-label="归档当前会话"
               disabled={!activeSessionId}
             >
-              Archive
+              <ArchiveIcon size={14} />
             </button>
             <button
-              className={`explorer-toggle-btn ${explorerVisible ? "active" : ""}`}
+              className={`toolbar-icon-btn ${explorerVisible ? "active" : ""}`}
               type="button"
               title={explorerVisible ? "关闭文件树" : "展开文件树"}
               aria-label={explorerVisible ? "关闭文件树" : "展开文件树"}
               onClick={() => setExplorerVisible((prev) => !prev)}
             >
-              <ExplorerToggleIcon size={16} />
+              <ExplorerToggleIcon size={14} />
             </button>
           </div>
         </header>
@@ -958,9 +1419,9 @@ function App() {
                           className={`explorer-node-row ${node.isSelected ? "selected" : ""}`}
                           title={node.data.path}
                           onDoubleClick={(e) => {
+                            if (node.data.type !== "file") return;
                             e.preventDefault();
                             e.stopPropagation();
-                            if (node.data.type !== "file") return;
                             void onOpenExplorerFile(node.data.path);
                           }}
                         >
@@ -976,7 +1437,17 @@ function App() {
                           >
                             {node.isInternal ? (node.isOpen ? "▾" : "▸") : ""}
                           </button>
-                          <span className={`explorer-node-icon ${node.isInternal ? "folder" : "file"}`} />
+                          <Suspense fallback={<span className="explorer-node-icon explorer-node-icon-fallback" aria-hidden="true" />}>
+                            {node.isInternal ? (
+                              node.isOpen ? (
+                                <SuspendedOpenFolderIcon name={node.data.name} className="explorer-node-icon folder" aria-hidden="true" />
+                              ) : (
+                                <SuspendedFolderIcon name={node.data.name} className="explorer-node-icon folder" aria-hidden="true" />
+                              )
+                            ) : (
+                              <SuspendedFileIcon name={node.data.name} className="explorer-node-icon file" aria-hidden="true" />
+                            )}
+                          </Suspense>
                           <span className="explorer-node-name">{node.data.name}</span>
                           {explorerIsGitRepo && node.data.type === "directory" && node.data.hasGitChanges && (
                             <span className="explorer-git-dot" aria-hidden="true" />
@@ -1068,75 +1539,139 @@ function App() {
                       <>
                           <div className="provider-profiles">
                             <div className="provider-profiles-head">
-                              <span>供应商配置组</span>
-                              <button type="button" onClick={addProviderProfile}>+ 新增供应商</button>
+                              <span>{isFixedProfileProvider ? "供应商预设" : "供应商配置组"}</span>
+                              {!isFixedProfileProvider && (
+                                <button type="button" onClick={addProviderProfile}>+ 新增供应商</button>
+                              )}
                             </div>
-                            <div className="provider-profiles-list">
-                              {(currentProviderSettings.profiles || []).map((profile) => (
-                                <button
-                                  key={profile.id}
-                                  type="button"
-                                  className={`provider-profile-item ${profile.id === editingProfile?.id ? "active" : ""}`}
-                                  onClick={() => setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: profile.id }))}
+                            {isFixedProfileProvider ? (
+                              <div className="provider-profile-select-row">
+                                <select
+                                  value={editingProfile?.id || ""}
+                                  onChange={(e) => {
+                                    const nextProfileId = e.target.value;
+                                    setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: nextProfileId }));
+                                    setSettingsError("");
+                                  }}
                                 >
-                                  <span className="provider-profile-name">{profile.name}</span>
-                                  {currentProviderSettings.defaultProfileId === profile.id && (
-                                    <span className="provider-default-tag">默认</span>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
+                                  {(currentProviderSettings.profiles || []).map((profile) => (
+                                    <option key={profile.id} value={profile.id}>{profile.name}</option>
+                                  ))}
+                                </select>
+                                {editingProfile && currentProviderSettings.enabledProfileId === editingProfile.id && (
+                                  <span className="provider-enabled-tag">已启用</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="provider-profiles-list">
+                                {(currentProviderSettings.profiles || []).map((profile) => (
+                                  <button
+                                    key={profile.id}
+                                    type="button"
+                                    className={`provider-profile-item ${profile.id === editingProfile?.id ? "active" : ""}`}
+                                    onClick={() => setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: profile.id }))}
+                                  >
+                                    <span className="provider-profile-name">{profile.name}</span>
+                                    {currentProviderSettings.defaultProfileId === profile.id && (
+                                      <span className="provider-default-tag">默认</span>
+                                    )}
+                                    {currentProviderSettings.enabledProfileId === profile.id && (
+                                      <span className="provider-enabled-tag">已启用</span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
                           {editingProfile && (
                             <div className="provider-profile-editor">
-                              <div className="provider-profile-controls">
-                                <input
-                                  type="text"
-                                  value={editingProfile.name}
-                                  onChange={(e) => renameProviderProfile(editingProfile.id, e.target.value)}
-                                  placeholder="供应商名称"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setDefaultProviderProfile(editingProfile.id)}
-                                  disabled={currentProviderSettings.defaultProfileId === editingProfile.id}
-                                >
-                                  设为默认
-                                </button>
-                                <button
-                                  type="button"
-                                  className="danger"
-                                  onClick={() => removeProviderProfile(editingProfile.id)}
-                                  disabled={(currentProviderSettings.profiles || []).length <= 1}
-                                >
-                                  删除供应商
-                                </button>
+                              <div className={`provider-profile-controls ${isFixedProfileProvider ? "compact" : ""}`}>
+                                {!isFixedProfileProvider && (
+                                  <input
+                                    type="text"
+                                    value={editingProfile.name}
+                                    onChange={(e) => renameProviderProfile(editingProfile.id, e.target.value)}
+                                    placeholder="供应商名称"
+                                  />
+                                )}
+                                <label className="provider-enable-row">
+                                  <span className="provider-enable-text">启用（开启时自动测试）</span>
+                                  <button
+                                    type="button"
+                                    className={`provider-switch ${currentProviderSettings.enabledProfileId === editingProfile.id ? "on" : ""}`}
+                                    aria-label="启用配置开关"
+                                    aria-pressed={currentProviderSettings.enabledProfileId === editingProfile.id}
+                                    onClick={() => onToggleProviderProfile(editingProfile.id, currentProviderSettings.enabledProfileId !== editingProfile.id)}
+                                    disabled={currentProviderTestState.status === "testing"}
+                                  >
+                                    <span className="provider-switch-thumb" />
+                                  </button>
+                                </label>
+                                {!isFixedProfileProvider && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDefaultProviderProfile(editingProfile.id)}
+                                      disabled={currentProviderSettings.defaultProfileId === editingProfile.id}
+                                    >
+                                      设为默认
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="danger"
+                                      onClick={() => removeProviderProfile(editingProfile.id)}
+                                      disabled={(currentProviderSettings.profiles || []).length <= 1}
+                                    >
+                                      删除供应商
+                                    </button>
+                                  </>
+                                )}
                               </div>
+                              {currentProviderTestState.message && (
+                                <div className={`provider-test-message ${currentProviderTestState.status}`}>
+                                  {currentProviderTestState.message}
+                                </div>
+                              )}
 
                               <div className="env-list">
                                 <div className="env-list-header">
-                                  <span>环境变量（仅默认供应商在启动/恢复时注入）</span>
+                                  <span>环境变量（预设值只读；支持新增自定义 Key/Value）</span>
                                   <button type="button" onClick={addEnvVar}>+ 新增变量</button>
                                 </div>
 
-                                {(editingProfile.envVars || []).map((pair, index) => (
-                                  <div className="env-row" key={`${editingProfile.id}-env-${index}`}>
-                                    <input
-                                      type="text"
-                                      placeholder="NAME"
-                                      value={pair.key}
-                                      onChange={(e) => updateEnvVar(index, "key", e.target.value.toUpperCase())}
-                                    />
-                                    <input
-                                      type="text"
-                                      placeholder="VALUE"
-                                      value={pair.value}
-                                      onChange={(e) => updateEnvVar(index, "value", e.target.value)}
-                                    />
-                                    <button className="danger" onClick={() => removeEnvVar(index)}>删除</button>
-                                  </div>
-                                ))}
+                                {(editingProfile.envVars || []).length === 0 ? (
+                                  <div className="settings-coming-soon">当前 Provider 暂无预设键名。</div>
+                                ) : (
+                                  (editingProfile.envVars || []).map((pair, index) => (
+                                    <div className="env-row" key={`${editingProfile.id}-env-${index}`}>
+                                      <input
+                                        type="text"
+                                        placeholder="KEY"
+                                        value={pair.key}
+                                        className="env-key"
+                                        readOnly={!pair.keyEditable}
+                                        onChange={pair.keyEditable ? (e) => updateEnvVar(index, "key", e.target.value) : undefined}
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="输入值"
+                                        value={pair.value}
+                                        className={`env-value ${pair.editable ? "" : "env-value-fixed"}`}
+                                        readOnly={!pair.editable}
+                                        onChange={pair.editable ? (e) => updateEnvVar(index, "value", e.target.value) : undefined}
+                                      />
+                                      <button
+                                        type="button"
+                                        className="env-remove-btn"
+                                        onClick={() => removeEnvVar(index)}
+                                        disabled={!pair.removable}
+                                      >
+                                        删除
+                                      </button>
+                                    </div>
+                                  ))
+                                )}
                               </div>
                             </div>
                           )}

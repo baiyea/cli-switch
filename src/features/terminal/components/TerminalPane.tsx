@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useEffect, useRef } from "react";
 import styles from "./TerminalPane.module.css";
 
 type Props = {
@@ -8,9 +8,15 @@ type Props = {
 };
 
 function TerminalPaneComponent({ sessionId, active, registerPane }: Props) {
+  const registerPaneRef = useRef(registerPane);
+
+  useEffect(() => {
+    registerPaneRef.current = registerPane;
+  }, [registerPane]);
+
   const setRef = useCallback(
-    (el: HTMLDivElement | null) => registerPane(sessionId, el),
-    [registerPane, sessionId]
+    (el: HTMLDivElement | null) => registerPaneRef.current(sessionId, el),
+    [sessionId]
   );
 
   return (

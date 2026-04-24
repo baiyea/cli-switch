@@ -13,6 +13,7 @@ const {
   applyProviderStartupEnv,
   getLaunchCommandForProvider,
   getResumeCommandForProvider,
+  isLocalGeneratedSessionId,
   normalizeProviderId
 } = require("./providers/cli-launchers");
 const { listProviderSessions, mapSessionsToProjects } = require("./providers/session-sources");
@@ -175,6 +176,7 @@ const providerSettingsSchema = z.object({
   providers: z.object({
     claude: z.object({
       defaultProfileId: z.string().min(1),
+      enabledProfileId: z.string().optional().default(""),
       profiles: z.array(z.object({
         id: z.string().min(1),
         name: z.string().min(1),
@@ -183,6 +185,7 @@ const providerSettingsSchema = z.object({
     }),
     codex: z.object({
       defaultProfileId: z.string().min(1),
+      enabledProfileId: z.string().optional().default(""),
       profiles: z.array(z.object({
         id: z.string().min(1),
         name: z.string().min(1),
@@ -191,6 +194,7 @@ const providerSettingsSchema = z.object({
     }),
     gemini: z.object({
       defaultProfileId: z.string().min(1),
+      enabledProfileId: z.string().optional().default(""),
       profiles: z.array(z.object({
         id: z.string().min(1),
         name: z.string().min(1),
@@ -198,6 +202,11 @@ const providerSettingsSchema = z.object({
       })).min(1)
     })
   })
+});
+const providerTestSchema = z.object({
+  provider: z.string().min(1),
+  profileId: z.string().min(1),
+  envVars: z.array(z.object({ key: z.string().min(1), value: z.string().optional().default("") })).optional().default([])
 });
 const sessionCreateSchema = z.object({
   projectId: z.string().min(1),
@@ -217,7 +226,7 @@ const sessionArchiveSchema = z.object({
 });
 const fileTreeSchema = z.object({
   cwd: z.string().min(1),
-  depth: z.number().int().min(1).max(6).optional().default(3)
+  depth: z.number().int().min(1).max(12).optional().default(6)
 });
 const fileOpenPathSchema = z.object({
   path: z.string().min(1)
@@ -458,7 +467,7 @@ function listClaudeSessionsForProject(project) {
 }
 
 function buildFileTree(cwd, depth) {
-  const IGNORE = new Set([".git", ".DS_Store", "node_modules", ".claude"]);
+  const IGNORE = new Set([".git", ".DS_Store", "node_modules"]);
   const gitInfo = getGitStatusSnapshot(cwd);
 
   function walk(dir, level) {
@@ -567,7 +576,8 @@ function getStartupEnvForProvider(provider = "claude") {
   const settings = appSettingsStore.getProviderStartupSettings();
   const id = normalizeProviderId(provider);
   const providerSettings = settings?.providers?.[id] || settings?.providers?.claude || {};
-  const profile = (providerSettings.profiles || []).find((item) => item.id === providerSettings.defaultProfileId)
+  const activeProfileId = providerSettings.enabledProfileId || providerSettings.defaultProfileId;
+  const profile = (providerSettings.profiles || []).find((item) => item.id === activeProfileId)
     || providerSettings.profiles?.[0]
     || { envVars: [] };
   const env = {};
@@ -578,12 +588,85 @@ function getStartupEnvForProvider(provider = "claude") {
   return applyProviderStartupEnv(provider, env);
 }
 
+function buildEnvFromPairs(pairs) {
+  const env = {};
+  for (const pair of pairs || []) {
+    if (!pair?.key) continue;
+    env[String(pair.key).trim()] = String(pair.value || "");
+  }
+  return env;
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function shortBody(text) {
+  return String(text || "").replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+async function testProviderConnection({ provider, envVars }) {
+  const id = normalizeProviderId(provider);
+  const env = applyProviderStartupEnv(id, buildEnvFromPairs(envVars));
+
+  if (id === "claude") {
+    const apiKey = env.ANTHROPIC_API_KEY;
+    if (!apiKey) return { ok: false, message: "缺少 ANTHROPIC_API_KEY" };
+    const base = String(env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
+    const url = `${base}/v1/models`;
+    const resp = await fetchWithTimeout(url, {
+      method: "GET",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01"
+      }
+    });
+    if (resp.ok) return { ok: true, message: "Claude 连接成功" };
+    const body = shortBody(await resp.text());
+    return { ok: false, message: `Claude 测试失败: HTTP ${resp.status}${body ? ` - ${body}` : ""}` };
+  }
+
+  if (id === "codex") {
+    const apiKey = env.OPENAI_API_KEY;
+    if (!apiKey) return { ok: false, message: "缺少 OPENAI_API_KEY" };
+    const base = String(env.OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "");
+    const url = `${base}/v1/models`;
+    const resp = await fetchWithTimeout(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+    if (resp.ok) return { ok: true, message: "Codex(OpenAI) 连接成功" };
+    const body = shortBody(await resp.text());
+    return { ok: false, message: `Codex 测试失败: HTTP ${resp.status}${body ? ` - ${body}` : ""}` };
+  }
+
+  if (id === "gemini") {
+    const apiKey = env.GEMINI_API_KEY || env.GOOGLE_API_KEY;
+    if (!apiKey) return { ok: false, message: "缺少 GEMINI_API_KEY 或 GOOGLE_API_KEY" };
+    const base = String(env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
+    const url = `${base}/v1beta/models?key=${encodeURIComponent(apiKey)}`;
+    const resp = await fetchWithTimeout(url, { method: "GET" });
+    if (resp.ok) return { ok: true, message: "Gemini 连接成功" };
+    const body = shortBody(await resp.text());
+    return { ok: false, message: `Gemini 测试失败: HTTP ${resp.status}${body ? ` - ${body}` : ""}` };
+  }
+
+  return { ok: false, message: `不支持的 provider: ${provider}` };
+}
+
 function syncDiscoveredSessionsForProjects(projects) {
-  if (!Array.isArray(projects) || projects.length === 0) return 0;
+  if (!Array.isArray(projects) || projects.length === 0) return { count: 0, mappings: [] };
   const discovered = mapSessionsToProjects(listProviderSessions(), projects);
   const deduped = dedupeSessionViews(discovered);
+  const mappings = [];
   for (const session of deduped) {
-    sessionStore.upsertDiscovered({
+    const result = sessionStore.reconcileDiscovered({
       projectId: session.projectId,
       title: session.name,
       provider: normalizeProviderId(session.provider),
@@ -592,8 +675,17 @@ function syncDiscoveredSessionsForProjects(projects) {
       sessionFilePath: session.sessionFilePath || null,
       createdAt: session.createdAt
     });
+    if (result?.reconciled && result.fromProviderSessionId && result.toProviderSessionId) {
+      mappings.push({
+        provider: normalizeProviderId(session.provider),
+        fromProviderSessionId: result.fromProviderSessionId,
+        toProviderSessionId: result.toProviderSessionId,
+        cwd: session.cwd || "",
+        projectId: session.projectId
+      });
+    }
   }
-  return deduped.length;
+  return { count: deduped.length, mappings };
 }
 
 const ptyService = new PtyService({
@@ -660,7 +752,7 @@ function registerAppIpc() {
       name: path.basename(folderPath),
       path: folderPath
     });
-    const syncedCount = syncDiscoveredSessionsForProjects([created]);
+    const { count: syncedCount } = syncDiscoveredSessionsForProjects([created]);
     logInfo("project", "Project created and sessions synced", {
       projectId: created.id,
       path: created.path,
@@ -687,7 +779,7 @@ function registerAppIpc() {
     const parsed = z.object({ projectId: z.string().min(1) }).parse(payload);
     const project = projectStore.getById(parsed.projectId);
     if (!project) throw new Error("Project not found");
-    const count = syncDiscoveredSessionsForProjects([project]);
+    const { count } = syncDiscoveredSessionsForProjects([project]);
     logInfo("session", "Manual project session sync complete", {
       projectId: project.id,
       path: project.path,
@@ -718,7 +810,18 @@ function registerAppIpc() {
       sessionId: localSessionId
     });
     if (launchCommand) {
-      ptyService.write(localSessionId, launchCommand);
+      logInfo("session", "Writing launch command", {
+        sessionId: localSessionId,
+        provider,
+        command: launchCommand.trim()
+      });
+      const wrote = ptyService.write(localSessionId, launchCommand);
+      if (!wrote) logWarn("session", "Launch command write skipped: PTY not found", { sessionId: localSessionId, provider });
+    } else {
+      const message = `No launch command available for provider=${provider}. CLI runtime may be missing for platform ${process.platform}-${process.arch}.`;
+      logWarn("session", message, { sessionId: localSessionId, provider });
+      const wroteError = ptyService.write(localSessionId, `${message}\n`);
+      if (!wroteError) logWarn("session", "Launch error write skipped: PTY not found", { sessionId: localSessionId, provider });
     }
 
     sessionStore.create({
@@ -749,11 +852,24 @@ function registerAppIpc() {
   registerIpc(IPC.SESSION_START, async (_event, payload) => {
     const parsed = sessionStartSchema.parse(payload);
     const provider = normalizeProviderId(parsed.provider);
-    const providerSessionId = parsed.providerSessionId || parsed.sessionId;
-    const record = sessionStore.getByProviderSessionId({ provider, providerSessionId });
+    let providerSessionId = parsed.providerSessionId || parsed.sessionId;
+    let record = sessionStore.getByProviderSessionId({ provider, providerSessionId });
     const project = record?.project_id ? projectStore.getById(record.project_id) : null;
     const sessionCwd = record?.cwd || parsed.cwd || project?.path || "";
     if (!sessionCwd) throw new Error("Session project path not found");
+    if (project && isLocalGeneratedSessionId(provider, providerSessionId)) {
+      const { mappings } = syncDiscoveredSessionsForProjects([project]);
+      const reconciled = mappings.find((item) => item.provider === provider && item.fromProviderSessionId === providerSessionId);
+      if (reconciled?.toProviderSessionId) {
+        providerSessionId = reconciled.toProviderSessionId;
+        record = sessionStore.getByProviderSessionId({ provider, providerSessionId });
+        logInfo("session", "Reconciled local session id to provider session id", {
+          provider,
+          fromProviderSessionId: reconciled.fromProviderSessionId,
+          toProviderSessionId: reconciled.toProviderSessionId
+        });
+      }
+    }
     logInfo("session", "Starting session", {
       sessionId: parsed.sessionId,
       provider,
@@ -768,9 +884,30 @@ function registerAppIpc() {
         provider,
         sessionId: parsed.sessionId
       });
-      ptyService.write(parsed.sessionId, `cd "${sessionCwd.replace(/"/g, '\\"')}"\n`);
+      const wroteCwd = ptyService.write(parsed.sessionId, `cd "${sessionCwd.replace(/"/g, '\\"')}"\n`);
+      if (!wroteCwd) logWarn("session", "CWD command write skipped: PTY not found", { sessionId: parsed.sessionId, provider });
       const resumeCommand = getResumeCommandForProvider(provider, providerSessionId);
-      if (resumeCommand) ptyService.write(parsed.sessionId, resumeCommand);
+      const startupCommand = resumeCommand || getLaunchCommandForProvider(provider);
+      if (startupCommand) {
+        logInfo("session", "Writing resume command", {
+          sessionId: parsed.sessionId,
+          provider,
+          providerSessionId,
+          mode: resumeCommand ? "resume" : "launch",
+          command: startupCommand.trim()
+        });
+        const wroteResume = ptyService.write(parsed.sessionId, startupCommand);
+        if (!wroteResume) logWarn("session", "Resume command write skipped: PTY not found", { sessionId: parsed.sessionId, provider });
+      } else {
+        const message = `No startup command available for provider=${provider}. CLI runtime may be missing for platform ${process.platform}-${process.arch}.`;
+        logWarn("session", message, {
+          sessionId: parsed.sessionId,
+          provider,
+          providerSessionId
+        });
+        const wroteError = ptyService.write(parsed.sessionId, `${message}\n`);
+        if (!wroteError) logWarn("session", "Startup error write skipped: PTY not found", { sessionId: parsed.sessionId, provider });
+      }
     }
     sessionStore.updateStateByProviderSessionId({
       provider,
@@ -786,6 +923,28 @@ function registerAppIpc() {
       project_path: sessionCwd,
       status: "running"
     });
+  });
+  registerIpc(IPC.SESSION_RENAME, async (_event, payload) => {
+    const parsed = z.object({
+      sessionId: z.string().min(1),
+      title: z.string().min(1),
+      provider: z.string().optional().default("claude"),
+      providerSessionId: z.string().optional()
+    }).parse(payload || {});
+
+    const provider = normalizeProviderId(parsed.provider);
+    const providerSessionId = parsed.providerSessionId || parsed.sessionId;
+    const nextTitle = parsed.title.trim();
+    if (!nextTitle) {
+      throw new Error("Session title is required");
+    }
+
+    sessionStore.renameByProviderSessionId({
+      provider,
+      providerSessionId,
+      title: nextTitle
+    });
+    return { ok: true };
   });
   registerIpc(IPC.SESSION_ARCHIVE, async (_event, payload) => {
     const parsed = z.object({
@@ -869,6 +1028,15 @@ function registerAppIpc() {
   registerIpc(IPC.SETTINGS_CLAUDE_SAVE, async (_event, payload) => {
     const parsed = providerSettingsSchema.parse(payload);
     return appSettingsStore.setProviderStartupSettings(parsed);
+  });
+  registerIpc(IPC.SETTINGS_PROVIDER_TEST, async (_event, payload) => {
+    const parsed = providerTestSchema.parse(payload);
+    try {
+      return await testProviderConnection(parsed);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { ok: false, message: `连接测试异常: ${message}` };
+    }
   });
   registerIpc(IPC.SKILLGEN_RUN, async (_event, payload = {}) => {
     const parsed = z.object({
