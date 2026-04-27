@@ -39,8 +39,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     saveClaude: (payload) => ipcRenderer.invoke(IPC.SETTINGS_CLAUDE_SAVE, payload),
     testProvider: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_TEST, payload)
   },
-  skillgen: {
-    run: (payload) => ipcRenderer.invoke(IPC.SKILLGEN_RUN, payload)
+  windowControls: {
+    setTrafficLightPosition: (payload) => ipcRenderer.invoke(IPC.WINDOW_SET_TRAFFIC_LIGHT, payload)
   },
   logs: {
     write: (payload) => ipcRenderer.send(IPC.APP_LOG, payload)

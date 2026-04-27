@@ -22,6 +22,7 @@ __pycache__/
 **/vendor/*
 .npm-*/
 .pnpm-*/
+.tmp/
 
 # Tar archives generated during Windows packaging
 build-tar/

@@ -19,11 +19,11 @@ export enum IPC {
   SESSION_RESTORE = "session:restore",
   FILE_TREE_READ = "file:tree:read",
   FILE_OPEN_PATH = "file:open:path",
+  WINDOW_SET_TRAFFIC_LIGHT = "window:traffic-light:set",
   APP_LOG = "app:log",
   SETTINGS_CLAUDE_GET = "settings:claude:get",
   SETTINGS_CLAUDE_SAVE = "settings:claude:save",
-  SETTINGS_PROVIDER_TEST = "settings:provider:test",
-  SKILLGEN_RUN = "skillgen:run"
+  SETTINGS_PROVIDER_TEST = "settings:provider:test"
 }
 
 export type PtySessionStatus = "creating" | "running" | "exited";

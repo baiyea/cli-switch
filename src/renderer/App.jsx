@@ -1,11 +1,10 @@
-import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Tree } from "react-arborist";
-import { SuspendedFileIcon, SuspendedFolderIcon, SuspendedOpenFolderIcon } from "react-files-icons/suspended";
-import { fileBridge, logBridge, projectBridge, sessionBridge, settingsBridge, skillgenBridge } from "../bridge";
+import { FileIcon, FolderIcon, OpenFolderIcon } from "react-files-icons";
+import { fileBridge, logBridge, projectBridge, sessionBridge, settingsBridge, windowBridge } from "../bridge";
 import { TerminalPanel } from "../features/terminal/components/TerminalPanel";
-import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SettingsIcon, SkillExtractIcon } from "./icons/icon-registry";
+import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SettingsIcon } from "./icons/icon-registry";
 import { useSessionStore } from "../store/session.store";
-import appLogo from "./assets/brand/app-logo.png";
 import providerEnvPresets from "./assets/provider-env-presets.json";
 
 const DEFAULT_PROVIDER_SETTINGS = {
@@ -42,6 +41,8 @@ const RUNTIME_STATUS_LABEL = {
   running: "运行中"
 };
 const PROVIDER_IDS = ["claude", "codex", "gemini"];
+const TRAFFIC_LIGHT_Y = 20;
+const TRAFFIC_LIGHT_X_IN_SIDEBAR = 14;
 
 function normalizeProviderId(provider) {
   const value = String(provider || "").toLowerCase();
@@ -198,6 +199,8 @@ function getMissingRequiredKeys(profile) {
 }
 
 function App() {
+  const isMacOS = typeof navigator !== "undefined"
+    && /mac/i.test(String(navigator.platform || navigator.userAgent || ""));
   const [projects, setProjects] = useState([]);
   const [expandedProjects, setExpandedProjects] = useState({});
   const [activeProjectId, setActiveProjectId] = useState(null);
@@ -214,12 +217,6 @@ function App() {
   const [settingsError, setSettingsError] = useState("");
   const [settingsSavedAt, setSettingsSavedAt] = useState(0);
   const [appError, setAppError] = useState("");
-  const [skillgenDialog, setSkillgenDialog] = useState({
-    open: false,
-    status: "idle",
-    title: "",
-    lines: []
-  });
   const [explorerTree, setExplorerTree] = useState([]);
   const [explorerCwd, setExplorerCwd] = useState("");
   const [explorerLoading, setExplorerLoading] = useState(false);
@@ -230,6 +227,7 @@ function App() {
   const [openCreateMenuProjectId, setOpenCreateMenuProjectId] = useState(null);
   const [createMenuPlacementByProject, setCreateMenuPlacementByProject] = useState({});
   const [showAllSessionsByProject, setShowAllSessionsByProject] = useState({});
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [providerTestStateByKey, setProviderTestStateByKey] = useState({});
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleSessionId, setEditingTitleSessionId] = useState("");
@@ -766,127 +764,6 @@ function App() {
     ensureSessionRunning(activeSessionId);
   }, [activeSessionId, ensureSessionRunning]);
 
-  function buildSkillgenDialog(result) {
-    if (Array.isArray(result)) {
-      const totalCreated = result.reduce((sum, item) => sum + Number(item?.created || 0), 0);
-      const totalUpdated = result.reduce((sum, item) => sum + Number(item?.updated || 0), 0);
-      const totalDrafted = result.reduce((sum, item) => sum + Number(item?.drafted || 0), 0);
-      const totalExtracted = totalCreated + totalUpdated;
-      if (totalExtracted > 0) {
-        return {
-          status: "success",
-          title: "提取完成",
-          lines: [`已提取 ${totalExtracted} 个 Skill（新建 ${totalCreated}，更新 ${totalUpdated}）。`]
-        };
-      }
-      if (totalDrafted > 0) {
-        return {
-          status: "info",
-          title: "提取完成",
-          lines: [`未提取到高置信 Skill，已生成 ${totalDrafted} 个候选草稿。`]
-        };
-      }
-      return {
-        status: "info",
-        title: "提取完成",
-        lines: ["未提取到有价值的内容。"]
-      };
-    }
-
-    if (!result || typeof result !== "object") {
-      return {
-        status: "info",
-        title: "提取完成",
-        lines: ["未提取到有价值的内容。"]
-      };
-    }
-
-    if (result.ok === false) {
-      return {
-        status: "error",
-        title: "提取失败",
-        lines: [result.error || result.reason || "未知错误"]
-      };
-    }
-
-    const created = Number(result.created || 0);
-    const updated = Number(result.updated || 0);
-    const drafted = Number(result.drafted || 0);
-    const processed = Number(result.processed || 0);
-    const extracted = created + updated;
-
-    if (extracted > 0) {
-      return {
-        status: "success",
-        title: "提取完成",
-        lines: [
-          `已提取 ${extracted} 个 Skill（新建 ${created}，更新 ${updated}）。`,
-          processed > 0 ? `本次分析消息数：${processed}` : ""
-        ].filter(Boolean)
-      };
-    }
-
-    if (drafted > 0) {
-      return {
-        status: "info",
-        title: "提取完成",
-        lines: [
-          `未提取到高置信 Skill，已生成 ${drafted} 个候选草稿。`,
-          processed > 0 ? `本次分析消息数：${processed}` : ""
-        ].filter(Boolean)
-      };
-    }
-
-    return {
-      status: "info",
-      title: "提取完成",
-      lines: ["未提取到有价值的内容。"]
-    };
-  }
-
-  async function onExtractSkill() {
-    if (!activeSessionId || !activeSession) return;
-
-    setAppError("");
-    setSkillgenDialog({
-      open: true,
-      status: "running",
-      title: "正在提取中",
-      lines: ["正在提取中，请稍候..."]
-    });
-    logBridge.write({
-      level: "info",
-      scope: "app",
-      message: "Triggering skill extraction",
-      meta: {
-        activeSessionId,
-        projectId: activeSession.projectId || activeProjectId || null,
-        trigger: "manual-button"
-      }
-    });
-    try {
-      const result = await skillgenBridge.run({
-        projectId: activeSession.projectId || activeProjectId || undefined,
-        trigger: "manual-button",
-        force: true
-      });
-      const next = buildSkillgenDialog(result);
-      setSkillgenDialog({
-        open: true,
-        status: next.status,
-        title: next.title,
-        lines: next.lines
-      });
-    } catch (e) {
-      setSkillgenDialog({
-        open: true,
-        status: "error",
-        title: "提取失败",
-        lines: [e?.message || "未知错误"]
-      });
-    }
-  }
-
   function startTitleEdit() {
     if (!activeSession?.sessionId) return;
     setAppError("");
@@ -1027,15 +904,30 @@ function App() {
     };
   }, [activeProject, explorerVisible, explorerCwd]);
 
+  useEffect(() => {
+    if (!isMacOS) return;
+    const x = TRAFFIC_LIGHT_X_IN_SIDEBAR;
+    void windowBridge.setTrafficLightPosition({ x, y: TRAFFIC_LIGHT_Y }).catch(() => {});
+  }, [isMacOS, sidebarCollapsed]);
+
   return (
-    <div className="layout">
+    <div className={`layout ${isMacOS ? "macos" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
-          <img className="brand-icon" src={appLogo} alt="ZeeLinCode logo" />
-          <div>
+          <div className="brand-title-wrap">
             <div className="brand-title">ZeeLinCode</div>
-            <div className="brand-subtitle">ARCHITECTURAL EDITOR</div>
           </div>
+          {!sidebarCollapsed && (
+            <button
+              type="button"
+              className="sidebar-collapse-btn"
+              aria-label="收缩会话栏"
+              title="收缩会话栏"
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+            >
+              <ExplorerToggleIcon size={14} />
+            </button>
+          )}
         </div>
 
         <button className="add-project-btn" onClick={onAddProject}>+ Add Project</button>
@@ -1251,6 +1143,17 @@ function App() {
       <main className="main">
         <header className="toolbar">
           <div className="toolbar-title-group">
+            {sidebarCollapsed && (
+              <button
+                type="button"
+                className="toolbar-expand-btn"
+                aria-label="展开会话栏"
+                title="展开会话栏"
+                onClick={() => setSidebarCollapsed(false)}
+              >
+                ▸
+              </button>
+            )}
             {activeSession && (
               <ProviderIcon
                 provider={activeSession.provider || "claude"}
@@ -1289,6 +1192,7 @@ function App() {
                 {activeSession ? activeSession.name : "ready"}
               </span>
             )}
+            <div className="toolbar-drag-spacer" />
             {activeSession && (
               <span className={`status-chip ${activeSession.runtimeStatus || activeSession.status}`}>
                 {RUNTIME_STATUS_LABEL[activeSession.runtimeStatus || activeSession.status] || activeSession.runtimeStatus || activeSession.status}
@@ -1297,16 +1201,6 @@ function App() {
           </div>
 
           <div className="toolbar-actions">
-            <button
-              className="toolbar-icon-btn"
-              type="button"
-              onClick={onExtractSkill}
-              disabled={!activeSessionId || skillgenDialog.status === "running"}
-              title="从当前会话提取并生成项目 Skill"
-              aria-label="提取技能"
-            >
-              <SkillExtractIcon size={14} />
-            </button>
             <button
               className="toolbar-icon-btn"
               type="button"
@@ -1331,38 +1225,6 @@ function App() {
 
         {appError && <div className="banner-error">{appError}</div>}
 
-        {skillgenDialog.open && (
-          <div
-            className="skillgen-modal-backdrop"
-            onClick={() => {
-              if (skillgenDialog.status === "running") return;
-              setSkillgenDialog((prev) => ({ ...prev, open: false }));
-            }}
-          >
-            <div className="skillgen-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="skillgen-modal-header">
-                <div className={`skillgen-dot ${skillgenDialog.status}`} />
-                <div className="skillgen-title">{skillgenDialog.title}</div>
-              </div>
-              <div className="skillgen-body">
-                {skillgenDialog.lines.map((line, idx) => (
-                  <div key={`${line}-${idx}`} className="skillgen-line">{line}</div>
-                ))}
-              </div>
-              <div className="skillgen-footer">
-                <button
-                  type="button"
-                  className="skillgen-close-btn"
-                  onClick={() => setSkillgenDialog((prev) => ({ ...prev, open: false }))}
-                  disabled={skillgenDialog.status === "running"}
-                >
-                  关闭
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className={`main-content ${explorerVisible ? "" : "explorer-hidden"}`}>
           <section className="main-panel">
             {activeProject ? (
@@ -1374,7 +1236,7 @@ function App() {
             )}
           </section>
 
-          <aside className="explorer" style={{ display: explorerVisible ? "flex" : "none" }}>
+          <aside className={`explorer ${explorerVisible ? "open" : "closed"}`}>
             <div className="explorer-head">
               <span>EXPLORER</span>
               <div className="explorer-actions">
@@ -1437,17 +1299,15 @@ function App() {
                           >
                             {node.isInternal ? (node.isOpen ? "▾" : "▸") : ""}
                           </button>
-                          <Suspense fallback={<span className="explorer-node-icon explorer-node-icon-fallback" aria-hidden="true" />}>
-                            {node.isInternal ? (
-                              node.isOpen ? (
-                                <SuspendedOpenFolderIcon name={node.data.name} className="explorer-node-icon folder" aria-hidden="true" />
-                              ) : (
-                                <SuspendedFolderIcon name={node.data.name} className="explorer-node-icon folder" aria-hidden="true" />
-                              )
+                          {node.isInternal ? (
+                            node.isOpen ? (
+                              <OpenFolderIcon name={node.data.name} className="explorer-node-icon folder" aria-hidden="true" />
                             ) : (
-                              <SuspendedFileIcon name={node.data.name} className="explorer-node-icon file" aria-hidden="true" />
-                            )}
-                          </Suspense>
+                              <FolderIcon name={node.data.name} className="explorer-node-icon folder" aria-hidden="true" />
+                            )
+                          ) : (
+                            <FileIcon name={node.data.name} className="explorer-node-icon file" aria-hidden="true" />
+                          )}
                           <span className="explorer-node-name">{node.data.name}</span>
                           {explorerIsGitRepo && node.data.type === "directory" && node.data.hasGitChanges && (
                             <span className="explorer-git-dot" aria-hidden="true" />

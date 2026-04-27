@@ -109,12 +109,8 @@ declare global {
           message: string;
         }>;
       };
-      skillgen: {
-        run: (payload?: {
-          projectId?: string;
-          trigger?: string;
-          force?: boolean;
-        }) => Promise<unknown>;
+      windowControls: {
+        setTrafficLightPosition: (payload: { x: number; y: number }) => Promise<{ ok: boolean }>;
       };
       logs: {
         write: (payload: {

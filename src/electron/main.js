@@ -17,7 +17,6 @@ const {
   normalizeProviderId
 } = require("./providers/cli-launchers");
 const { listProviderSessions, mapSessionsToProjects } = require("./providers/session-sources");
-const { createSkillgenRunner } = require("./services/skillgen/runner");
 const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../main/db/database");
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
@@ -67,16 +66,74 @@ function toLogError(error) {
   };
 }
 
+function sanitizeLogText(value) {
+  return String(value || "").replace(/\r?\n/g, " ").trim();
+}
+
+function formatLogLine(scope, message, meta) {
+  const prefix = `[${sanitizeLogText(scope)}] ${sanitizeLogText(message)}`.trim();
+  if (meta === undefined || meta === null) return prefix;
+  try {
+    const metaText = JSON.stringify(meta);
+    if (!metaText || metaText === "{}") return prefix;
+    return `${prefix} ${sanitizeLogText(metaText)}`;
+  } catch {
+    return prefix;
+  }
+}
+
 function logInfo(scope, message, meta) {
-  log.info(`[${scope}] ${message}`, meta || {});
+  log.info(formatLogLine(scope, message, meta));
 }
 
 function logWarn(scope, message, meta) {
-  log.warn(`[${scope}] ${message}`, meta || {});
+  log.warn(formatLogLine(scope, message, meta));
 }
 
 function logError(scope, message, error, meta) {
-  log.error(`[${scope}] ${message}`, { ...(meta || {}), ...toLogError(error) });
+  log.error(formatLogLine(scope, message, { ...(meta || {}), ...toLogError(error) }));
+}
+
+function logDebug(scope, message, meta) {
+  log.debug(formatLogLine(scope, message, meta));
+}
+
+function logByLevel(level, scope, message, meta) {
+  if (level === "error") {
+    log.error(formatLogLine(scope, message, meta));
+    return;
+  }
+  if (level === "warn") {
+    log.warn(formatLogLine(scope, message, meta));
+    return;
+  }
+  if (level === "debug") {
+    log.debug(formatLogLine(scope, message, meta));
+    return;
+  }
+  log.info(formatLogLine(scope, message, meta));
+}
+
+function setTrafficLightPositionSafe(win, position) {
+  if (!win || win.isDestroyed?.()) return false;
+  const target = {
+    x: Math.max(0, Math.floor(position?.x || 0)),
+    y: Math.max(0, Math.floor(position?.y || 0))
+  };
+
+  if (typeof win.setTrafficLightPosition === "function") {
+    win.setTrafficLightPosition(target);
+    return true;
+  }
+
+  // Compatibility fallback for Electron versions exposing macOS button API
+  // under setWindowButtonPosition instead.
+  if (typeof win.setWindowButtonPosition === "function") {
+    win.setWindowButtonPosition(target);
+    return true;
+  }
+
+  return false;
 }
 
 function sendToRenderer(channel, payload) {
@@ -109,6 +166,8 @@ function createMacTray() {
   if (process.platform !== "darwin" || tray) return;
 
   const trayPath = pickExistingPath([
+    resolveAssetPath("icons", "png", "icon_16x16@2x.png"),
+    resolveAssetPath("icons", "png", "icon_16x16.png"),
     resolveAssetPath("icons", "tray", "macos-trayTemplate@2x.png"),
     resolveAssetPath("icons", "tray", "macos-trayTemplate.png"),
     resolveAssetPath("icons", "png", "icon_16x16.png")
@@ -118,7 +177,7 @@ function createMacTray() {
   let trayImage = nativeImage.createFromPath(trayPath);
   if (trayImage.isEmpty()) return;
   trayImage = trayImage.resize({ width: 16, height: 16 });
-  trayImage.setTemplateImage(true);
+  trayImage.setTemplateImage(false);
 
   tray = new Tray(trayImage);
   tray.setToolTip(APP_NAME);
@@ -694,16 +753,8 @@ const ptyService = new PtyService({
   onExit: ({ sessionId, exitCode }) => {
     logInfo("pty", "Session exited", { sessionId, exitCode });
     sendToRenderer(IPC.PTY_EXIT, { sessionId, exitCode });
-    // Auto skill learning is disabled by product decision.
-    // Keep manual-only mode via IPC.SKILLGEN_RUN.
-    // if (skillgenRunner) {
-    //   skillgenRunner.runForSession({ sessionId }, "session-exit").catch((error) => {
-    //     logError("skillgen", "Failed on session-exit trigger", error, { sessionId });
-    //   });
-    // }
   }
 });
-let skillgenRunner = null;
 
 function registerAppIpc() {
   const registerIpc = (channel, handler) => {
@@ -722,19 +773,7 @@ function registerAppIpc() {
     const scope = payload.scope || "renderer";
     const message = payload.message || "renderer log";
     const meta = payload.meta || {};
-    if (level === "error") {
-      log.error(`[${scope}] ${message}`, meta);
-      return;
-    }
-    if (level === "warn") {
-      log.warn(`[${scope}] ${message}`, meta);
-      return;
-    }
-    if (level === "debug") {
-      log.debug(`[${scope}] ${message}`, meta);
-      return;
-    }
-    log.info(`[${scope}] ${message}`, meta);
+    logByLevel(level, scope, message, meta);
   });
 
   registerAllIpc(ipcMain, { ptyService });
@@ -870,12 +909,7 @@ function registerAppIpc() {
         });
       }
     }
-    logInfo("session", "Starting session", {
-      sessionId: parsed.sessionId,
-      provider,
-      providerSessionId,
-      cwd: sessionCwd
-    });
+    logInfo("session", "Starting session", {sessionId: parsed.sessionId, provider, providerSessionId,cwd: sessionCwd});
 
     if (!ptyService.hasSession(parsed.sessionId)) {
       ptyService.create({
@@ -954,24 +988,6 @@ function registerAppIpc() {
     }).parse(normalizeArchivePayload(payload));
     const provider = normalizeProviderId(parsed.provider);
     const providerSessionId = parsed.providerSessionId || parsed.sessionId;
-    // Auto skill learning is disabled by product decision.
-    // Keep manual-only mode via IPC.SKILLGEN_RUN.
-    // if (skillgenRunner) {
-    //   try {
-    //     await Promise.race([
-    //       skillgenRunner.runForSession(
-    //         { provider, providerSessionId, sessionId: providerSessionId },
-    //         "archive-pre"
-    //       ),
-    //       new Promise((_, reject) => setTimeout(() => reject(new Error("archive-pre timeout")), 5 * 1000))
-    //     ]);
-    //   } catch (error) {
-    //     logError("skillgen", "Failed on archive-pre trigger", error, {
-    //       provider,
-    //       providerSessionId
-    //     });
-    //   }
-    // }
     ptyService.destroy(providerSessionId);
     logInfo("session", "Archiving session", {
       sessionId: providerSessionId,
@@ -1023,6 +1039,24 @@ function registerAppIpc() {
     }
     return { ok: true };
   });
+  registerIpc(IPC.WINDOW_SET_TRAFFIC_LIGHT, async (_event, payload) => {
+    if (process.platform !== "darwin" || !mainWindow || mainWindow.isDestroyed()) {
+      return { ok: true };
+    }
+    const parsed = z.object({
+      x: z.number().int().min(0).max(5000),
+      y: z.number().int().min(0).max(5000)
+    }).parse(payload || {});
+    const updated = setTrafficLightPositionSafe(mainWindow, { x: parsed.x, y: parsed.y });
+    if (!updated) {
+      logWarn("window", "Skip traffic light update: API not supported", {
+        x: parsed.x,
+        y: parsed.y,
+        electron: process.versions.electron
+      });
+    }
+    return { ok: updated };
+  });
 
   registerIpc(IPC.SETTINGS_CLAUDE_GET, async () => appSettingsStore.getProviderStartupSettings());
   registerIpc(IPC.SETTINGS_CLAUDE_SAVE, async (_event, payload) => {
@@ -1038,18 +1072,6 @@ function registerAppIpc() {
       return { ok: false, message: `连接测试异常: ${message}` };
     }
   });
-  registerIpc(IPC.SKILLGEN_RUN, async (_event, payload = {}) => {
-    const parsed = z.object({
-      projectId: z.string().min(1).optional(),
-      trigger: z.string().optional().default("manual"),
-      force: z.boolean().optional().default(false)
-    }).parse(payload || {});
-    if (!skillgenRunner) throw new Error("Skillgen runner not initialized");
-    if (parsed.projectId) {
-      return skillgenRunner.runForProjectId(parsed.projectId, parsed.trigger, parsed.force);
-    }
-    return skillgenRunner.runStartupCompensation();
-  });
 }
 
 function createWindow() {
@@ -1061,6 +1083,10 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 680,
     title: APP_NAME,
+    titleBarStyle: process.platform === "darwin" ? "hidden" : undefined,
+    trafficLightPosition: process.platform === "darwin"
+      ? { x: 14, y: 20 }
+      : undefined,
     icon: iconPath || undefined,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -1099,13 +1125,6 @@ app.whenReady().then(() => {
     platform: process.platform,
     isDev
   });
-  skillgenRunner = createSkillgenRunner({
-    projectStore,
-    sessionStore,
-    logInfo,
-    logWarn,
-    logError
-  });
   registerAppIpc();
   if (process.platform === "darwin" && app.dock) {
     const dockIconPath = pickExistingPath([
@@ -1117,14 +1136,6 @@ app.whenReady().then(() => {
   }
   createWindow();
   createMacTray();
-  // Auto skill learning is disabled by product decision.
-  // Keep manual-only mode via IPC.SKILLGEN_RUN.
-  // setTimeout(() => {
-  //   if (!skillgenRunner) return;
-  //   skillgenRunner.runStartupCompensation().catch((error) => {
-  //     logError("skillgen", "Failed on startup-compensation trigger", error);
-  //   });
-  // }, 15 * 1000);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

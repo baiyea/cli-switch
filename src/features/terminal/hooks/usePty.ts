@@ -91,6 +91,14 @@ export function usePty() {
     lastResizeRef.current.set(sessionId, { cols, rows });
   }
 
+  function scrollToBottomIfActive(sessionId: string, term: Terminal) {
+    if (activeSessionIdRef.current !== sessionId) return;
+    try {
+      term.scrollToBottom();
+    } catch {
+    }
+  }
+
   function ensureTerminal(sessionId: string, container: HTMLDivElement) {
     const existing = terminalRef.current.get(sessionId);
     if (existing) {
@@ -159,6 +167,7 @@ export function usePty() {
     const refreshTerminal = () => {
       window.requestAnimationFrame(() => {
         try {
+          scrollToBottomIfActive(sessionId, term);
           term.refresh(0, Math.max(0, term.rows - 1));
         } catch {
         }
@@ -168,6 +177,7 @@ export function usePty() {
     const writeReplay = (data: string, reset = false) => {
       replayMutedRef.current.add(sessionId);
       const finishReplay = () => {
+        scrollToBottomIfActive(sessionId, term);
         refreshTerminal();
         window.requestAnimationFrame(() => {
           replayMutedRef.current.delete(sessionId);
@@ -307,6 +317,7 @@ export function usePty() {
     if (!entry) return;
     entry.fitAddon.fit();
     safeResizePty(sid, entry);
+    scrollToBottomIfActive(sid, entry.term);
     entry.term.focus();
   }
 
@@ -318,6 +329,7 @@ export function usePty() {
       if (entry && containerRef.current.has(sessionId)) {
         try {
           entry.term.write(data);
+          scrollToBottomIfActive(sessionId, entry.term);
         } catch (error) {
           logBridge.write({
             level: "warn",
@@ -336,6 +348,7 @@ export function usePty() {
       if (entry && containerRef.current.has(sessionId)) {
         try {
           entry.term.write(line);
+          scrollToBottomIfActive(sessionId, entry.term);
         } catch (error) {
           logBridge.write({
             level: "warn",

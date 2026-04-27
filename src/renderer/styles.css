@@ -50,6 +50,7 @@
   --radius-lg: 8px;
   --radius-xl: 12px;
   --sidebar-width: 256px;
+  --explorer-width: 256px;
 }
 
 * {
@@ -75,41 +76,86 @@ select {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   background: var(--bg-page);
+  transition: grid-template-columns 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .sidebar {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 24px 16px;
+  padding: 8px 16px 24px;
   background: var(--bg-sidebar);
   box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.05);
+  transition: padding 240ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 240ms ease;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 32px;
+  gap: 8px;
+  min-height: 48px;
+  margin-bottom: 8px;
   padding: 0 8px;
 }
 
-.brand-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  display: block;
-  object-fit: cover;
-  box-shadow: 0 4px 12px -2px rgba(42, 52, 57, 0.15);
+.layout.macos .toolbar {
+  min-height: 56px;
+}
+
+.layout.macos.sidebar-collapsed .toolbar {
+  padding-left: 72px;
+}
+
+.layout.macos:not(.sidebar-collapsed) .brand {
+  padding-left: 72px;
+}
+
+.layout.macos:not(.sidebar-collapsed) .sidebar {
+  padding-top: 0;
+}
+
+.layout.macos:not(.sidebar-collapsed) .brand-title-wrap,
+.layout.macos:not(.sidebar-collapsed) .sidebar-collapse-btn {
+  transform: translateY(4px);
+}
+
+.brand-title-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .brand-title {
   font-family: var(--font-header);
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
   font-weight: 700;
   letter-spacing: 0;
   color: var(--on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-collapse-btn {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7788;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s ease, color 0.1s ease;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-collapse-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #2f3b4b;
 }
 
 .brand-subtitle {
@@ -141,6 +187,37 @@ select {
 
 .add-project-btn:active {
   filter: brightness(0.98);
+}
+
+.layout.sidebar-collapsed {
+  --sidebar-width: 0px;
+}
+
+.layout.sidebar-collapsed .add-project-btn,
+.layout.sidebar-collapsed .block,
+.layout.sidebar-collapsed .sidebar-bottom {
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+}
+
+.layout.sidebar-collapsed .sidebar {
+  padding: 0;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.layout.sidebar-collapsed .brand {
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+}
+
+.brand,
+.add-project-btn,
+.block,
+.sidebar-bottom {
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .block {
@@ -542,11 +619,11 @@ select {
   flex-direction: column;
   min-height: 0;
   background: var(--bg-main);
-  padding: 12px;
+  padding: 0 12px 12px;
 }
 
 .toolbar {
-  min-height: 64px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -554,6 +631,7 @@ select {
   padding: 0 0 0 12px;
   background: transparent;
   border-bottom: none;
+  -webkit-app-region: drag;
 }
 
 .toolbar-title-group {
@@ -563,6 +641,26 @@ select {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+}
+
+.toolbar-expand-btn {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7788;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar-expand-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #2f3b4b;
 }
 
 .toolbar-provider-icon {
@@ -578,8 +676,8 @@ select {
   font-weight: 700;
   color: var(--on-surface);
   letter-spacing: -0.3px;
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
+  max-width: min(58vw, 760px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -587,6 +685,12 @@ select {
 
 .toolbar-title.editable {
   cursor: text;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar-drag-spacer {
+  flex: 1 1 auto;
+  min-width: 16px;
 }
 
 .toolbar-title-input {
@@ -595,13 +699,15 @@ select {
   font-weight: 700;
   color: var(--on-surface);
   letter-spacing: -0.3px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  width: min(58vw, 760px);
   min-width: 160px;
   border: 1px solid var(--outline-variant);
   border-radius: 8px;
   padding: 2px 10px;
   background: #fff;
   outline: none;
+  -webkit-app-region: no-drag;
 }
 
 .toolbar-title-input:focus {
@@ -675,6 +781,7 @@ select {
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background 0.1s ease, color 0.1s ease;
+  -webkit-app-region: no-drag;
 }
 
 .toolbar-icon-btn:hover:not(:disabled) {
@@ -702,128 +809,16 @@ select {
   font-weight: 500;
 }
 
-.skillgen-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 35;
-  background: rgba(15, 23, 42, 0.22);
-  backdrop-filter: blur(3px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.skillgen-modal {
-  width: min(460px, calc(100vw - 40px));
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: #fff;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
-  overflow: hidden;
-}
-
-.skillgen-modal-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px 10px;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.skillgen-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--outline);
-}
-
-.skillgen-dot.running {
-  background: #175cd3;
-  animation: skillgen-pulse 1.2s ease-in-out infinite;
-}
-
-.skillgen-dot.success {
-  background: #067647;
-}
-
-.skillgen-dot.info {
-  background: #155eef;
-}
-
-.skillgen-dot.error {
-  background: #b42318;
-}
-
-.skillgen-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1f2937;
-}
-
-.skillgen-body {
-  display: grid;
-  gap: 8px;
-  padding: 12px 16px 6px;
-}
-
-.skillgen-line {
-  font-size: 14px;
-  color: #344054;
-  line-height: 1.5;
-}
-
-.skillgen-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding: 12px 16px 14px;
-}
-
-.skillgen-close-btn {
-  border: 1px solid var(--line);
-  background: #fff;
-  color: #344054;
-  border-radius: 8px;
-  height: 32px;
-  padding: 0 14px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.skillgen-close-btn:hover:not(:disabled) {
-  background: var(--surface-container-low);
-}
-
-.skillgen-close-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-@keyframes skillgen-pulse {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.25);
-    opacity: 0.65;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
 .main-content {
   flex: 1;
   display: flex;
   gap: 12px;
   min-height: 0;
+  transition: gap 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .main-content.explorer-hidden {
-  display: block;
+  gap: 0;
 }
 
 .main-content.explorer-hidden .main-panel {
@@ -849,7 +844,8 @@ select {
 }
 
 .explorer {
-  width: var(--sidebar-width);
+  width: var(--explorer-width);
+  max-width: var(--explorer-width);
   flex: 0 0 auto;
   background: var(--bg-sidebar);
   border-radius: var(--radius-xl);
@@ -858,6 +854,23 @@ select {
   min-height: 0;
   padding: 0;
   overflow: hidden;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    width 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    max-width 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.explorer.closed {
+  width: 0;
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(10px);
+  margin-left: 0;
+  pointer-events: none;
 }
 
 .explorer-head {
@@ -986,12 +999,6 @@ select {
   width: 100%;
   height: 100%;
   display: block;
-}
-
-.explorer-node-icon-fallback {
-  border: 1.4px solid #94a3b8;
-  border-radius: 3px;
-  background: transparent;
 }
 
 .explorer-node-name {
