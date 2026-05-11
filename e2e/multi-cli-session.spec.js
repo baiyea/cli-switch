@@ -132,6 +132,11 @@ async function syncFirstProjectHistory(win) {
   await win.getByRole("button", { name: "读取历史会话" }).click({ force: true });
 }
 
+function countOccurrences(text, token) {
+  if (!token) return 0;
+  return String(text || "").split(token).length - 1;
+}
+
 test("multi provider sessions are discovered and resumed by provider", async () => {
   const { app, win, ids } = await launchAppWithFixtures();
   await syncFirstProjectHistory(win);
@@ -176,6 +181,27 @@ test("archive and restore uses provider+session archive id", async () => {
   await win.locator(".settings-close").click();
 
   await expect(win.getByTestId("session-item-22222222-2222-4222-8222-222222222222")).toBeVisible();
+
+  await app.close();
+});
+
+test("switching back and forth does not inject duplicate resume commands", async () => {
+  const { app, win, ids } = await launchAppWithFixtures();
+  await syncFirstProjectHistory(win);
+
+  const codexItem = win.getByTestId(`session-item-${ids.codexSid}`);
+  const claudeItem = win.getByTestId(`session-item-${ids.claudeSid}`);
+  const geminiItem = win.getByTestId(`session-item-${ids.geminiSid}`);
+
+  await codexItem.click();
+  await claudeItem.click();
+  await codexItem.click();
+  await geminiItem.click();
+  await codexItem.click();
+
+  const buffer = await win.evaluate((sid) => window.__ZEELIN_TEST__?.getSessionBuffer(sid) || "", ids.codexSid);
+  const launchToken = "ELECTRON_RUN_AS_NODE=1";
+  expect(countOccurrences(buffer, launchToken)).toBeLessThanOrEqual(1);
 
   await app.close();
 });

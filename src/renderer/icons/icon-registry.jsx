@@ -91,6 +91,31 @@ export function SkillExtractIcon({ className = "", size = 14 }) {
   );
 }
 
+export function SmartAiIcon({ className = "", size = 14 }) {
+  return (
+    <svg
+      className={mergeClassName("icon smart-ai-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M8 3.1C5.92 3.1 4.25 4.77 4.25 6.85V8.05C4.25 8.87 3.92 9.65 3.34 10.23L3.1 10.47C2.88 10.69 3.03 11.06 3.34 11.06H12.66C12.97 11.06 13.12 10.69 12.9 10.47L12.66 10.23C12.08 9.65 11.75 8.87 11.75 8.05V6.85C11.75 4.77 10.08 3.1 8 3.1Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <path d="M6.45 11.1C6.62 11.81 7.26 12.3 8 12.3C8.74 12.3 9.38 11.81 9.55 11.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="6.65" cy="7.15" r="0.72" fill="currentColor" />
+      <circle cx="9.35" cy="7.15" r="0.72" fill="currentColor" />
+      <path d="M12.8 2.3L13.15 3.3L14.15 3.65L13.15 4L12.8 5L12.45 4L11.45 3.65L12.45 3.3L12.8 2.3Z" fill="currentColor" />
+      <path d="M2.9 2.95L3.12 3.58L3.75 3.8L3.12 4.02L2.9 4.65L2.68 4.02L2.05 3.8L2.68 3.58L2.9 2.95Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function ExplorerToggleIcon({ className = "", size = 16 }) {
   return (
     <svg
@@ -103,6 +128,23 @@ export function ExplorerToggleIcon({ className = "", size = 16 }) {
     >
       <rect x="1.75" y="2" width="12.5" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.3" />
       <path d="M9 2.7V13.3" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+export function ExternalLinkIcon({ className = "", size = 16 }) {
+  return (
+    <svg
+      className={mergeClassName("icon external-link-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M6.25 4.25H4.2C3.54 4.25 3 4.79 3 5.45V11.8C3 12.46 3.54 13 4.2 13H10.55C11.21 13 11.75 12.46 11.75 11.8V9.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.25 3H13V7.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7.5 8.5L12.65 3.35" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
     </svg>
   );
 }

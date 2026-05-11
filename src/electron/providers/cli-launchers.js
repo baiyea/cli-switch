@@ -90,6 +90,26 @@ function buildNodeRunnerCommand(entrypoint, args = []) {
   return `ELECTRON_RUN_AS_NODE=1 ${quote(executable)} ${joinedArgs}\n`;
 }
 
+function prependEnvForCommand(command, envMap = {}) {
+  const base = String(command || "");
+  if (!base.trim()) return base;
+  const entries = Object.entries(envMap)
+    .map(([key, value]) => [String(key || "").trim(), String(value ?? "")])
+    .filter(([key]) => !!key);
+  if (entries.length === 0) return base;
+  const isWin = process.platform === "win32";
+  if (isWin) {
+    const prefix = entries
+      .map(([key, value]) => `$env:${key}=${quotePowerShell(value)};`)
+      .join(" ");
+    return `${prefix} ${base}`;
+  }
+  const prefix = entries
+    .map(([key, value]) => `${key}=${quotePosix(value)}`)
+    .join(" ");
+  return `${prefix} ${base}`;
+}
+
 function getLaunchCommandForProvider(provider) {
   const id = normalizeProviderId(provider);
   const runtimeDir = resolveCliRuntimeDir();
@@ -98,6 +118,37 @@ function getLaunchCommandForProvider(provider) {
   if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["--dangerously-skip-permissions"]);
   if (id === PROVIDERS.CODEX) return buildNodeRunnerCommand(entrypoint, ["--dangerously-bypass-approvals-and-sandbox"]);
   if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--approval-mode", "yolo"]);
+  return "";
+}
+
+function getOAuthLoginCommandForProvider(provider) {
+  const id = normalizeProviderId(provider);
+  const runtimeDir = resolveCliRuntimeDir();
+  const entrypoint = resolveCliEntrypoint(id, runtimeDir);
+  if (!entrypoint) return "";
+  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["auth", "login"]);
+  if (id === PROVIDERS.CODEX) return buildNodeRunnerCommand(entrypoint, ["login"]);
+  if (id === PROVIDERS.GEMINI) {
+    const base = buildNodeRunnerCommand(entrypoint, []);
+    return prependEnvForCommand(base, {
+      NO_BROWSER: "true",
+      BROWSER: ""
+    });
+  }
+  return "";
+}
+
+function getOAuthProbeCommandForProvider(provider) {
+  const id = normalizeProviderId(provider);
+  const runtimeDir = resolveCliRuntimeDir();
+  const entrypoint = resolveCliEntrypoint(id, runtimeDir);
+  if (!entrypoint) return "";
+  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["-p", "ping", "--output-format", "json"]);
+  if (id === PROVIDERS.CODEX) return buildNodeRunnerCommand(entrypoint, ["exec", "ping", "--json", "--skip-git-repo-check"]);
+  // Gemini CLI v0.34+ may reject `-p/--prompt` in some adapter flows with
+  // "Cannot use both a positional prompt and the --prompt flag together".
+  // Use positional prompt probe to avoid this conflict.
+  if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--output-format", "json", "ping"]);
   return "";
 }
 
@@ -122,15 +173,39 @@ function getResumeCommandForProvider(provider, sessionId) {
 }
 
 function applyProviderStartupEnv(provider, env) {
-  const id = normalizeProviderId(provider);
   const nextEnv = { ...(env || {}) };
-
-  // Gemini CLI currently needs proxy in this user's setup.
-  if (id === PROVIDERS.GEMINI) {
-    if (!nextEnv.HTTP_PROXY) nextEnv.HTTP_PROXY = "http://127.0.0.1:7890";
-    if (!nextEnv.HTTPS_PROXY) nextEnv.HTTPS_PROXY = "http://127.0.0.1:7890";
+  const id = normalizeProviderId(provider);
+  const authMode = String(nextEnv.ZEELIN_AUTH_MODE || "").trim().toLowerCase();
+  if (authMode === "oauth") {
+    nextEnv.GEMINI_API_KEY = "";
+    nextEnv.GOOGLE_API_KEY = "";
+    nextEnv.OPENAI_API_KEY = "";
+    nextEnv.ANTHROPIC_API_KEY = "";
+    nextEnv.ANTHROPIC_AUTH_TOKEN = "";
   }
-
+  if (id === PROVIDERS.GEMINI && authMode === "oauth") {
+    // Embedded terminals frequently cannot complete browser consent auto-handoff.
+    // Force manual URL + verification-code flow for stable OAuth behavior.
+    nextEnv.NO_BROWSER = "true";
+    nextEnv.BROWSER = "";
+  }
+  if (id === PROVIDERS.CLAUDE) {
+    const base = String(nextEnv.ANTHROPIC_BASE_URL || "").trim().replace(/\/+$/, "").toLowerCase();
+    const isDeepSeekAnthropic = /api\.deepseek\.com\/anthropic/.test(base);
+    if (isDeepSeekAnthropic) {
+      // DeepSeek's Anthropic-compatible endpoints appear in both docs:
+      // - ANTHROPIC_API_KEY (Anthropic API guide)
+      // - ANTHROPIC_AUTH_TOKEN (Claude Code integration)
+      // Normalize both so runtime and helper probes stay consistent.
+      const apiKey = String(nextEnv.ANTHROPIC_API_KEY || "").trim().replace(/^Bearer\s+/i, "");
+      const authToken = String(nextEnv.ANTHROPIC_AUTH_TOKEN || "").trim().replace(/^Bearer\s+/i, "");
+      const resolved = apiKey || authToken;
+      if (resolved) {
+        nextEnv.ANTHROPIC_API_KEY = resolved;
+        nextEnv.ANTHROPIC_AUTH_TOKEN = resolved;
+      }
+    }
+  }
   return nextEnv;
 }
 
@@ -138,6 +213,8 @@ module.exports = {
   PROVIDERS,
   normalizeProviderId,
   getLaunchCommandForProvider,
+  getOAuthLoginCommandForProvider,
+  getOAuthProbeCommandForProvider,
   getResumeCommandForProvider,
   isLocalGeneratedSessionId,
   applyProviderStartupEnv

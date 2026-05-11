@@ -41,7 +41,6 @@
     "@anthropic-ai/claude-code": "2.1.98",
     "@electron/notarize": "^2.5.0",
     "@electron/rebuild": "^4.0.3",
-    "@google/gemini-cli": "0.35.3",
     "@openai/codex": "0.121.0",
     "@playwright/test": "^1.54.2",
     "@vitejs/plugin-react": "^4.3.4",

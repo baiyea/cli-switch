@@ -13,17 +13,24 @@ export enum IPC {
   SESSION_CREATE = "session:create",
   SESSION_START = "session:start",
   SESSION_RENAME = "session:rename",
+  SESSION_SUGGEST_TITLE = "session:suggest:title",
   SESSION_SYNC_PROJECT = "session:sync:project",
   SESSION_ARCHIVE = "session:archive",
   SESSION_ARCHIVE_LIST = "session:archive:list",
   SESSION_RESTORE = "session:restore",
   FILE_TREE_READ = "file:tree:read",
   FILE_OPEN_PATH = "file:open:path",
+  FILE_ATTACHMENT_SAVE = "file:attachment:save",
+  SKILLGEN_RUN = "skillgen:run",
   WINDOW_SET_TRAFFIC_LIGHT = "window:traffic-light:set",
   APP_LOG = "app:log",
   SETTINGS_CLAUDE_GET = "settings:claude:get",
   SETTINGS_CLAUDE_SAVE = "settings:claude:save",
-  SETTINGS_PROVIDER_TEST = "settings:provider:test"
+  SETTINGS_PROVIDER_TEST = "settings:provider:test",
+  SETTINGS_PROVIDER_OAUTH_LOGIN = "settings:provider:oauth:login",
+  SETTINGS_PROVIDER_OAUTH_PROBE = "settings:provider:oauth:probe",
+  SETTINGS_PROVIDER_OAUTH_LINKS = "settings:provider:oauth:links",
+  SETTINGS_PROVIDER_PROXY_TEST = "settings:provider:proxy:test"
 }
 
 export type PtySessionStatus = "creating" | "running" | "exited";

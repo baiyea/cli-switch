@@ -54,6 +54,12 @@ declare global {
           createdAt: number;
         }>;
         rename: (payload: { sessionId: string; title: string; provider?: string; providerSessionId?: string }) => Promise<{ ok: boolean }>;
+        suggestTitle: (payload: { sessionId: string; provider?: string; providerSessionId?: string }) => Promise<{
+          ok: boolean;
+          title: string;
+          source: "llm" | "fallback";
+          reason?: string;
+        }>;
         syncProject: (payload: { projectId: string }) => Promise<{ ok: boolean; count: number }>;
         archive: (payload: { sessionId: string; provider?: string; providerSessionId?: string }) => Promise<{ ok: boolean }>;
         listArchived: (payload?: { projectIds?: string[] }) => Promise<Array<{
@@ -108,6 +114,76 @@ declare global {
           ok: boolean;
           message: string;
         }>;
+        startProviderOAuthLogin: (payload: {
+          provider: "claude" | "codex" | "gemini";
+          profileId: string;
+          projectId?: string;
+          cwd?: string;
+        }) => Promise<{
+          ok: boolean;
+          message: string;
+          session?: {
+            sessionId: string;
+            projectId: string;
+          };
+        }>;
+        probeProviderOAuth: (payload: {
+          provider: "claude" | "codex" | "gemini";
+          profileId: string;
+          envVars: Array<{ key: string; value: string }>;
+        }) => Promise<{
+          ok: boolean;
+          message: string;
+        }>;
+        getProviderOAuthLinks: (payload: {
+          provider: "claude" | "codex" | "gemini";
+          profileId?: string;
+          sessionId?: string;
+        }) => Promise<{
+          ok: boolean;
+          sessionId?: string;
+          allUrls: string[];
+          authUrls: string[];
+          autoOpenedUrl?: string;
+        }>;
+        testProviderProxy: (payload: {
+          provider: "claude" | "codex" | "gemini";
+          profileId: string;
+          envVars: Array<{ key: string; value: string }>;
+          proxyUrl: string;
+        }) => Promise<{
+          ok: boolean;
+          message: string;
+        }>;
+      };
+      skillgen: {
+        run: (payload: {
+          projectId: string;
+          trigger?: string;
+          rebuild?: boolean;
+          focusSessionId?: string;
+        }) => Promise<{
+          ok: boolean;
+          projectId: string;
+          projectPath: string;
+          trigger: string;
+          rebuild: boolean;
+          scanned: number;
+          changed: number;
+          skipped: number;
+          missing: number;
+          parseFailed: number;
+          accepted: number;
+          drafted: number;
+          discarded: number;
+          created: number;
+          updated: number;
+          skillPaths: string[];
+          warnings: string[];
+          elapsedMs: number;
+          finishedAt: string;
+          logPath: string;
+        }>;
       };
       windowControls: {
         setTrafficLightPosition: (payload: { x: number; y: number }) => Promise<{ ok: boolean }>;
@@ -134,6 +210,13 @@ declare global {
           }>;
         }>;
         openPath: (payload: { path: string }) => Promise<{ ok: boolean }>;
+        saveAttachmentImage: (payload: { cwd: string; sessionId: string }) => Promise<{
+          ok: boolean;
+          reason?: string;
+          absPath?: string;
+          relPath?: string;
+          mimeType?: string;
+        }>;
       };
     };
   }

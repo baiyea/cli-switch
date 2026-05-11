@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     create: (payload) => ipcRenderer.invoke(IPC.SESSION_CREATE, payload),
     start: (payload) => ipcRenderer.invoke(IPC.SESSION_START, payload),
     rename: (payload) => ipcRenderer.invoke(IPC.SESSION_RENAME, payload),
+    suggestTitle: (payload) => ipcRenderer.invoke(IPC.SESSION_SUGGEST_TITLE, payload),
     syncProject: (payload) => ipcRenderer.invoke(IPC.SESSION_SYNC_PROJECT, payload),
     archive: (payload) => ipcRenderer.invoke(IPC.SESSION_ARCHIVE, payload),
     listArchived: (payload) => ipcRenderer.invoke(IPC.SESSION_ARCHIVE_LIST, payload),
@@ -37,7 +38,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   settings: {
     getClaude: () => ipcRenderer.invoke(IPC.SETTINGS_CLAUDE_GET),
     saveClaude: (payload) => ipcRenderer.invoke(IPC.SETTINGS_CLAUDE_SAVE, payload),
-    testProvider: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_TEST, payload)
+    testProvider: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_TEST, payload),
+    startProviderOAuthLogin: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_OAUTH_LOGIN, payload),
+    probeProviderOAuth: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_OAUTH_PROBE, payload),
+    getProviderOAuthLinks: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_OAUTH_LINKS, payload),
+    testProviderProxy: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_PROXY_TEST, payload)
+  },
+  skillgen: {
+    run: (payload) => ipcRenderer.invoke(IPC.SKILLGEN_RUN, payload)
   },
   windowControls: {
     setTrafficLightPosition: (payload) => ipcRenderer.invoke(IPC.WINDOW_SET_TRAFFIC_LIGHT, payload)
@@ -48,6 +56,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   files: {
     readTree: (payload) => ipcRenderer.invoke(IPC.FILE_TREE_READ, payload),
     openPath: (payload) => ipcRenderer.invoke(IPC.FILE_OPEN_PATH, payload),
+    saveAttachmentImage: (payload) => ipcRenderer.invoke(IPC.FILE_ATTACHMENT_SAVE, payload),
     // Backward compatibility with older renderer bridge naming.
     open: (payload) => ipcRenderer.invoke(IPC.FILE_OPEN_PATH, payload)
   }

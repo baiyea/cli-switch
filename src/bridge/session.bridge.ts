@@ -7,6 +7,7 @@ export interface PersistedSessionItem {
   providerSessionId: string;
   status: "creating" | "running" | "exited";
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface ArchivedSessionItem {
@@ -31,6 +32,13 @@ export const sessionBridge = {
   },
   rename(payload: { sessionId: string; title: string; provider?: string; providerSessionId?: string }): Promise<{ ok: boolean }> {
     return window.electronAPI.sessions.rename(payload);
+  },
+  suggestTitle(payload: {
+    sessionId: string;
+    provider?: string;
+    providerSessionId?: string;
+  }): Promise<{ ok: boolean; title: string; source: "llm" | "fallback"; reason?: string }> {
+    return window.electronAPI.sessions.suggestTitle(payload);
   },
   syncProject(payload: { projectId: string }): Promise<{ ok: boolean; count: number }> {
     return window.electronAPI.sessions.syncProject(payload);

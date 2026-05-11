@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { ptyBridge } from "../../../bridge/pty.bridge";
 import { logBridge } from "../../../bridge/log.bridge";
+import { fileBridge } from "../../../bridge/file.bridge";
 import { useSessionStore } from "../../../store/session.store";
 
 type TermEntry = {
@@ -43,6 +44,8 @@ export function usePty() {
   const bufferRef = useRef<Map<string, string>>(new Map());
   const lastResizeRef = useRef<Map<string, { cols: number; rows: number }>>(new Map());
   const replayMutedRef = useRef<Set<string>>(new Set());
+  const pasteCleanupRef = useRef<Map<string, () => void>>(new Map());
+  const pasteInFlightRef = useRef<Set<string>>(new Set());
   const activeSessionIdRef = useRef<string | null>(null);
 
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
@@ -174,6 +177,60 @@ export function usePty() {
       });
     };
 
+    const onPaste = (event: ClipboardEvent) => {
+      if (activeSessionIdRef.current !== sessionId) return;
+      const session = useSessionStore.getState().sessions.find((item) => item.sessionId === sessionId);
+      if (!session) return;
+      if (session.provider !== "codex" && session.provider !== "gemini") return;
+      if (!session.cwd) return;
+      const items = Array.from(event.clipboardData?.items || []);
+      const hasImage = items.some((item) => String(item.type || "").toLowerCase().startsWith("image/"));
+      if (!hasImage) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (pasteInFlightRef.current.has(sessionId)) return;
+      pasteInFlightRef.current.add(sessionId);
+      void fileBridge.saveAttachmentImage({
+        cwd: session.cwd,
+        sessionId
+      }).then((result) => {
+        if (!result?.ok || !result.relPath) {
+          if (result?.reason !== "no-image") {
+            logBridge.write({
+              level: "warn",
+              scope: "terminal",
+              message: "Clipboard image save skipped",
+              meta: { sessionId, reason: result?.reason || "unknown" }
+            });
+          }
+          return;
+        }
+        ptyBridge.input(sessionId, `@${result.relPath}`);
+      }).catch((error) => {
+        logBridge.write({
+          level: "warn",
+          scope: "terminal",
+          message: "Clipboard image save failed",
+          meta: { sessionId, error: error instanceof Error ? error.message : String(error) }
+        });
+      }).finally(() => {
+        pasteInFlightRef.current.delete(sessionId);
+        try {
+          term.focus();
+        } catch {
+        }
+      });
+    };
+
+    const pasteTarget = term.textarea || container;
+    const pasteListener = (event: Event) => onPaste(event as ClipboardEvent);
+    pasteTarget.addEventListener("paste", pasteListener, true);
+    const prevCleanup = pasteCleanupRef.current.get(sessionId);
+    if (prevCleanup) prevCleanup();
+    pasteCleanupRef.current.set(sessionId, () => {
+      pasteTarget.removeEventListener("paste", pasteListener, true);
+    });
+
     const writeReplay = (data: string, reset = false) => {
       replayMutedRef.current.add(sessionId);
       const finishReplay = () => {
@@ -256,6 +313,11 @@ export function usePty() {
       if (existingObserver) {
         existingObserver.disconnect();
         resizeObserverRef.current.delete(sessionId);
+      }
+      const pasteCleanup = pasteCleanupRef.current.get(sessionId);
+      if (pasteCleanup) {
+        pasteCleanup();
+        pasteCleanupRef.current.delete(sessionId);
       }
       const raf = fitRafRef.current.get(sessionId);
       if (typeof raf === "number") {
@@ -378,10 +440,14 @@ export function usePty() {
       for (const observer of resizeObserverRef.current.values()) {
         observer.disconnect();
       }
+      for (const cleanup of pasteCleanupRef.current.values()) {
+        cleanup();
+      }
       for (const raf of fitRafRef.current.values()) {
         window.cancelAnimationFrame(raf);
       }
       resizeObserverRef.current.clear();
+      pasteCleanupRef.current.clear();
       fitRafRef.current.clear();
       for (const { term } of terminalRef.current.values()) {
         term.dispose();

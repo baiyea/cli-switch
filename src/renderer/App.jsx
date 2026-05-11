@@ -1,11 +1,33 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Tree } from "react-arborist";
 import { FileIcon, FolderIcon, OpenFolderIcon } from "react-files-icons";
-import { fileBridge, logBridge, projectBridge, sessionBridge, settingsBridge, windowBridge } from "../bridge";
+import { fileBridge, logBridge, projectBridge, ptyBridge, sessionBridge, settingsBridge, skillgenBridge, windowBridge } from "../bridge";
 import { TerminalPanel } from "../features/terminal/components/TerminalPanel";
-import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SettingsIcon } from "./icons/icon-registry";
+import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SettingsIcon, SmartAiIcon } from "./icons/icon-registry";
+import { SettingsModal } from "./components/settings/SettingsModal";
 import { useSessionStore } from "../store/session.store";
-import providerEnvPresets from "./assets/provider-env-presets.json";
+import packageJson from "../../package.json";
+import appLogo from "./assets/brand/app-logo.png";
+import {
+  OAUTH_COMMAND_HINT,
+  PROVIDER_IDS,
+  PROXY_ENV_KEYS,
+  INTERNAL_PROXY_URL_KEY,
+  INTERNAL_PROXY_ENABLED_KEY,
+  normalizeProviderId,
+  getProviderPresetConfig,
+  normalizeProviderSettings,
+  getMissingRequiredKeys,
+  resolveProviderModel,
+  stripPresetFixedEnvVarsForPersist,
+  normalizeProviderEntry,
+  isOAuthProfile,
+  isInternalEnvKey,
+  isProxyEnvKey,
+  parseBooleanText,
+  oauthProviderHint,
+  resolveOAuthDisplayUrl
+} from "./utils/provider-config";
 
 const DEFAULT_PROVIDER_SETTINGS = {
   defaultProfileId: "default",
@@ -40,162 +62,16 @@ const RUNTIME_STATUS_LABEL = {
   creating: "启动中",
   running: "运行中"
 };
-const PROVIDER_IDS = ["claude", "codex", "gemini"];
 const TRAFFIC_LIGHT_Y = 20;
 const TRAFFIC_LIGHT_X_IN_SIDEBAR = 14;
+const APP_VERSION = String(packageJson?.version || "0.1.0");
 
-function normalizeProviderId(provider) {
-  const value = String(provider || "").toLowerCase();
-  if (value === "claude" || value === "codex" || value === "gemini") return value;
-  return "claude";
-}
-
-function getProviderPresetConfig(providerId) {
-  const raw = providerEnvPresets?.[providerId];
-  if (providerId === "claude" && raw && Array.isArray(raw.profiles)) {
-    return {
-      type: "fixedProfiles",
-      profiles: raw.profiles.map((profile) => ({
-        id: String(profile?.id || ""),
-        name: String(profile?.name || ""),
-        envVars: Array.isArray(profile?.envVars)
-          ? profile.envVars.map((item) => ({
-            key: String(item?.key || "").trim(),
-            value: item?.value === null ? null : String(item?.value || "")
-          }))
-          : []
-      }))
-    };
-  }
-  return {
-    type: "keyList",
-    keys: Array.isArray(raw) ? raw.map((key) => String(key || "").trim()).filter(Boolean) : []
-  };
-}
-
-const PROVIDER_PRESET_CONFIG = {
-  claude: getProviderPresetConfig("claude"),
-  codex: getProviderPresetConfig("codex"),
-  gemini: getProviderPresetConfig("gemini")
-};
-
-function mergeEnvVarsWithPreset(presetVars = [], envVars = []) {
-  const presetMap = new Map();
-  for (const preset of (presetVars || [])) {
-    const key = String(preset?.key || "").trim();
-    if (!key) continue;
-    presetMap.set(key, preset?.value === null ? null : String(preset?.value || ""));
-  }
-
-  const dbMap = new Map();
-  for (const pair of (envVars || [])) {
-    const key = String(pair?.key || "").trim();
-    if (!key) continue;
-    dbMap.set(key, String(pair?.value || ""));
-  }
-
-  const orderedKeys = [...presetMap.keys()];
-  for (const key of dbMap.keys()) {
-    if (!presetMap.has(key)) orderedKeys.push(key);
-  }
-
-  return orderedKeys.map((key) => {
-    const hasPreset = presetMap.has(key);
-    const presetValue = hasPreset ? presetMap.get(key) : null;
-    const editable = hasPreset ? presetValue === null : true;
-    const required = hasPreset ? presetValue === null : false;
-    const keyEditable = !hasPreset;
-    const removable = !hasPreset;
-    const dbValue = dbMap.has(key) ? dbMap.get(key) : undefined;
-    return {
-      key,
-      value: dbValue !== undefined ? dbValue : (presetValue === null ? "" : presetValue),
-      editable,
-      required,
-      keyEditable,
-      removable
-    };
-  });
-}
-
-function presetEnvVars(providerId, envVars = [], profileId = "") {
-  const config = PROVIDER_PRESET_CONFIG[providerId] || { type: "keyList", keys: [] };
-  if (config.type === "fixedProfiles") {
-    const presetProfile = (config.profiles || []).find((item) => item.id === profileId) || config.profiles?.[0];
-    return mergeEnvVarsWithPreset(presetProfile?.envVars || [], envVars);
-  }
-  return mergeEnvVarsWithPreset(
-    (config.keys || []).map((key) => ({ key, value: null })),
-    envVars
+function getSessionActivityTs(session) {
+  return Math.max(
+    Number(session?.lastOutputAt || 0),
+    Number(session?.updatedAt || 0),
+    Number(session?.createdAt || 0)
   );
-}
-
-function normalizeProviderEntry(providerId, entry = {}) {
-  const config = PROVIDER_PRESET_CONFIG[providerId] || { type: "keyList", keys: [] };
-  let profiles = [];
-
-  if (config.type === "fixedProfiles") {
-    const savedProfiles = Array.isArray(entry.profiles) ? entry.profiles : [];
-    const savedProfileById = new Map(savedProfiles.map((profile) => [String(profile?.id || ""), profile]));
-    profiles = (config.profiles || []).map((presetProfile) => ({
-      id: presetProfile.id,
-      name: presetProfile.name || presetProfile.id,
-      envVars: presetEnvVars(
-        providerId,
-        savedProfileById.get(presetProfile.id)?.envVars || [],
-        presetProfile.id
-      )
-    }));
-    const presetIds = new Set((config.profiles || []).map((item) => item.id));
-    const dbOnlyProfiles = savedProfiles
-      .filter((profile) => {
-        const id = String(profile?.id || "");
-        return id && !presetIds.has(id);
-      })
-      .map((profile, idx) => ({
-        id: String(profile?.id || `provider-${idx + 1}`),
-        name: String(profile?.name || profile?.id || `Provider ${idx + 1}`),
-        envVars: mergeEnvVarsWithPreset([], profile?.envVars || [])
-      }));
-    profiles = [...profiles, ...dbOnlyProfiles];
-  } else {
-    const sourceProfiles = Array.isArray(entry.profiles) && entry.profiles.length > 0
-      ? entry.profiles
-      : [{ id: "default", name: "Default Provider", envVars: [] }];
-    profiles = sourceProfiles.map((profile, idx) => ({
-      id: String(profile?.id || `provider-${idx + 1}`),
-      name: String(profile?.name || `Provider ${idx + 1}`),
-      envVars: presetEnvVars(providerId, profile?.envVars || [])
-    }));
-  }
-  if (profiles.length === 0) {
-    profiles = [{ id: "default", name: "Default Provider", envVars: [] }];
-  }
-
-  const defaultProfileId = profiles.some((item) => item.id === entry.defaultProfileId)
-    ? entry.defaultProfileId
-    : profiles[0].id;
-  let enabledProfileId = defaultProfileId;
-  if (entry.enabledProfileId === "") {
-    enabledProfileId = "";
-  } else if (profiles.some((item) => item.id === entry.enabledProfileId)) {
-    enabledProfileId = entry.enabledProfileId;
-  }
-  return { defaultProfileId, enabledProfileId, profiles };
-}
-
-function normalizeProviderSettings(inputProviders = {}) {
-  return {
-    claude: normalizeProviderEntry("claude", inputProviders.claude || {}),
-    codex: normalizeProviderEntry("codex", inputProviders.codex || {}),
-    gemini: normalizeProviderEntry("gemini", inputProviders.gemini || {})
-  };
-}
-
-function getMissingRequiredKeys(profile) {
-  return (profile?.envVars || [])
-    .filter((pair) => pair?.required && !String(pair?.value || "").trim())
-    .map((pair) => pair.key);
 }
 
 function App() {
@@ -229,13 +105,21 @@ function App() {
   const [showAllSessionsByProject, setShowAllSessionsByProject] = useState({});
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [providerTestStateByKey, setProviderTestStateByKey] = useState({});
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editingTitleSessionId, setEditingTitleSessionId] = useState("");
-  const [editingTitleValue, setEditingTitleValue] = useState("");
+  const [oauthLinksByKey, setOauthLinksByKey] = useState({});
+  const [oauthCodeByKey, setOauthCodeByKey] = useState({});
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [renameSessionId, setRenameSessionId] = useState("");
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renameSubmitting, setRenameSubmitting] = useState(false);
+  const [renameSuggestedTitle, setRenameSuggestedTitle] = useState("");
+  const [renameSuggesting, setRenameSuggesting] = useState(false);
+  const [renameSuggestSource, setRenameSuggestSource] = useState("");
+  const [skillgenModalOpen, setSkillgenModalOpen] = useState(false);
+  const [skillgenRunning, setSkillgenRunning] = useState(false);
+  const [skillgenResult, setSkillgenResult] = useState(null);
   const explorerTreeWrapRef = useRef(null);
-  const titleInputRef = useRef(null);
-  const titleEditSubmittingRef = useRef(false);
-  const titleEditSkipCommitRef = useRef(false);
+  const renameInputRef = useRef(null);
+  const oauthLinkPollTimerRef = useRef({});
 
   const sessions = useSessionStore((state) => state.sessions);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
@@ -254,13 +138,39 @@ function App() {
     () => sessions.find((s) => s.sessionId === activeSessionId) || null,
     [sessions, activeSessionId]
   );
+  const activeSessionProviderMeta = useMemo(() => {
+    if (!activeSession) return "";
+    const providerId = normalizeProviderId(activeSession.provider);
+    const providerLabel = PROVIDER_LABEL[providerId] || String(activeSession.provider || providerId);
+    const providerSettings = settingsModel.providers?.[providerId] || DEFAULT_PROVIDER_SETTINGS;
+    const activeProfileId = providerSettings.enabledProfileId || providerSettings.defaultProfileId;
+    const activeProfile = (providerSettings.profiles || []).find((profile) => profile.id === activeProfileId)
+      || providerSettings.profiles?.[0]
+      || null;
+    const model = resolveProviderModel(providerId, activeProfile?.envVars || []);
+    return `${providerLabel} · ${model}`;
+  }, [activeSession, settingsModel]);
   const activeWorkspaceCwd = activeSession?.cwd || activeProject?.path || "";
   const currentProviderSettings = settingsModel.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
-  const editingProfileId = editingProfileByProvider[providerTab] || currentProviderSettings.defaultProfileId || "default";
-  const currentProviderPresetConfig = PROVIDER_PRESET_CONFIG[providerTab] || { type: "keyList", keys: [] };
+  const editingProfileId = editingProfileByProvider[providerTab]
+    || currentProviderSettings.enabledProfileId
+    || currentProviderSettings.defaultProfileId
+    || "default";
+  const currentProviderPresetConfig = getProviderPresetConfig(providerTab) || { type: "keyList", keys: [] };
   const isFixedProfileProvider = currentProviderPresetConfig.type === "fixedProfiles";
   const currentProviderTestKey = `${providerTab}:${editingProfileId}`;
   const currentProviderTestState = providerTestStateByKey[currentProviderTestKey] || { status: "idle", message: "" };
+  const currentOauthLinksState = oauthLinksByKey[currentProviderTestKey] || {
+    sessionId: "",
+    allUrls: [],
+    authUrls: [],
+    autoOpenedUrl: ""
+  };
+  const currentOauthDisplayUrl = resolveOAuthDisplayUrl(providerTab, currentOauthLinksState);
+  const hasCurrentOauthDisplayUrl = !!String(currentOauthDisplayUrl || "").trim();
+  const currentOauthCode = oauthCodeByKey[currentProviderTestKey] || "";
+  const currentProxyTestKey = `${providerTab}:${editingProfileId}:proxy`;
+  const currentProxyTestState = providerTestStateByKey[currentProxyTestKey] || { status: "idle", message: "" };
   const enabledProviderIds = useMemo(
     () => PROVIDER_IDS.filter((id) => {
       const providerSettings = settingsModel.providers?.[id];
@@ -299,11 +209,11 @@ function App() {
     const value = await settingsBridge.getClaude();
     const merged = { providers: normalizeProviderSettings(value?.providers || {}) };
     setSettingsModel(merged);
-    setEditingProfileByProvider((prev) => ({
-      claude: prev.claude || merged.providers.claude.defaultProfileId || merged.providers.claude.profiles?.[0]?.id || "default",
-      codex: prev.codex || merged.providers.codex.defaultProfileId || merged.providers.codex.profiles?.[0]?.id || "default",
-      gemini: prev.gemini || merged.providers.gemini.defaultProfileId || merged.providers.gemini.profiles?.[0]?.id || "default"
-    }));
+    setEditingProfileByProvider({
+      claude: merged.providers.claude.enabledProfileId || merged.providers.claude.defaultProfileId || merged.providers.claude.profiles?.[0]?.id || "default",
+      codex: merged.providers.codex.enabledProfileId || merged.providers.codex.defaultProfileId || merged.providers.codex.profiles?.[0]?.id || "default",
+      gemini: merged.providers.gemini.enabledProfileId || merged.providers.gemini.defaultProfileId || merged.providers.gemini.profiles?.[0]?.id || "default"
+    });
   }
 
   async function onAddProject() {
@@ -399,13 +309,6 @@ function App() {
     }
   }
 
-  async function onDiscardSettings() {
-    await loadSettings();
-    setSettingsError("");
-    setSettingsSavedAt(0);
-    setSettingsOpen(false);
-  }
-
   async function onRestoreArchivedSession(archiveId) {
     await sessionBridge.restore({ archiveId });
     await Promise.all([refreshSessions(), loadArchivedSessions()]);
@@ -485,6 +388,95 @@ function App() {
         const nextEnv = [...(profile.envVars || [])];
         if (!nextEnv[index] || nextEnv[index].removable === false) return profile;
         nextEnv.splice(index, 1);
+        return { ...profile, envVars: nextEnv };
+      });
+      return {
+        ...prev,
+        providers: {
+          ...(prev.providers || {}),
+          [providerTab]: {
+            ...currentProvider,
+            profiles: nextProfiles
+          }
+        }
+      };
+    });
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [`${providerTab}:${editingProfileId}`]: { status: "idle", message: "配置已变更，请重新测试连接" }
+    }));
+  }
+
+  function addProxyEnvVar(proxyKey) {
+    if (!editingProfileId) return;
+    const key = String(proxyKey || "").trim().toUpperCase();
+    if (!PROXY_ENV_KEYS.includes(key)) return;
+    setSettingsError("");
+    setSettingsSavedAt(0);
+    setSettingsModel((prev) => {
+      const currentProvider = prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
+      const nextProfiles = (currentProvider.profiles || []).map((profile) => {
+        if (profile.id !== editingProfileId) return profile;
+        const exists = (profile.envVars || []).some((pair) => String(pair?.key || "").trim().toUpperCase() === key);
+        if (exists) return profile;
+        return {
+          ...profile,
+          envVars: [
+            ...(profile.envVars || []),
+            { key, value: "", editable: true, required: false, keyEditable: false, removable: true }
+          ]
+        };
+      });
+      return {
+        ...prev,
+        providers: {
+          ...(prev.providers || {}),
+          [providerTab]: {
+            ...currentProvider,
+            profiles: nextProfiles
+          }
+        }
+      };
+    });
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [`${providerTab}:${editingProfileId}`]: { status: "idle", message: "配置已变更，请重新测试连接" }
+    }));
+  }
+
+  function setProxyConfig({ enabled, url }) {
+    if (!editingProfileId) return;
+    const normalizedUrl = String(url || "").trim();
+    const normalizedEnabled = !!enabled;
+    setSettingsError("");
+    setSettingsSavedAt(0);
+    setSettingsModel((prev) => {
+      const currentProvider = prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
+      const nextProfiles = (currentProvider.profiles || []).map((profile) => {
+        if (profile.id !== editingProfileId) return profile;
+        const nextEnv = [...(profile.envVars || [])].filter((pair) => {
+          const key = String(pair?.key || "").trim().toUpperCase();
+          return key !== "HTTP_PROXY" && key !== "HTTPS_PROXY";
+        });
+        const upsert = (key, value) => {
+          const targetKey = String(key || "").trim();
+          const index = nextEnv.findIndex((pair) => String(pair?.key || "").trim().toUpperCase() === targetKey);
+          const payload = {
+            key: targetKey,
+            value: String(value || ""),
+            editable: true,
+            required: false,
+            keyEditable: false,
+            removable: false
+          };
+          if (index >= 0) {
+            nextEnv[index] = { ...nextEnv[index], ...payload };
+          } else {
+            nextEnv.push(payload);
+          }
+        };
+        upsert(INTERNAL_PROXY_ENABLED_KEY, normalizedEnabled ? "true" : "false");
+        upsert(INTERNAL_PROXY_URL_KEY, normalizedUrl);
         return { ...profile, envVars: nextEnv };
       });
       return {
@@ -592,28 +584,254 @@ function App() {
     });
   }
 
+  function stopOAuthLinkPolling(stateKey) {
+    const timer = oauthLinkPollTimerRef.current[stateKey];
+    if (timer) {
+      window.clearInterval(timer);
+      delete oauthLinkPollTimerRef.current[stateKey];
+    }
+  }
+
+  async function refreshOAuthLinks(providerId, profileId, sessionId) {
+    const result = await settingsBridge.getProviderOAuthLinks({
+      provider: providerId,
+      profileId,
+      sessionId: sessionId || undefined
+    });
+    const stateKey = `${providerId}:${profileId}`;
+    setOauthLinksByKey((prev) => ({
+      ...prev,
+      [stateKey]: {
+        sessionId: result.sessionId || "",
+        allUrls: Array.isArray(result.allUrls) ? result.allUrls : [],
+        authUrls: Array.isArray(result.authUrls) ? result.authUrls : [],
+        autoOpenedUrl: result.autoOpenedUrl || ""
+      }
+    }));
+    return result;
+  }
+
+  function startOAuthLinkPolling(providerId, profileId, sessionId) {
+    const stateKey = `${providerId}:${profileId}`;
+    stopOAuthLinkPolling(stateKey);
+    let tick = 0;
+    const run = async () => {
+      tick += 1;
+      try {
+        const result = await refreshOAuthLinks(providerId, profileId, sessionId);
+        const displayUrl = resolveOAuthDisplayUrl(providerId, result);
+        if (displayUrl || tick >= 90) {
+          stopOAuthLinkPolling(stateKey);
+        }
+      } catch {
+      }
+    };
+    void run();
+    oauthLinkPollTimerRef.current[stateKey] = window.setInterval(run, 1000);
+  }
+
+  function openOAuthLink(url) {
+    const target = String(url || "").trim();
+    if (!target) return;
+    window.open(target, "_blank", "noopener,noreferrer");
+  }
+
+  function resolveOAuthSessionId(providerId, profileId) {
+    const stateKey = `${providerId}:${profileId}`;
+    const stored = oauthLinksByKey[stateKey]?.sessionId;
+    if (stored) return stored;
+    const candidate = sessions
+      .filter((session) => normalizeProviderId(session.provider) === normalizeProviderId(providerId))
+      .filter((session) => /oauth login/i.test(String(session.name || "")))
+      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))[0];
+    return candidate?.sessionId || "";
+  }
+
+  async function submitOAuthCode(providerId, profileId, code) {
+    const sessionId = resolveOAuthSessionId(providerId, profileId);
+    const normalized = String(code || "").trim();
+    if (!sessionId) {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [`${providerId}:${profileId}`]: { status: "failed", message: "未找到 OAuth 登录终端会话，请先点击获取OAuth登陆链接" }
+      }));
+      return;
+    }
+    if (!normalized) {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [`${providerId}:${profileId}`]: { status: "failed", message: "验证码为空，请先复制验证码" }
+      }));
+      return;
+    }
+    ptyBridge.input(sessionId, `${normalized}\r`);
+    const stateKey = `${providerId}:${profileId}`;
+    if (normalizeProviderId(providerId) === "gemini") {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: { status: "testing", message: "验证码已回填，正在进行 Gemini OAuth 真实探测..." }
+      }));
+      try {
+        await new Promise((resolve) => window.setTimeout(resolve, 1200));
+        const profileFromModel = (settingsModel.providers?.[providerId]?.profiles || []).find((item) => item.id === profileId);
+        const envVars = profileFromModel?.envVars || editingProfile?.envVars || [];
+        const result = await settingsBridge.probeProviderOAuth({
+          provider: providerId,
+          profileId,
+          envVars
+        });
+        setProviderTestStateByKey((prev) => ({
+          ...prev,
+          [stateKey]: {
+            status: result.ok ? "success" : "failed",
+            message: result.message || (result.ok ? "Gemini OAuth 探测成功，可继续启用" : "Gemini OAuth 探测失败，请重试")
+          }
+        }));
+      } catch (e) {
+        setProviderTestStateByKey((prev) => ({
+          ...prev,
+          [stateKey]: {
+            status: "failed",
+            message: e?.message || "Gemini OAuth 探测失败，请重试"
+          }
+        }));
+      }
+      return;
+    }
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [stateKey]: { status: "success", message: "验证码已回填到终端，请等待登录结果" }
+    }));
+  }
+
+  async function copyOAuthLink(url) {
+    const target = String(url || "").trim();
+    if (!target) return;
+    try {
+      await navigator.clipboard.writeText(target);
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [currentProviderTestKey]: { status: "success", message: "已复制登录链接到剪贴板" }
+      }));
+    } catch {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [currentProviderTestKey]: { status: "failed", message: "复制链接失败，请手动复制" }
+      }));
+    }
+  }
+
+  async function pasteOAuthCodeFromClipboard(providerId, profileId) {
+    try {
+      const text = String(await navigator.clipboard.readText()).trim();
+      if (!text) {
+        setProviderTestStateByKey((prev) => ({
+          ...prev,
+          [`${providerId}:${profileId}`]: { status: "failed", message: "剪贴板里没有验证码" }
+        }));
+        return;
+      }
+      setOauthCodeByKey((prev) => ({ ...prev, [`${providerId}:${profileId}`]: text }));
+      void submitOAuthCode(providerId, profileId, text);
+    } catch {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [`${providerId}:${profileId}`]: { status: "failed", message: "读取剪贴板失败，请手动粘贴验证码" }
+      }));
+    }
+  }
+
+  async function onStartOAuthLogin(profileId) {
+    if (!editingProfile || !profileId) return;
+    const stateKey = `${providerTab}:${profileId}`;
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [stateKey]: { status: "testing", message: "正在打开终端并启动 OAuth 登录..." }
+    }));
+    try {
+      const result = await settingsBridge.startProviderOAuthLogin({
+        provider: providerTab,
+        profileId,
+        projectId: activeProjectId || undefined,
+        cwd: activeWorkspaceCwd || activeProject?.path || undefined
+      });
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: {
+          status: result.ok ? "success" : "failed",
+          message: result.message || (result.ok ? "OAuth 登录会话已启动" : "OAuth 登录启动失败")
+        }
+      }));
+      if (!result.ok) return;
+      await refreshSessions();
+      if (result.session?.sessionId) setActiveSession(result.session.sessionId);
+      if (result.session?.projectId) setActiveProjectId(result.session.projectId);
+      if (result.session?.sessionId) {
+        startOAuthLinkPolling(providerTab, profileId, result.session.sessionId);
+      }
+    } catch (e) {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: {
+          status: "failed",
+          message: e?.message || "OAuth 登录启动失败"
+        }
+      }));
+    }
+  }
+
   async function onToggleProviderProfile(profileId, nextEnabled) {
     if (!editingProfile || !profileId) return;
     const stateKey = `${providerTab}:${profileId}`;
     if (!nextEnabled) {
-      setSettingsError("");
-      setSettingsSavedAt(0);
-      setSettingsModel((prev) => ({
-        ...prev,
-        providers: {
-          ...(prev.providers || {}),
-          [providerTab]: {
-            ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
-            enabledProfileId: prev.providers?.[providerTab]?.enabledProfileId === profileId
-              ? ""
-              : (prev.providers?.[providerTab]?.enabledProfileId || "")
-          }
-        }
-      }));
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "idle", message: "已关闭启用状态" }
+        [stateKey]: { status: "failed", message: "必须保留一个启用供应商，请先切换并启用其他供应商" }
       }));
+      return;
+    }
+
+    if (isOAuthProfile(editingProfile)) {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: { status: "testing", message: "正在进行 OAuth 真实探测..." }
+      }));
+      try {
+        const result = await settingsBridge.probeProviderOAuth({
+          provider: providerTab,
+          profileId,
+          envVars: editingProfile.envVars || []
+        });
+        setProviderTestStateByKey((prev) => ({
+          ...prev,
+          [stateKey]: {
+            status: result.ok ? "success" : "failed",
+            message: result.message || (result.ok ? "OAuth 探测成功，已启用" : "OAuth 探测失败，保持关闭")
+          }
+        }));
+        if (!result.ok) return;
+        setSettingsError("");
+        setSettingsSavedAt(0);
+        setSettingsModel((prev) => ({
+          ...prev,
+          providers: {
+            ...(prev.providers || {}),
+            [providerTab]: {
+              ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
+              enabledProfileId: profileId,
+              defaultProfileId: profileId
+            }
+          }
+        }));
+      } catch (e) {
+        setProviderTestStateByKey((prev) => ({
+          ...prev,
+          [stateKey]: {
+            status: "failed",
+            message: e?.message || "OAuth 探测失败，保持关闭"
+          }
+        }));
+      }
       return;
     }
 
@@ -671,6 +889,59 @@ function App() {
     }
   }
 
+  async function onToggleProxyEnabled(nextEnabled) {
+    if (!editingProfile || !editingProfileId) return;
+    const stateKey = `${providerTab}:${editingProfileId}:proxy`;
+    if (!nextEnabled) {
+      setProxyConfig({ enabled: false, url: proxyState.url });
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: { status: "idle", message: "代理已关闭" }
+      }));
+      return;
+    }
+
+    const proxyUrl = String(proxyState.url || "").trim();
+    if (!proxyUrl) {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: { status: "failed", message: "请先填写代理地址" }
+      }));
+      return;
+    }
+
+    setProviderTestStateByKey((prev) => ({
+      ...prev,
+      [stateKey]: { status: "testing", message: "代理探测中（x.com / google.com / github.com）..." }
+    }));
+
+    try {
+      const result = await settingsBridge.testProviderProxy({
+        provider: providerTab,
+        profileId: editingProfile.id,
+        envVars: editingProfile.envVars || [],
+        proxyUrl
+      });
+      if (!result.ok) {
+        setProviderTestStateByKey((prev) => ({
+          ...prev,
+          [stateKey]: { status: "failed", message: result.message || "代理测试失败，保持关闭" }
+        }));
+        return;
+      }
+      setProxyConfig({ enabled: true, url: proxyUrl });
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: { status: "success", message: result.message || "代理测试成功，已启用" }
+      }));
+    } catch (e) {
+      setProviderTestStateByKey((prev) => ({
+        ...prev,
+        [stateKey]: { status: "failed", message: e?.message || "代理测试失败，保持关闭" }
+      }));
+    }
+  }
+
   async function onSaveSettings() {
     const providerKeys = PROVIDER_IDS;
     const providersPayload = {};
@@ -680,8 +951,7 @@ function App() {
       const profiles = (normalizedSource.profiles || []).map((profile, idx) => ({
         id: String(profile.id || `provider-${idx + 1}`),
         name: String(profile.name || `Provider ${idx + 1}`).trim() || `Provider ${idx + 1}`,
-        envVars: (profile.envVars || [])
-          .map((pair) => ({ key: pair.key, value: pair.value || "" }))
+        envVars: stripPresetFixedEnvVarsForPersist(providerKey, String(profile.id || ""), profile.envVars || [])
       }));
 
       if (profiles.length === 0) {
@@ -706,9 +976,7 @@ function App() {
         ? normalizedSource.defaultProfileId
         : profiles[0].id;
       let enabledProfileId = defaultProfileId;
-      if (normalizedSource.enabledProfileId === "") {
-        enabledProfileId = "";
-      } else if (profiles.some((p) => p.id === normalizedSource.enabledProfileId)) {
+      if (profiles.some((p) => p.id === normalizedSource.enabledProfileId)) {
         enabledProfileId = normalizedSource.enabledProfileId;
       }
       providersPayload[providerKey] = { defaultProfileId, enabledProfileId, profiles };
@@ -716,8 +984,12 @@ function App() {
 
     try {
       const saved = await settingsBridge.saveClaude({ providers: providersPayload });
-      setSettingsModel({
-        providers: normalizeProviderSettings(saved?.providers || providersPayload)
+      const normalizedProviders = normalizeProviderSettings(saved?.providers || providersPayload);
+      setSettingsModel({ providers: normalizedProviders });
+      setEditingProfileByProvider({
+        claude: normalizedProviders.claude.enabledProfileId || normalizedProviders.claude.defaultProfileId || normalizedProviders.claude.profiles?.[0]?.id || "default",
+        codex: normalizedProviders.codex.enabledProfileId || normalizedProviders.codex.defaultProfileId || normalizedProviders.codex.profiles?.[0]?.id || "default",
+        gemini: normalizedProviders.gemini.enabledProfileId || normalizedProviders.gemini.defaultProfileId || normalizedProviders.gemini.profiles?.[0]?.id || "default"
       });
       setSettingsSavedAt(Date.now());
       setSettingsError("");
@@ -732,6 +1004,47 @@ function App() {
       || null,
     [currentProviderSettings, editingProfileId]
   );
+  const isEditingOAuthProfile = useMemo(
+    () => isOAuthProfile(editingProfile),
+    [editingProfile]
+  );
+  const visibleEnvVars = useMemo(
+    () => (editingProfile?.envVars || [])
+      .map((pair, index) => ({ pair, index }))
+      .filter((item) => !isInternalEnvKey(item.pair?.key)),
+    [editingProfile]
+  );
+  const regularEnvVars = useMemo(
+    () => visibleEnvVars.filter((item) => !isProxyEnvKey(item.pair?.key)),
+    [visibleEnvVars]
+  );
+  const proxyState = useMemo(() => {
+    const envVars = editingProfile?.envVars || [];
+    const getValue = (targetKey) => {
+      const pair = envVars.find((item) => String(item?.key || "").trim().toUpperCase() === targetKey);
+      return String(pair?.value || "").trim();
+    };
+    const proxyUrl = getValue(INTERNAL_PROXY_URL_KEY)
+      || getValue("HTTPS_PROXY")
+      || getValue("HTTP_PROXY")
+      || "";
+    const enabledRaw = getValue(INTERNAL_PROXY_ENABLED_KEY);
+    const enabled = enabledRaw ? parseBooleanText(enabledRaw) : !!proxyUrl;
+    return { enabled, url: proxyUrl };
+  }, [editingProfile]);
+  const onSelectEditingProfile = (nextProfileId) => {
+    setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: nextProfileId }));
+    setSettingsError("");
+  };
+  const onSelectProfileItem = (profileId) => {
+    setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: profileId }));
+  };
+  const onOauthCodeChange = (value) => {
+    setOauthCodeByKey((prev) => ({
+      ...prev,
+      [currentProviderTestKey]: value
+    }));
+  };
 
   useEffect(() => {
     (async () => {
@@ -739,6 +1052,19 @@ function App() {
       await Promise.all([loadSettings(), loadSessionsByProjects(list.map((p) => p.id))]);
     })();
   }, []);
+
+  useEffect(() => () => {
+    for (const key of Object.keys(oauthLinkPollTimerRef.current)) {
+      window.clearInterval(oauthLinkPollTimerRef.current[key]);
+    }
+    oauthLinkPollTimerRef.current = {};
+  }, []);
+
+  useEffect(() => {
+    if (!editingProfileId) return;
+    const key = `${providerTab}:${editingProfileId}`;
+    setOauthCodeByKey((prev) => (prev[key] !== undefined ? prev : { ...prev, [key]: "" }));
+  }, [providerTab, editingProfileId]);
 
   useEffect(() => {
     if (!settingsOpen || settingsSection !== "archive") return;
@@ -764,70 +1090,111 @@ function App() {
     ensureSessionRunning(activeSessionId);
   }, [activeSessionId, ensureSessionRunning]);
 
-  function startTitleEdit() {
-    if (!activeSession?.sessionId) return;
+  function openRenameModal(sessionId) {
+    const target = sessions.find((item) => item.sessionId === sessionId);
+    if (!target) return;
     setAppError("");
-    titleEditSkipCommitRef.current = false;
-    setIsEditingTitle(true);
-    setEditingTitleSessionId(activeSession.sessionId);
-    setEditingTitleValue(activeSession.name || "");
+    setRenameSessionId(target.sessionId);
+    setRenameDraft(target.name || "");
+    setRenameSubmitting(false);
+    setRenameSuggestedTitle("");
+    setRenameSuggesting(true);
+    setRenameSuggestSource("");
+    setRenameModalOpen(true);
+    void sessionBridge.suggestTitle({
+      sessionId: target.sessionId,
+      provider: target.provider,
+      providerSessionId: target.providerSessionId
+    }).then((result) => {
+      if (!result?.ok) return;
+      setRenameSuggestedTitle(result.title || "");
+      setRenameSuggestSource(result.source || "");
+    }).catch(() => {
+      setRenameSuggestSource("fallback");
+    }).finally(() => {
+      setRenameSuggesting(false);
+    });
   }
 
-  function cancelTitleEdit(skipCommit = false) {
-    titleEditSkipCommitRef.current = skipCommit;
-    setIsEditingTitle(false);
-    setEditingTitleSessionId("");
-    setEditingTitleValue("");
-    titleEditSubmittingRef.current = false;
+  function closeRenameModal(forceClose = false) {
+    if (renameSubmitting && !forceClose) return;
+    setRenameModalOpen(false);
+    setRenameSessionId("");
+    setRenameDraft("");
+    setRenameSubmitting(false);
+    setRenameSuggestedTitle("");
+    setRenameSuggesting(false);
+    setRenameSuggestSource("");
   }
 
-  async function commitTitleEdit() {
-    if (titleEditSkipCommitRef.current) {
-      titleEditSkipCommitRef.current = false;
+  async function submitRenameModal() {
+    if (!renameModalOpen || !renameSessionId || renameSubmitting) return;
+    const targetSession = sessions.find((item) => item.sessionId === renameSessionId);
+    const originalTitle = targetSession?.name || "";
+    const nextTitle = String(renameDraft || "").trim();
+    if (!nextTitle) {
+      setAppError("会话标题不能为空");
       return;
     }
-    if (!isEditingTitle || !editingTitleSessionId || titleEditSubmittingRef.current) return;
-    titleEditSubmittingRef.current = true;
-    const targetSession = sessions.find((item) => item.sessionId === editingTitleSessionId);
-    const originalTitle = targetSession?.name || "";
-    const nextTitle = String(editingTitleValue || "").trim();
 
     try {
-      if (!nextTitle) {
-        setAppError("会话标题不能为空");
-        cancelTitleEdit();
-        return;
-      }
+      setRenameSubmitting(true);
       if (nextTitle !== originalTitle) {
-        await renameSession(editingTitleSessionId, nextTitle);
+        await renameSession(renameSessionId, nextTitle);
       }
-      cancelTitleEdit();
+      closeRenameModal(true);
     } catch (e) {
       setAppError(`重命名会话失败：${e?.message || "未知错误"}`);
-      cancelTitleEdit();
+      setRenameSubmitting(false);
+    }
+  }
+
+  async function onRunSkillgen() {
+    if (!activeProject?.id) {
+      setAppError("请先选择一个项目后再生成 Skill");
+      return;
+    }
+    setAppError("");
+    setSkillgenModalOpen(true);
+    setSkillgenRunning(true);
+    setSkillgenResult(null);
+    try {
+      const result = await skillgenBridge.run({
+        projectId: activeProject.id,
+        trigger: "manual",
+        rebuild: false,
+        focusSessionId: activeSessionId || ""
+      });
+      setSkillgenResult(result);
+    } catch (e) {
+      const rawMessage = e?.message || "Skill 生成失败";
+      const noHandler = /No handler registered for 'skillgen:run'/i.test(rawMessage);
+      setSkillgenResult({
+        ok: false,
+        error: noHandler
+          ? "主进程尚未加载 SKILLGEN_RUN 处理器。请重启应用（开发模式请重启 `pnpm run dev`）后重试。"
+          : rawMessage
+      });
     } finally {
-      titleEditSubmittingRef.current = false;
+      setSkillgenRunning(false);
     }
   }
 
   useEffect(() => {
-    if (!isEditingTitle) return;
-    const input = titleInputRef.current;
+    if (!renameModalOpen) return;
+    const input = renameInputRef.current;
     if (!input) return;
     input.focus();
     input.select();
-  }, [isEditingTitle]);
+  }, [renameModalOpen]);
 
   useEffect(() => {
-    if (!isEditingTitle) return;
-    if (!activeSession?.sessionId) {
-      cancelTitleEdit();
-      return;
+    if (!renameModalOpen || !renameSessionId) return;
+    const exists = sessions.some((item) => item.sessionId === renameSessionId);
+    if (!exists) {
+      closeRenameModal();
     }
-    if (activeSession.sessionId !== editingTitleSessionId) {
-      cancelTitleEdit();
-    }
-  }, [activeSession?.sessionId, editingTitleSessionId, isEditingTitle]);
+  }, [renameModalOpen, renameSessionId, sessions]);
 
   useEffect(() => {
     const profiles = currentProviderSettings.profiles || [];
@@ -835,7 +1202,7 @@ function App() {
     if (!profiles.some((p) => p.id === editingProfileId)) {
       setEditingProfileByProvider((prev) => ({
         ...prev,
-        [providerTab]: currentProviderSettings.defaultProfileId || profiles[0].id
+        [providerTab]: currentProviderSettings.enabledProfileId || currentProviderSettings.defaultProfileId || profiles[0].id
       }));
     }
   }, [currentProviderSettings, editingProfileId, providerTab]);
@@ -945,12 +1312,15 @@ function App() {
                   && enabledProviderIds.includes(normalizeProviderId(s.provider))
               );
               const sortedProjectSessions = [...projectSessions].sort(
-                (a, b) => (b.createdAt || 0) - (a.createdAt || 0)
+                (a, b) => getSessionActivityTs(b) - getSessionActivityTs(a)
               );
               const hiddenSessionCount = Math.max(0, sortedProjectSessions.length - 5);
               const activeSessionInHidden = hiddenSessionCount > 0
                 && sortedProjectSessions.slice(5).some((item) => item.sessionId === activeSessionId);
-              const showAllSessions = Boolean(showAllSessionsByProject[p.id]) || activeSessionInHidden;
+              const manualShowAll = showAllSessionsByProject[p.id];
+              const showAllSessions = typeof manualShowAll === "boolean"
+                ? manualShowAll
+                : activeSessionInHidden;
               const visibleProjectSessions = showAllSessions
                 ? sortedProjectSessions
                 : sortedProjectSessions.slice(0, 5);
@@ -1089,7 +1459,17 @@ function App() {
                                 title={PROVIDER_LABEL[session.provider] || session.provider || "Claude Code"}
                               />
                             </span>
-                            <span className="session-item-name">{session.name}</span>
+                            <span
+                              className="session-item-name"
+                              onDoubleClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openRenameModal(session.sessionId);
+                              }}
+                              title="双击重命名会话"
+                            >
+                              {session.name}
+                            </span>
                             <button
                               type="button"
                               className="session-archive-btn"
@@ -1132,7 +1512,10 @@ function App() {
         <div className="sidebar-bottom">
           <button
             className={`nav-btn ${settingsOpen ? "active" : ""}`}
-            onClick={() => setSettingsOpen(true)}
+            onClick={async () => {
+              await loadSettings();
+              setSettingsOpen(true);
+            }}
           >
             <SettingsIcon className="settings-link-icon" />
             <span>Settings</span>
@@ -1161,35 +1544,19 @@ function App() {
                 size={20}
               />
             )}
-            {activeSession && isEditingTitle && editingTitleSessionId === activeSession.sessionId ? (
-              <input
-                ref={titleInputRef}
-                className="toolbar-title-input"
-                value={editingTitleValue}
-                maxLength={64}
-                onChange={(e) => setEditingTitleValue(e.target.value)}
-                onBlur={() => {
-                  void commitTitleEdit();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    void commitTitleEdit();
-                    return;
-                  }
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    cancelTitleEdit(true);
-                  }
-                }}
-              />
-            ) : (
-              <span
-                className={`toolbar-title ${activeSession ? "editable" : ""}`}
-                onDoubleClick={startTitleEdit}
-                title={activeSession ? "双击可重命名会话" : ""}
-              >
-                {activeSession ? activeSession.name : "ready"}
+            <span
+              className={`toolbar-title ${activeSession ? "editable" : ""}`}
+              onDoubleClick={() => {
+                if (!activeSession?.sessionId) return;
+                openRenameModal(activeSession.sessionId);
+              }}
+              title={activeSession ? "双击重命名会话" : ""}
+            >
+              {activeSession ? activeSession.name : "ready"}
+            </span>
+            {activeSessionProviderMeta && (
+              <span className="toolbar-provider-meta" title={activeSessionProviderMeta}>
+                {activeSessionProviderMeta}
               </span>
             )}
             <div className="toolbar-drag-spacer" />
@@ -1201,6 +1568,16 @@ function App() {
           </div>
 
           <div className="toolbar-actions">
+            <button
+              className={`toolbar-icon-btn ${skillgenRunning ? "active skillgen-running" : ""}`}
+              type="button"
+              onClick={() => void onRunSkillgen()}
+              title="分析当前项目会话并生成 Skill"
+              aria-label="生成Skill"
+              disabled={!activeProject?.id || skillgenRunning}
+            >
+              <SmartAiIcon size={14} />
+            </button>
             <button
               className="toolbar-icon-btn"
               type="button"
@@ -1329,253 +1706,185 @@ function App() {
           </aside>
         </div>
 
-        {settingsOpen && (
-          <div className="settings-modal-backdrop" data-testid="settings-wrap" onClick={() => setSettingsOpen(false)}>
-            <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="settings-modal-header">
-                <div>
-                  <div className="settings-modal-title">Settings</div>
-                  <div className="settings-modal-subtitle">Configure environments and manage archives.</div>
+        <SettingsModal
+          settingsOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          settingsSection={settingsSection}
+          onSelectProviders={() => setSettingsSection("providers")}
+          onSelectArchive={async () => {
+            setSettingsSection("archive");
+            await loadArchivedSessions();
+          }}
+          onSelectAppearance={() => setSettingsSection("appearance")}
+          onSelectAbout={() => setSettingsSection("about")}
+          providerSectionProps={{
+            providerTab,
+            setProviderTab,
+            currentProviderSettings,
+            isFixedProfileProvider,
+            addProviderProfile,
+            editingProfile,
+            onSelectEditingProfile,
+            onSelectProfileItem,
+            renameProviderProfile,
+            setDefaultProviderProfile,
+            removeProviderProfile,
+            currentProviderTestState,
+            isEditingOAuthProfile,
+            oauthProviderHint,
+            oauthCommandHint: OAUTH_COMMAND_HINT,
+            onStartOAuthLogin,
+            hasCurrentOauthDisplayUrl,
+            currentOauthDisplayUrl,
+            openOAuthLink,
+            currentOauthCode,
+            onOauthCodeChange,
+            submitOAuthCode,
+            regularEnvVars,
+            updateEnvVar,
+            removeEnvVar,
+            addEnvVar,
+            onToggleProviderProfile,
+            currentProxyTestState,
+            proxyState,
+            setProxyConfig,
+            onToggleProxyEnabled,
+            settingsSavedAt,
+            onSaveSettings,
+            settingsError
+          }}
+          archivedSessions={archivedSessions}
+          providerLabel={PROVIDER_LABEL}
+          onRestoreArchivedSession={onRestoreArchivedSession}
+          appVersion={APP_VERSION}
+          appLogo={appLogo}
+        />
+        {renameModalOpen && (
+          <div className="rename-modal-backdrop" onClick={() => closeRenameModal()}>
+            <div className="rename-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="rename-modal-header">
+                <div className="rename-modal-title-wrap">
+                  <h3 className="rename-modal-title">重命名会话</h3>
+                  <div className="rename-modal-subtitle">保持简短且易于识别。</div>
                 </div>
-                <button className="settings-close" type="button" onClick={() => setSettingsOpen(false)}>×</button>
+                <button
+                  type="button"
+                  className="rename-modal-close-btn"
+                  aria-label="关闭"
+                  onClick={() => closeRenameModal()}
+                  disabled={renameSubmitting}
+                >
+                  ×
+                </button>
               </div>
-
-              <div className="settings-modal-body">
-                <div className="settings-side-nav">
-                  <button
-                    type="button"
-                    className={settingsSection === "providers" ? "active" : ""}
-                    onClick={() => setSettingsSection("providers")}
-                  >
-                    Providers
-                  </button>
-                  <button
-                    type="button"
-                    className={settingsSection === "archive" ? "active" : ""}
-                    onClick={async () => {
-                      setSettingsSection("archive");
-                      await loadArchivedSessions();
-                    }}
-                  >
-                    Archive
-                  </button>
-                  <button
-                    type="button"
-                    className={settingsSection === "appearance" ? "active" : ""}
-                    onClick={() => setSettingsSection("appearance")}
-                  >
-                    Appearance
-                  </button>
-                </div>
-
-                <div className="settings-panel">
-                  {settingsSection === "providers" && (
-                    <div className="settings-form">
-                      <h3>Model Provider Settings</h3>
-                      <div className="provider-tabs">
-                        <button
-                          type="button"
-                          className={providerTab === "claude" ? "active" : ""}
-                          onClick={() => setProviderTab("claude")}
-                        >
-                          Claude Code
-                        </button>
-                        <button
-                          type="button"
-                          className={providerTab === "codex" ? "active" : ""}
-                          onClick={() => setProviderTab("codex")}
-                        >
-                          Codex CLI
-                        </button>
-                        <button
-                          type="button"
-                          className={providerTab === "gemini" ? "active" : ""}
-                          onClick={() => setProviderTab("gemini")}
-                        >
-                          Gemini CLI
-                        </button>
-                      </div>
-
-                      <>
-                          <div className="provider-profiles">
-                            <div className="provider-profiles-head">
-                              <span>{isFixedProfileProvider ? "供应商预设" : "供应商配置组"}</span>
-                              {!isFixedProfileProvider && (
-                                <button type="button" onClick={addProviderProfile}>+ 新增供应商</button>
-                              )}
-                            </div>
-                            {isFixedProfileProvider ? (
-                              <div className="provider-profile-select-row">
-                                <select
-                                  value={editingProfile?.id || ""}
-                                  onChange={(e) => {
-                                    const nextProfileId = e.target.value;
-                                    setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: nextProfileId }));
-                                    setSettingsError("");
-                                  }}
-                                >
-                                  {(currentProviderSettings.profiles || []).map((profile) => (
-                                    <option key={profile.id} value={profile.id}>{profile.name}</option>
-                                  ))}
-                                </select>
-                                {editingProfile && currentProviderSettings.enabledProfileId === editingProfile.id && (
-                                  <span className="provider-enabled-tag">已启用</span>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="provider-profiles-list">
-                                {(currentProviderSettings.profiles || []).map((profile) => (
-                                  <button
-                                    key={profile.id}
-                                    type="button"
-                                    className={`provider-profile-item ${profile.id === editingProfile?.id ? "active" : ""}`}
-                                    onClick={() => setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: profile.id }))}
-                                  >
-                                    <span className="provider-profile-name">{profile.name}</span>
-                                    {currentProviderSettings.defaultProfileId === profile.id && (
-                                      <span className="provider-default-tag">默认</span>
-                                    )}
-                                    {currentProviderSettings.enabledProfileId === profile.id && (
-                                      <span className="provider-enabled-tag">已启用</span>
-                                    )}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {editingProfile && (
-                            <div className="provider-profile-editor">
-                              <div className={`provider-profile-controls ${isFixedProfileProvider ? "compact" : ""}`}>
-                                {!isFixedProfileProvider && (
-                                  <input
-                                    type="text"
-                                    value={editingProfile.name}
-                                    onChange={(e) => renameProviderProfile(editingProfile.id, e.target.value)}
-                                    placeholder="供应商名称"
-                                  />
-                                )}
-                                <label className="provider-enable-row">
-                                  <span className="provider-enable-text">启用（开启时自动测试）</span>
-                                  <button
-                                    type="button"
-                                    className={`provider-switch ${currentProviderSettings.enabledProfileId === editingProfile.id ? "on" : ""}`}
-                                    aria-label="启用配置开关"
-                                    aria-pressed={currentProviderSettings.enabledProfileId === editingProfile.id}
-                                    onClick={() => onToggleProviderProfile(editingProfile.id, currentProviderSettings.enabledProfileId !== editingProfile.id)}
-                                    disabled={currentProviderTestState.status === "testing"}
-                                  >
-                                    <span className="provider-switch-thumb" />
-                                  </button>
-                                </label>
-                                {!isFixedProfileProvider && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => setDefaultProviderProfile(editingProfile.id)}
-                                      disabled={currentProviderSettings.defaultProfileId === editingProfile.id}
-                                    >
-                                      设为默认
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="danger"
-                                      onClick={() => removeProviderProfile(editingProfile.id)}
-                                      disabled={(currentProviderSettings.profiles || []).length <= 1}
-                                    >
-                                      删除供应商
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                              {currentProviderTestState.message && (
-                                <div className={`provider-test-message ${currentProviderTestState.status}`}>
-                                  {currentProviderTestState.message}
-                                </div>
-                              )}
-
-                              <div className="env-list">
-                                <div className="env-list-header">
-                                  <span>环境变量（预设值只读；支持新增自定义 Key/Value）</span>
-                                  <button type="button" onClick={addEnvVar}>+ 新增变量</button>
-                                </div>
-
-                                {(editingProfile.envVars || []).length === 0 ? (
-                                  <div className="settings-coming-soon">当前 Provider 暂无预设键名。</div>
-                                ) : (
-                                  (editingProfile.envVars || []).map((pair, index) => (
-                                    <div className="env-row" key={`${editingProfile.id}-env-${index}`}>
-                                      <input
-                                        type="text"
-                                        placeholder="KEY"
-                                        value={pair.key}
-                                        className="env-key"
-                                        readOnly={!pair.keyEditable}
-                                        onChange={pair.keyEditable ? (e) => updateEnvVar(index, "key", e.target.value) : undefined}
-                                      />
-                                      <input
-                                        type="text"
-                                        placeholder="输入值"
-                                        value={pair.value}
-                                        className={`env-value ${pair.editable ? "" : "env-value-fixed"}`}
-                                        readOnly={!pair.editable}
-                                        onChange={pair.editable ? (e) => updateEnvVar(index, "value", e.target.value) : undefined}
-                                      />
-                                      <button
-                                        type="button"
-                                        className="env-remove-btn"
-                                        onClick={() => removeEnvVar(index)}
-                                        disabled={!pair.removable}
-                                      >
-                                        删除
-                                      </button>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          {settingsError && <span className="error">{settingsError}</span>}
-                          {settingsSavedAt > 0 && <span className="success">已保存</span>}
-                        </>
-                    </div>
+              <div className="rename-modal-body">
+                <input
+                  ref={renameInputRef}
+                  type="text"
+                  className="rename-modal-input"
+                  maxLength={64}
+                  value={renameDraft}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void submitRenameModal();
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      closeRenameModal();
+                    }
+                  }}
+                />
+                <div className="rename-suggest-block">
+                  <div className="rename-suggest-label">推荐标题</div>
+                  {renameSuggesting ? (
+                    <div className="rename-suggest-loading">正在生成推荐标题...</div>
+                  ) : renameSuggestedTitle ? (
+                    <button
+                      type="button"
+                      className="rename-suggest-chip"
+                      onClick={() => setRenameDraft(renameSuggestedTitle)}
+                      title={renameSuggestSource === "llm" ? "模型生成，点击使用" : "本地回退生成，点击使用"}
+                    >
+                      {renameSuggestedTitle}
+                    </button>
+                  ) : (
+                    <div className="rename-suggest-loading">暂无推荐标题</div>
                   )}
-
-                  {settingsSection === "archive" && (
-                    <div className="settings-form">
-                      <h3>Archived Sessions</h3>
-                      {archivedSessions.length === 0 ? (
-                        <div className="settings-coming-soon">暂无已归档会话。</div>
-                      ) : (
-                        <div className="archived-list">
-                          {archivedSessions.map((item) => (
-                            <div key={item.archiveId || `${item.provider}:${item.sessionId}`} className="archived-row">
-                              <div className="archived-meta">
-                                <div className="archived-name">{item.name} · {PROVIDER_LABEL[item.provider] || item.provider}</div>
-                                <div className="archived-cwd">{item.cwd}</div>
-                              </div>
-                              <button type="button" onClick={() => onRestoreArchivedSession(item.archiveId || item.sessionId)}>
-                                恢复
-                              </button>
-                            </div>
-                          ))}
-                        </div>
+                </div>
+              </div>
+              <div className="rename-modal-footer">
+                <button
+                  type="button"
+                  className="rename-modal-cancel-btn"
+                  onClick={() => closeRenameModal()}
+                  disabled={renameSubmitting}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  className="rename-modal-submit-btn"
+                  onClick={() => void submitRenameModal()}
+                  disabled={renameSubmitting}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {skillgenModalOpen && (
+          <div
+            className="skillgen-modal-backdrop"
+            onClick={() => {
+              if (skillgenRunning) return;
+              setSkillgenModalOpen(false);
+            }}
+          >
+            <div className="skillgen-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="skillgen-modal-header">
+                <div className="skillgen-modal-title">Skill 生成结果</div>
+                <button
+                  type="button"
+                  className="skillgen-modal-close-btn"
+                  onClick={() => setSkillgenModalOpen(false)}
+                  disabled={skillgenRunning}
+                >
+                  ×
+                </button>
+              </div>
+              {skillgenRunning ? (
+                <div className="skillgen-modal-body">正在分析会话内容并提取可复用技能...</div>
+              ) : (
+                <div className="skillgen-modal-body">
+                  {skillgenResult?.ok ? (
+                    <>
+                      <div>已扫描会话文件：{skillgenResult.scanned}</div>
+                      <div>本次增量处理：{skillgenResult.changed}（跳过 {skillgenResult.skipped}）</div>
+                      <div>模型抽取候选：{skillgenResult.modelExtracted || 0}（采纳 {skillgenResult.modelAccepted || 0}）</div>
+                      <div>生成 skill：新增 {skillgenResult.created}，更新 {skillgenResult.updated}</div>
+                      <div>草稿候选：{skillgenResult.drafted}，丢弃：{skillgenResult.discarded}</div>
+                      {skillgenResult.created + skillgenResult.updated === 0 && (
+                        <div>未提取到高价值可复用内容。</div>
                       )}
-                    </div>
-                  )}
-
-                  {settingsSection === "appearance" && (
-                    <div className="settings-form">
-                      <h3>Appearance</h3>
-                      <div className="settings-coming-soon">外观主题设置将在下一步接入。</div>
-                    </div>
+                    </>
+                  ) : (
+                    <div>{skillgenResult?.error || "Skill 生成失败"}</div>
                   )}
                 </div>
-              </div>
-
-              <div className="settings-modal-footer">
-                <button type="button" className="discard-btn" onClick={onDiscardSettings}>Discard</button>
-                <button type="button" className="apply-btn" onClick={onSaveSettings}>Apply Changes</button>
+              )}
+              <div className="skillgen-modal-footer">
+                <button
+                  type="button"
+                  className="skillgen-modal-ok-btn"
+                  onClick={() => setSkillgenModalOpen(false)}
+                  disabled={skillgenRunning}
+                >
+                  确定
+                </button>
               </div>
             </div>
           </div>

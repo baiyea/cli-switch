@@ -11,8 +11,16 @@ ZeeLinCode 是一个 Electron + React 的桌面应用，核心形态是“左侧
 
 ```text
 .
-├── src/                       # 应用源码：Electron 主进程、渲染进程、共享类型、数据库模块
-├── docs/                      # 产品流程、架构约束、设计文档
+├── src/
+│   ├── electron/              # Electron 主进程：窗口、IPC handler、PTY、Provider
+│   ├── bridge/                # 渲染进程 bridge 层，封装 preload 暴露的安全 IPC
+│   ├── renderer/
+│   │   ├── components/        # React UI 组件
+│   │   └── store/             # Zustand 状态管理
+│   ├── shared/                # 共享类型、IPC 枚举、常量
+│   ├── main/db/               # SQLite 数据库模块
+│   └── store/                 # 持久化 session store
+├── docs/                      # 产品流程（flow-*.md）、架构约束（constraints.md）
 ├── e2e/                       # Playwright Electron 端到端测试
 ├── .claude/                   # 项目级 Claude 配置与 skills
 ├── package.json               # 脚本、依赖、Electron main 入口
@@ -20,6 +28,35 @@ ZeeLinCode 是一个 Electron + React 的桌面应用，核心形态是“左侧
 ├── playwright.config.js       # E2E 测试配置
 └── pnpm-workspace.yaml        # pnpm workspace 配置
 ```
+
+当前 flow 文档：`flow-terminal.md`、`flow-multi-cli-session.md`、`flow-workspace-skillgen.md`
+
+---
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | 启动开发环境（Vite + Electron 并行） |
+| `pnpm build` | Vite 生产构建 |
+| `pnpm start` | 直接启动 Electron（无 HMR） |
+| `pnpm test` | 运行单元测试（`src/**/*.test.js`） |
+| `pnpm test:e2e` | 运行 Playwright E2E 测试 |
+| `pnpm dist:mac:arm64` | 打包 macOS ARM64 安装包 |
+
+## Environment
+
+- **包管理器**: pnpm（workspace，见 `pnpm-workspace.yaml`）
+- **Node.js**: ≥ 18
+- **构建工具**: Vite（渲染进程）+ electron-builder（打包）
+- **桌面框架**: Electron，main 入口 `src/electron/main.js`
+- **终端**: @xterm/xterm v5 + node-pty
+
+## Testing
+
+- **E2E**: `e2e/` 目录，Playwright + Electron，运行 `pnpm test:e2e`
+- **单元测试**: `src/**/*.test.js`，通过 `electron --test` 运行
+- E2E 测试前需先 `pnpm build`，因为测试依赖构建产物
 
 ---
 
@@ -37,28 +74,9 @@ ZeeLinCode 是一个 Electron + React 的桌面应用，核心形态是“左侧
 
 ---
 
-## 2. 每次向 AI 下达任务的标准 Prompt 结构
+## 2. 向 AI 下达任务的上下文要求
 
-```
-## 全局约束（必须每次携带）
-{粘贴 @docs/constraints.md 全文}
-
-## 当前流程
-{粘贴对应 docs/flow-*.md 全文，或仅相关 Section}
-
-## 本次任务
-实现 docs/flow-*.md Section 8 中的 Task N：
-{粘贴 Task 描述}
-
-## 相关上下文
-{粘贴与该 Task 直接相关的 Section，如 Section 5 IPC 接口 + Section 6 实现约束}
-
-## 要求
-- 只实现本 Task，不超出范围
-- 输出完整可运行代码，不使用省略号或 TODO
-- 如有歧义，先列出问题，等确认后再编码
-- 严格遵守 docs/constraints.md 中的进程边界约束
-```
+下达任务时需提供：`@docs/constraints.md` 全文 + 对应 `docs/flow-*.md` 完整内容 + 本次 Task 描述。如遇歧义，先列问题待确认后再编码。
 
 ---
 

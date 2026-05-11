@@ -29,5 +29,28 @@ export const fileBridge = {
     }
 
     throw new Error("当前客户端未暴露 files.openPath，请重启应用并更新到最新版本");
+  },
+  saveAttachmentImage(payload: { cwd: string; sessionId: string }): Promise<{
+    ok: boolean;
+    reason?: string;
+    absPath?: string;
+    relPath?: string;
+    mimeType?: string;
+  }> {
+    const filesApi = (window.electronAPI as unknown as {
+      files?: {
+        saveAttachmentImage?: (input: { cwd: string; sessionId: string }) => Promise<{
+          ok: boolean;
+          reason?: string;
+          absPath?: string;
+          relPath?: string;
+          mimeType?: string;
+        }>;
+      };
+    })?.files;
+    if (typeof filesApi?.saveAttachmentImage === "function") {
+      return filesApi.saveAttachmentImage(payload);
+    }
+    throw new Error("当前客户端未暴露 files.saveAttachmentImage，请重启应用并更新到最新版本");
   }
 };

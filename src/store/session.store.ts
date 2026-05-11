@@ -22,6 +22,7 @@ export interface TerminalSession {
   runtimeStatus: SessionRuntimeStatus;
   lastOutputAt?: number;
   createdAt: number;
+  updatedAt?: number;
   exitCode?: number;
 }
 
@@ -49,6 +50,8 @@ const AWAITING_CONFIRMATION_PATTERN =
 const ERROR_PATTERN =
   /(error:|failed|not logged in|permission error|command not found|no such file or directory|api error|unable to|no saved session found|exception|handler failed)/i;
 const IDLE_AFTER_MS = 1600;
+const startInFlightSessionIds = new Set<string>();
+const startedSessionIds = new Set<string>();
 
 function getPrefix(toolId?: string): string {
   if (!toolId || toolId === "shell") return "shell";
@@ -70,7 +73,8 @@ function toTerminalSession(item: PersistedSessionItem): TerminalSession {
     cwd: item.cwd,
     status: item.status,
     runtimeStatus,
-    createdAt: item.createdAt
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt || item.createdAt
   };
 }
 
@@ -83,7 +87,9 @@ function dedupeSessions(items: TerminalSession[]): TerminalSession[] {
   for (const item of items) {
     const key = sessionIdentity(item);
     const prev = byKey.get(key);
-    if (!prev || (item.createdAt || 0) >= (prev.createdAt || 0)) {
+    const itemTs = Math.max(item.updatedAt || 0, item.createdAt || 0);
+    const prevTs = prev ? Math.max(prev.updatedAt || 0, prev.createdAt || 0) : -1;
+    if (!prev || itemTs >= prevTs) {
       byKey.set(key, item);
     }
   }
@@ -113,6 +119,10 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
 
   hydrateSessions(items) {
     const sessions = dedupeSessions(items.map(toTerminalSession));
+    const liveIds = new Set(sessions.filter((s) => s.status === "running").map((s) => s.sessionId));
+    for (const sid of Array.from(startedSessionIds.values())) {
+      if (!liveIds.has(sid)) startedSessionIds.delete(sid);
+    }
     set((state) => ({
       sessions,
       activeSessionId:
@@ -152,6 +162,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
 
     const mapped = toTerminalSession({ ...created, cwd });
     mapped.runtimeStatus = "starting";
+    startedSessionIds.add(mapped.sessionId);
 
     set((state) => {
       const exists = state.sessions.some((s) => sessionIdentity(s) === sessionIdentity(mapped));
@@ -167,32 +178,67 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   },
 
   async ensureSessionRunning(sessionId: string) {
+    if (startInFlightSessionIds.has(sessionId)) return;
+    if (startedSessionIds.has(sessionId)) return;
     const session = get().sessions.find((s) => s.sessionId === sessionId);
     if (!session) return;
+    if (session.runtimeStatus === "starting") return;
 
-    const started = await sessionBridge.start({
-      sessionId,
-      provider: session.provider,
-      providerSessionId: session.providerSessionId,
-      cwd: session.cwd,
-      name: session.name
-    });
-    const mapped = toTerminalSession(started);
-    mapped.runtimeStatus = "starting";
+    startInFlightSessionIds.add(sessionId);
+    try {
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.sessionId === sessionId
+            ? { ...s, runtimeStatus: "starting" }
+            : s
+        )
+      }));
 
-    set((state) => ({
-      sessions: state.sessions.map((s) =>
-        s.sessionId === sessionId
-          ? {
-            ...s,
-            ...mapped,
-            projectId: mapped.projectId || s.projectId,
-            status: "running",
-            runtimeStatus: "starting"
-          }
-          : s
-      )
-    }));
+      const started = await sessionBridge.start({
+        sessionId,
+        provider: session.provider,
+        providerSessionId: session.providerSessionId,
+        cwd: session.cwd,
+        name: session.name
+      });
+      const mapped = toTerminalSession(started);
+      mapped.runtimeStatus = "starting";
+      const canonicalSessionId = mapped.sessionId || sessionId;
+      startedSessionIds.add(canonicalSessionId);
+      if (canonicalSessionId !== sessionId) {
+        startedSessionIds.delete(sessionId);
+      }
+
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.sessionId === sessionId
+            ? {
+              ...s,
+              ...mapped,
+              projectId: mapped.projectId || s.projectId,
+              status: "running",
+              runtimeStatus: "starting"
+            }
+            : s
+        ),
+        activeSessionId:
+          state.activeSessionId === sessionId
+            ? canonicalSessionId
+            : state.activeSessionId
+      }));
+    } catch (error) {
+      startedSessionIds.delete(sessionId);
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.sessionId === sessionId
+            ? { ...s, runtimeStatus: "error" }
+            : s
+        )
+      }));
+      throw error;
+    } finally {
+      startInFlightSessionIds.delete(sessionId);
+    }
   },
 
   async renameSession(sessionId: string, title: string) {
@@ -227,6 +273,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       provider: target.provider,
       providerSessionId: target.providerSessionId || target.sessionId
     });
+    startedSessionIds.delete(sessionId);
+    startInFlightSessionIds.delete(sessionId);
     set((state) => {
       const sessions = state.sessions.filter((s) => s.sessionId !== sessionId);
       let activeSessionId = state.activeSessionId;
@@ -242,6 +290,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     for (const s of sessions) {
       ptyBridge.destroy(s.sessionId);
     }
+    startedSessionIds.clear();
+    startInFlightSessionIds.clear();
     set({ sessions: [], activeSessionId: null });
   },
 
@@ -252,6 +302,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       : ERROR_PATTERN.test(chunk)
         ? "error"
         : "streaming";
+    startedSessionIds.add(sessionId);
 
     set((state) => ({
       sessions: state.sessions.map((s) =>
@@ -260,7 +311,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
             ...s,
             status: s.status === "exited" ? "running" : s.status,
             runtimeStatus,
-            lastOutputAt: now
+            lastOutputAt: now,
+            updatedAt: now
           }
           : s
       )
@@ -284,10 +336,13 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   },
 
   markExited(sessionId: string, exitCode: number) {
+    startedSessionIds.delete(sessionId);
+    startInFlightSessionIds.delete(sessionId);
+    const now = Date.now();
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.sessionId === sessionId
-          ? { ...s, status: "exited", runtimeStatus: "exited", exitCode }
+          ? { ...s, status: "exited", runtimeStatus: "exited", exitCode, updatedAt: now }
           : s
       )
     }));

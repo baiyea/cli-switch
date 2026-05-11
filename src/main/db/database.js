@@ -142,6 +142,18 @@ function sessionsRepo(db) {
     listAllArchived(projectIds = []) {
       return listByArchiveFlag(true, projectIds);
     },
+    listActiveWithSessionFileByProject(projectId) {
+      return db.prepare(
+        `SELECT s.*, p.path AS project_path
+         FROM sessions s
+         LEFT JOIN projects p ON p.id = s.project_id
+         WHERE s.project_id = ?
+           AND s.is_archived = 0
+           AND s.session_file_path IS NOT NULL
+           AND s.session_file_path <> ''
+         ORDER BY s.updated_at DESC`
+      ).all(projectId);
+    },
     getById(sessionId) {
       return db.prepare("SELECT * FROM sessions WHERE id = ?").get(sessionId);
     },
