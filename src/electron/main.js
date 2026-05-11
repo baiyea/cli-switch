@@ -2424,7 +2424,16 @@ function registerAppIpc() {
 
   registerAllIpc(ipcMain, { ptyService });
 
-  registerIpc(IPC.PROJECT_LIST, async () => projectStore.list());
+  registerIpc(IPC.PROJECT_LIST, async () => {
+    const projects = projectStore.list();
+    return projects.filter((p) => {
+      try {
+        return fs.existsSync(p.path);
+      } catch {
+        return false;
+      }
+    });
+  });
   registerIpc(IPC.PROJECT_ADD, async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: "Select Project Folder",
