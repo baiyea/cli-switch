@@ -15,6 +15,8 @@ export enum IPC {
   SESSION_RENAME = "session:rename",
   SESSION_SUGGEST_TITLE = "session:suggest:title",
   SESSION_SYNC_PROJECT = "session:sync:project",
+  SESSION_REORDER = "session:reorder",
+  SESSION_STATS = "session:stats",
   SESSION_ARCHIVE = "session:archive",
   SESSION_ARCHIVE_LIST = "session:archive:list",
   SESSION_RESTORE = "session:restore",

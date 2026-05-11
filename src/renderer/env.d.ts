@@ -31,6 +31,7 @@ declare global {
           provider: "claude" | "codex" | "gemini";
           providerSessionId: string;
           status: "creating" | "running" | "exited";
+          sortOrder?: number;
           createdAt: number;
         }>>;
         create: (payload: { projectId: string; cwd?: string; title?: string; provider?: string }) => Promise<{
@@ -41,6 +42,7 @@ declare global {
           provider: "claude" | "codex" | "gemini";
           providerSessionId: string;
           status: "creating" | "running" | "exited";
+          sortOrder?: number;
           createdAt: number;
         }>;
         start: (payload: { sessionId: string; cwd?: string; name?: string; provider?: string; providerSessionId?: string }) => Promise<{
@@ -51,6 +53,7 @@ declare global {
           provider: "claude" | "codex" | "gemini";
           providerSessionId: string;
           status: "creating" | "running" | "exited";
+          sortOrder?: number;
           createdAt: number;
         }>;
         rename: (payload: { sessionId: string; title: string; provider?: string; providerSessionId?: string }) => Promise<{ ok: boolean }>;
@@ -61,6 +64,38 @@ declare global {
           reason?: string;
         }>;
         syncProject: (payload: { projectId: string }) => Promise<{ ok: boolean; count: number }>;
+        reorder: (payload: {
+          projectId: string;
+          orderedSessions: Array<{ provider: "claude" | "codex" | "gemini"; providerSessionId: string }>;
+        }) => Promise<{ ok: boolean }>;
+        stats: (payload: {
+          provider?: "claude" | "codex" | "gemini";
+          providerSessionId?: string;
+          sessionId?: string;
+        }) => Promise<
+          | {
+            ok: true;
+            stats: {
+              provider: "claude" | "codex" | "gemini";
+              providerSessionId: string;
+              startedAt: number | null;
+              endedAt: number | null;
+              durationMs: number;
+              rounds: number;
+              tokens: {
+                input: number;
+                output: number;
+                cached: number;
+                reasoning: number;
+                tool: number;
+                total: number;
+                available: boolean;
+              };
+              sourcePath?: string;
+            };
+          }
+          | { ok: false; reason: string }
+        >;
         archive: (payload: { sessionId: string; provider?: string; providerSessionId?: string }) => Promise<{ ok: boolean }>;
         listArchived: (payload?: { projectIds?: string[] }) => Promise<Array<{
           archiveId: string;

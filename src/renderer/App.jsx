@@ -3,7 +3,14 @@ import { Tree } from "react-arborist";
 import { FileIcon, FolderIcon, OpenFolderIcon } from "react-files-icons";
 import { fileBridge, logBridge, projectBridge, ptyBridge, sessionBridge, settingsBridge, skillgenBridge, windowBridge } from "../bridge";
 import { TerminalPanel } from "../features/terminal/components/TerminalPanel";
-import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SettingsIcon, SmartAiIcon } from "./icons/icon-registry";
+import {
+  ArchiveIcon,
+  ExplorerToggleIcon,
+  MousePointerIcon,
+  ProviderIcon,
+  SettingsIcon,
+  SmartAiIcon
+} from "./icons/icon-registry";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { useSessionStore } from "../store/session.store";
 import packageJson from "../../package.json";
@@ -66,14 +73,6 @@ const TRAFFIC_LIGHT_Y = 20;
 const TRAFFIC_LIGHT_X_IN_SIDEBAR = 14;
 const APP_VERSION = String(packageJson?.version || "0.1.0");
 
-function getSessionActivityTs(session) {
-  return Math.max(
-    Number(session?.lastOutputAt || 0),
-    Number(session?.updatedAt || 0),
-    Number(session?.createdAt || 0)
-  );
-}
-
 function App() {
   const isMacOS = typeof navigator !== "undefined"
     && /mac/i.test(String(navigator.platform || navigator.userAgent || ""));
@@ -114,6 +113,8 @@ function App() {
   const [renameSuggestedTitle, setRenameSuggestedTitle] = useState("");
   const [renameSuggesting, setRenameSuggesting] = useState(false);
   const [renameSuggestSource, setRenameSuggestSource] = useState("");
+  const [draggingSessionId, setDraggingSessionId] = useState("");
+  const [dragOverSessionId, setDragOverSessionId] = useState("");
   const [skillgenModalOpen, setSkillgenModalOpen] = useState(false);
   const [skillgenRunning, setSkillgenRunning] = useState(false);
   const [skillgenResult, setSkillgenResult] = useState(null);
@@ -127,6 +128,7 @@ function App() {
   const loadSessionsByProjects = useSessionStore((state) => state.loadSessionsByProjects);
   const ensureSessionRunning = useSessionStore((state) => state.ensureSessionRunning);
   const renameSession = useSessionStore((state) => state.renameSession);
+  const reorderSessions = useSessionStore((state) => state.reorderSessions);
   const setActiveSession = useSessionStore((state) => state.setActiveSession);
   const destroySession = useSessionStore((state) => state.destroySession);
 
@@ -296,6 +298,28 @@ function App() {
     }
     const sid = await createSession(project.id, project.path, currentTool.id);
     setActiveSession(sid);
+  }
+
+  async function handleSessionDrop(projectId, orderedProjectSessions, targetSessionId) {
+    const sourceSessionId = draggingSessionId;
+    setDragOverSessionId("");
+    setDraggingSessionId("");
+    if (!projectId || !sourceSessionId || !targetSessionId || sourceSessionId === targetSessionId) return;
+
+    const fromIndex = orderedProjectSessions.findIndex((item) => item.sessionId === sourceSessionId);
+    const toIndex = orderedProjectSessions.findIndex((item) => item.sessionId === targetSessionId);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const nextOrder = [...orderedProjectSessions];
+    const [moved] = nextOrder.splice(fromIndex, 1);
+    nextOrder.splice(toIndex, 0, moved);
+    await reorderSessions(
+      projectId,
+      nextOrder.map((item) => ({
+        provider: item.provider || "claude",
+        providerSessionId: item.providerSessionId || item.sessionId
+      }))
+    );
   }
 
   async function onSyncProjectHistory(project) {
@@ -1282,6 +1306,7 @@ function App() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-title-wrap">
+            <MousePointerIcon className="brand-logo-icon" size={16} />
             <div className="brand-title">ZeeLinCode</div>
           </div>
           {!sidebarCollapsed && (
@@ -1311,19 +1336,19 @@ function App() {
                     || s.cwd.startsWith(`${p.path}${p.path.endsWith("/") ? "" : "/"}`))
                   && enabledProviderIds.includes(normalizeProviderId(s.provider))
               );
-              const sortedProjectSessions = [...projectSessions].sort(
-                (a, b) => getSessionActivityTs(b) - getSessionActivityTs(a)
+              const orderedProjectSessions = [...projectSessions].sort(
+                (a, b) => Number(b.sortOrder || 0) - Number(a.sortOrder || 0)
               );
-              const hiddenSessionCount = Math.max(0, sortedProjectSessions.length - 5);
+              const hiddenSessionCount = Math.max(0, orderedProjectSessions.length - 5);
               const activeSessionInHidden = hiddenSessionCount > 0
-                && sortedProjectSessions.slice(5).some((item) => item.sessionId === activeSessionId);
+                && orderedProjectSessions.slice(5).some((item) => item.sessionId === activeSessionId);
               const manualShowAll = showAllSessionsByProject[p.id];
               const showAllSessions = typeof manualShowAll === "boolean"
                 ? manualShowAll
                 : activeSessionInHidden;
               const visibleProjectSessions = showAllSessions
-                ? sortedProjectSessions
-                : sortedProjectSessions.slice(0, 5);
+                ? orderedProjectSessions
+                : orderedProjectSessions.slice(0, 5);
               return (
                 <div key={p.id} className="project-node" data-testid={`project-${p.id}`}>
                   <div
@@ -1417,7 +1442,7 @@ function App() {
 
                   {expanded && (
                     <div className="project-content">
-                      {sortedProjectSessions.length === 0 ? (
+                      {orderedProjectSessions.length === 0 ? (
                         <div className="session-empty">暂无会话</div>
                       ) : (
                         visibleProjectSessions.map((session) => {
@@ -1426,8 +1451,34 @@ function App() {
                           return (
                           <div
                             key={session.sessionId}
-                            className={`session-item ${session.sessionId === activeSessionId ? "active" : ""}`}
+                            className={`session-item ${session.sessionId === activeSessionId ? "active" : ""} ${dragOverSessionId === session.sessionId ? "drag-over" : ""}`}
                             data-testid={`session-item-${session.sessionId}`}
+                            draggable
+                            onDragStart={(e) => {
+                              setDraggingSessionId(session.sessionId);
+                              setDragOverSessionId("");
+                              e.dataTransfer.effectAllowed = "move";
+                              e.dataTransfer.setData("text/plain", session.sessionId);
+                            }}
+                            onDragEnd={() => {
+                              setDraggingSessionId("");
+                              setDragOverSessionId("");
+                            }}
+                            onDragOver={(e) => {
+                              if (!draggingSessionId || draggingSessionId === session.sessionId) return;
+                              e.preventDefault();
+                              setDragOverSessionId(session.sessionId);
+                            }}
+                            onDragEnter={(e) => {
+                              if (!draggingSessionId || draggingSessionId === session.sessionId) return;
+                              e.preventDefault();
+                              setDragOverSessionId(session.sessionId);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              void handleSessionDrop(p.id, orderedProjectSessions, session.sessionId);
+                            }}
                             onClick={() => {
                               setSettingsOpen(false);
                               setActiveProjectId(p.id);

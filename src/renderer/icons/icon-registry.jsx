@@ -169,3 +169,23 @@ export function SettingsIcon({ className = "", size = 14 }) {
     </svg>
   );
 }
+
+export function MousePointerIcon({ className = "", size = 14 }) {
+  return (
+    <svg
+      className={mergeClassName("icon mouse-pointer-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 2.2V11.8C3 12.18 3.4 12.42 3.72 12.24L6.5 10.68L8 13.55C8.2 13.93 8.67 14.08 9.05 13.88L10.22 13.26C10.6 13.06 10.75 12.59 10.55 12.21L9.04 9.34H12.1C12.51 9.34 12.73 8.86 12.47 8.54L3.98 2.01C3.58 1.7 3 1.99 3 2.49V2.2Z"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

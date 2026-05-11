@@ -19,6 +19,7 @@ function initDatabase(filePath) {
   // Migration for older local databases.
   ensureLegacyColumns(db);
   ensureSessionUniqueIndex(db);
+  ensureSessionSortOrder(db);
 
   return db;
 }
@@ -35,7 +36,8 @@ function ensureLegacyColumns(db) {
     { table: DB_MODELS.sessions.tableName, column: "archived_at", def: "TEXT" },
     { table: DB_MODELS.sessions.tableName, column: "provider_session_id", def: "TEXT" },
     { table: DB_MODELS.sessions.tableName, column: "cwd", def: "TEXT NOT NULL DEFAULT ''" },
-    { table: DB_MODELS.sessions.tableName, column: "session_file_path", def: "TEXT" }
+    { table: DB_MODELS.sessions.tableName, column: "session_file_path", def: "TEXT" },
+    { table: DB_MODELS.sessions.tableName, column: "sort_order", def: "INTEGER NOT NULL DEFAULT 0" }
   ];
 
   for (const item of legacyColumns) {
@@ -71,6 +73,31 @@ function ensureSessionUniqueIndex(db) {
   `);
 
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_provider_sid_unique ON sessions(provider, provider_session_id);");
+}
+
+function ensureSessionSortOrder(db) {
+  ensureColumn(db, DB_MODELS.sessions.tableName, "sort_order", "INTEGER NOT NULL DEFAULT 0");
+  // Backfill legacy rows once. Newly discovered sessions now always receive
+  // a non-zero sort_order so this migration should only touch old data.
+  db.exec(`
+    WITH ranked AS (
+      SELECT
+        id,
+        -ROW_NUMBER() OVER (
+          PARTITION BY project_id
+          ORDER BY COALESCE(created_at, '') ASC, id ASC
+        ) AS next_sort_order
+      FROM sessions
+      WHERE COALESCE(sort_order, 0) = 0
+    )
+    UPDATE sessions
+    SET sort_order = (
+      SELECT next_sort_order
+      FROM ranked
+      WHERE ranked.id = sessions.id
+    )
+    WHERE id IN (SELECT id FROM ranked);
+  `);
 }
 
 function projectsRepo(db) {
@@ -118,6 +145,26 @@ function sessionsRepo(db) {
     return { sql: ` AND s.project_id IN (${placeholders})`, params: ids };
   }
 
+  function getNextSortOrder(projectId) {
+    const row = db.prepare(
+      `SELECT COALESCE(MAX(sort_order), 0) AS max_sort_order
+       FROM sessions
+       WHERE project_id = ?
+         AND is_archived = 0`
+    ).get(projectId);
+    return Number(row?.max_sort_order || 0) + 1;
+  }
+
+  function getNextBottomSortOrder(projectId) {
+    const row = db.prepare(
+      `SELECT COALESCE(MIN(sort_order), 0) AS min_sort_order
+       FROM sessions
+       WHERE project_id = ?
+         AND is_archived = 0`
+    ).get(projectId);
+    return Number(row?.min_sort_order || 0) - 1;
+  }
+
   function listByArchiveFlag(isArchived, projectIds = []) {
     const { sql, params } = buildInClause(projectIds);
     return db.prepare(
@@ -125,7 +172,7 @@ function sessionsRepo(db) {
        FROM sessions s
        LEFT JOIN projects p ON p.id = s.project_id
        WHERE s.is_archived = ?${sql}
-       ORDER BY s.updated_at DESC`
+       ORDER BY COALESCE(s.sort_order, 0) DESC, s.created_at DESC`
     ).all(isArchived ? 1 : 0, ...params);
   }
 
@@ -164,6 +211,7 @@ function sessionsRepo(db) {
     },
     create({ projectId, title, provider, providerSessionId, cwd = "", sessionFilePath = null, status = "idle" }) {
       const timestamp = now();
+      const sortOrder = getNextSortOrder(projectId);
       const session = {
         id: id(),
         project_id: projectId,
@@ -173,6 +221,7 @@ function sessionsRepo(db) {
         cwd,
         session_file_path: sessionFilePath,
         status,
+        sort_order: sortOrder,
         last_active_at: timestamp,
         created_at: timestamp,
         updated_at: timestamp,
@@ -183,10 +232,10 @@ function sessionsRepo(db) {
       db.prepare(
         `INSERT INTO sessions (
           id, project_id, title, provider, provider_session_id, cwd, session_file_path,
-          status, last_active_at, created_at, updated_at, is_archived, archived_at
+          status, sort_order, last_active_at, created_at, updated_at, is_archived, archived_at
         ) VALUES (
           @id, @project_id, @title, @provider, @provider_session_id, @cwd, @session_file_path,
-          @status, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at
+          @status, @sort_order, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at
         )`
       ).run(session);
 
@@ -195,13 +244,14 @@ function sessionsRepo(db) {
     upsertDiscovered({ projectId, title, provider, providerSessionId, cwd = "", sessionFilePath = null, createdAt }) {
       const timestamp = now();
       const createdAtIso = Number.isFinite(createdAt) ? new Date(createdAt).toISOString() : timestamp;
+      const sortOrder = getNextBottomSortOrder(projectId);
       db.prepare(
         `INSERT INTO sessions (
           id, project_id, title, provider, provider_session_id, cwd, session_file_path,
-          status, last_active_at, created_at, updated_at, is_archived, archived_at
+          status, sort_order, last_active_at, created_at, updated_at, is_archived, archived_at
         ) VALUES (
           @id, @project_id, @title, @provider, @provider_session_id, @cwd, @session_file_path,
-          @status, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at
+          @status, @sort_order, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at
         )
         ON CONFLICT(provider, provider_session_id) DO UPDATE SET
           project_id = excluded.project_id,
@@ -218,6 +268,7 @@ function sessionsRepo(db) {
         cwd,
         session_file_path: sessionFilePath,
         status: "exited",
+        sort_order: sortOrder,
         last_active_at: createdAtIso,
         created_at: createdAtIso,
         updated_at: timestamp,
@@ -302,6 +353,45 @@ function sessionsRepo(db) {
       db.prepare(
         "UPDATE sessions SET is_archived = 0, archived_at = NULL, updated_at = ? WHERE provider = ? AND provider_session_id = ?"
       ).run(timestamp, provider, providerSessionId);
+    },
+    reorderActiveByProject({ projectId, orderedSessions = [] }) {
+      const activeRows = db.prepare(
+        `SELECT id, provider, provider_session_id
+         FROM sessions
+         WHERE project_id = ?
+           AND is_archived = 0
+         ORDER BY COALESCE(sort_order, 0) DESC, created_at DESC`
+      ).all(projectId);
+      if (activeRows.length === 0) return;
+
+      const keyOf = (provider, providerSessionId) => `${String(provider || "").toLowerCase()}::${String(providerSessionId || "")}`;
+      const activeMap = new Map(activeRows.map((row) => [keyOf(row.provider, row.provider_session_id), row]));
+      const nextOrdered = [];
+      const seen = new Set();
+
+      for (const item of orderedSessions) {
+        const key = keyOf(item?.provider, item?.providerSessionId);
+        const row = activeMap.get(key);
+        if (!row || seen.has(key)) continue;
+        nextOrdered.push(row);
+        seen.add(key);
+      }
+      for (const row of activeRows) {
+        const key = keyOf(row.provider, row.provider_session_id);
+        if (seen.has(key)) continue;
+        nextOrdered.push(row);
+        seen.add(key);
+      }
+
+      const update = db.prepare("UPDATE sessions SET sort_order = ?, updated_at = ? WHERE id = ?");
+      const timestamp = now();
+      const tx = db.transaction((rows) => {
+        const total = rows.length;
+        for (let idx = 0; idx < total; idx += 1) {
+          update.run(total - idx, timestamp, rows[idx].id);
+        }
+      });
+      tx(nextOrdered);
     },
     markAllStopped() {
       const timestamp = now();

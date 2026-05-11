@@ -20,6 +20,7 @@ export interface TerminalSession {
   cwd: string;
   status: SessionStatus;
   runtimeStatus: SessionRuntimeStatus;
+  sortOrder: number;
   lastOutputAt?: number;
   createdAt: number;
   updatedAt?: number;
@@ -37,6 +38,10 @@ interface SessionStoreState {
   createSession: (projectId: string, cwd: string, toolId?: ProviderId | string) => Promise<string>;
   ensureSessionRunning: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
+  reorderSessions: (
+    projectId: string,
+    orderedSessions: Array<{ provider: "claude" | "codex" | "gemini"; providerSessionId: string }>
+  ) => Promise<void>;
   setActiveSession: (sessionId: string) => void;
   destroySession: (sessionId: string) => Promise<void>;
   destroyAll: () => void;
@@ -73,6 +78,7 @@ function toTerminalSession(item: PersistedSessionItem): TerminalSession {
     cwd: item.cwd,
     status: item.status,
     runtimeStatus,
+    sortOrder: Number(item.sortOrder || 0),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt || item.createdAt
   };
@@ -259,6 +265,44 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         s.sessionId === sessionId ? { ...s, name: trimmed } : s
       )
     }));
+  },
+
+  async reorderSessions(projectId, orderedSessions) {
+    const normalized = (orderedSessions || [])
+      .filter((item) => item?.providerSessionId)
+      .map((item) => ({
+        provider: item.provider || "claude",
+        providerSessionId: item.providerSessionId
+      }));
+    if (!projectId || normalized.length === 0) return;
+
+    const previous = get().sessions;
+    const orderMap = new Map<string, number>();
+    const total = normalized.length;
+    normalized.forEach((item, idx) => {
+      const key = sessionIdentity({ provider: item.provider, sessionId: item.providerSessionId });
+      orderMap.set(key, total - idx);
+    });
+
+    set((state) => ({
+      sessions: state.sessions.map((session) => {
+        if (session.projectId !== projectId) return session;
+        const key = sessionIdentity({ provider: session.provider, sessionId: session.providerSessionId || session.sessionId });
+        const nextOrder = orderMap.get(key);
+        if (!nextOrder) return session;
+        return { ...session, sortOrder: nextOrder };
+      })
+    }));
+
+    try {
+      await sessionBridge.reorder({
+        projectId,
+        orderedSessions: normalized
+      });
+    } catch (error) {
+      set({ sessions: previous });
+      throw error;
+    }
   },
 
   setActiveSession(sessionId: string) {

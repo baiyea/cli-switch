@@ -96,6 +96,9 @@ select {
   min-height: 48px;
   margin-bottom: 8px;
   padding: 0 8px;
+  -webkit-app-region: drag;
+  user-select: none;
+  cursor: default;
 }
 
 .layout.macos .toolbar {
@@ -122,6 +125,9 @@ select {
 .brand-title-wrap {
   flex: 1 1 auto;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .brand-title {
@@ -134,6 +140,12 @@ select {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: none;
+}
+
+.brand-logo-icon {
+  flex: 0 0 auto;
+  color: var(--on-surface);
 }
 
 .sidebar-collapse-btn {
@@ -461,6 +473,14 @@ select {
   transition: background 0.1s ease, color 0.1s ease;
 }
 
+.session-item[draggable="true"] {
+  cursor: grab;
+}
+
+.session-item[draggable="true"]:active {
+  cursor: grabbing;
+}
+
 .session-item:hover {
   background: var(--surface-container);
   color: var(--on-surface);
@@ -469,6 +489,11 @@ select {
 .session-item.active {
   background: #d3e4fe;
   color: #2a3439;
+}
+
+.session-item.drag-over {
+  box-shadow: inset 0 0 0 1px #7aa2e3;
+  background: #e7f0ff;
 }
 
 .session-item-name {
@@ -679,9 +704,9 @@ select {
   font-weight: 700;
   color: var(--on-surface);
   letter-spacing: -0.3px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
-  max-width: none;
+  max-width: clamp(120px, 42vw, 780px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -705,8 +730,8 @@ select {
 }
 
 .toolbar-drag-spacer {
-  flex: 0 1 40px;
-  min-width: 8px;
+  flex: 1 1 auto;
+  min-width: 16px;
 }
 
 .status-chip {

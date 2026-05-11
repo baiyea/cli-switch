@@ -8,6 +8,7 @@ export interface PersistedSessionItem {
   status: "creating" | "running" | "exited";
   createdAt: number;
   updatedAt?: number;
+  sortOrder?: number;
 }
 
 export interface ArchivedSessionItem {
@@ -18,6 +19,25 @@ export interface ArchivedSessionItem {
   name: string;
   cwd: string;
   archivedAt: number;
+}
+
+export interface SessionStats {
+  provider: "claude" | "codex" | "gemini";
+  providerSessionId: string;
+  startedAt: number | null;
+  endedAt: number | null;
+  durationMs: number;
+  rounds: number;
+  tokens: {
+    input: number;
+    output: number;
+    cached: number;
+    reasoning: number;
+    tool: number;
+    total: number;
+    available: boolean;
+  };
+  sourcePath?: string;
 }
 
 export const sessionBridge = {
@@ -42,6 +62,19 @@ export const sessionBridge = {
   },
   syncProject(payload: { projectId: string }): Promise<{ ok: boolean; count: number }> {
     return window.electronAPI.sessions.syncProject(payload);
+  },
+  reorder(payload: {
+    projectId: string;
+    orderedSessions: Array<{ provider: "claude" | "codex" | "gemini"; providerSessionId: string }>;
+  }): Promise<{ ok: boolean }> {
+    return window.electronAPI.sessions.reorder(payload);
+  },
+  stats(payload: {
+    provider?: "claude" | "codex" | "gemini";
+    providerSessionId?: string;
+    sessionId?: string;
+  }): Promise<{ ok: true; stats: SessionStats } | { ok: false; reason: string }> {
+    return window.electronAPI.sessions.stats(payload);
   },
   archive(payload: { sessionId: string; provider?: string; providerSessionId?: string }): Promise<{ ok: boolean }> {
     return window.electronAPI.sessions.archive(payload);

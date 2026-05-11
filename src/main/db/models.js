@@ -25,6 +25,7 @@ const DB_MODELS = {
       { name: "cwd", type: "TEXT", notNull: true, default: "''", description: "兼容字段：历史会话工作目录（当前以 project.path 为准）" },
       { name: "session_file_path", type: "TEXT", description: "会话实体文件路径（如 *.jsonl/*.json）" },
       { name: "status", type: "TEXT", notNull: true, description: "当前状态（idle/running/exited）" },
+      { name: "sort_order", type: "INTEGER", notNull: true, default: 0, description: "会话手动排序权重（同项目内越大越靠前）" },
       { name: "last_active_at", type: "TEXT", notNull: true, description: "最近活跃时间（ISO 字符串）" },
       { name: "created_at", type: "TEXT", notNull: true, description: "创建时间（ISO 字符串）" },
       { name: "updated_at", type: "TEXT", notNull: true, description: "最后更新时间（ISO 字符串）" },
