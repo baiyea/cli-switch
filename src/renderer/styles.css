@@ -694,30 +694,23 @@ select {
   color: #2f3b4b;
 }
 
-.toolbar-session-ring {
-  width: 22px;
-  height: 22px;
+.toolbar-provider-icon {
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
-  border-radius: 11px;
-  border: 2px solid var(--line);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: filter 0.2s ease, opacity 0.2s ease;
 }
 
-.toolbar-session-ring.active {
-  border-color: var(--success);
+.toolbar-provider-icon.exited {
+  filter: grayscale(1);
+  opacity: 0.45;
 }
 
-.toolbar-session-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  background: var(--text-muted);
-}
-
-.toolbar-session-ring.active .toolbar-session-dot {
-  background: var(--success);
+.toolbar-provider-icon.error {
+  filter: drop-shadow(0 0 3px var(--danger));
 }
 
 .toolbar-session-texts {

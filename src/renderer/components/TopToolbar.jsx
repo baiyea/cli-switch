@@ -1,5 +1,5 @@
 import React from "react";
-import { ArchiveIcon, ExplorerToggleIcon, SmartAiIcon } from "../icons/icon-registry";
+import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SmartAiIcon } from "../icons/icon-registry";
 import { Button } from "./ui/button";
 
 export function TopToolbar({
@@ -18,7 +18,7 @@ export function TopToolbar({
   onToggleExplorer
 }) {
   const sessionStatus = activeSession?.runtimeStatus || activeSession?.status || "";
-  const ringActive = sessionStatus === "running" || sessionStatus === "streaming";
+  const sessionProvider = activeSession?.provider || "claude";
 
   return (
     <header className="toolbar">
@@ -36,9 +36,13 @@ export function TopToolbar({
             ▸
           </Button>
         )}
-        <span className={`toolbar-session-ring ${ringActive ? "active" : ""}`} aria-hidden="true">
-          <span className="toolbar-session-dot" />
-        </span>
+        <ProviderIcon
+          provider={sessionProvider}
+          className={`toolbar-provider-icon ${sessionStatus}`}
+          variant="default"
+          size={16}
+          title={activeSessionProviderMeta || ""}
+        />
         <div className="toolbar-session-texts">
           <span
             className={`toolbar-title ${activeSession ? "editable" : ""}`}
