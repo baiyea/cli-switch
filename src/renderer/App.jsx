@@ -1030,6 +1030,10 @@ function App() {
       });
       setSettingsSavedAt(Date.now());
       setSettingsError("");
+      if (!providerCheckPassed && isProviderConfigured({ providers: normalizedProviders })) {
+        setProviderCheckPassed(true);
+        setSettingsOpen(false);
+      }
     } catch (e) {
       setSettingsError(e?.message || "保存失败");
     }
