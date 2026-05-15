@@ -1085,16 +1085,21 @@ function App() {
 
   useEffect(() => {
     (async () => {
-      const list = await loadProjects();
-      const [settings] = await Promise.all([
-        loadSettings(),
-        loadSessionsByProjects(list.map((p) => p.id))
-      ]);
-      if (!isProviderConfigured(settings)) {
+      try {
+        const list = await loadProjects();
+        const [settings] = await Promise.all([
+          loadSettings(),
+          loadSessionsByProjects(list.map((p) => p.id))
+        ]);
+        if (!isProviderConfigured(settings)) {
+          setProviderCheckPassed(false);
+          setSettingsOpen(true);
+        } else {
+          setProviderCheckPassed(true);
+        }
+      } catch {
         setProviderCheckPassed(false);
         setSettingsOpen(true);
-      } else {
-        setProviderCheckPassed(true);
       }
     })();
   }, []);
