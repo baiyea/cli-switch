@@ -4,6 +4,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
 import { Switch } from "../ui/switch";
+import { ProviderIcon } from "../../icons/icon-registry";
 
 export function ProviderSettingsSection({
   providerTab,
@@ -66,6 +67,7 @@ export function ProviderSettingsSection({
             }`}
             onClick={() => setProviderTab(item.id)}
           >
+            <ProviderIcon provider={item.id} size={16} variant={providerTab === item.id ? "default" : "muted"} />
             {item.label}
           </Button>
         ))}
