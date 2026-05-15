@@ -1,7 +1,7 @@
 import React from "react";
-import claudeIcon from "../assets/provider-icons/claude.png";
-import codexIcon from "../assets/provider-icons/codex.png";
-import geminiIcon from "../assets/provider-icons/gemini.png";
+import claudeIcon from "../assets/provider-icons/claude.svg";
+import codexIcon from "../assets/provider-icons/codex.svg";
+import geminiIcon from "../assets/provider-icons/gemini.svg";
 
 function mergeClassName(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -174,6 +174,57 @@ export function FolderOpenIcon({ className = "", size = 14 }) {
     >
       <path d="M2.5 4.5C2.5 3.95 2.95 3.5 3.5 3.5H6L7.2 5H12.5C13.05 5 13.5 5.45 13.5 6V11.5C13.5 12.05 13.05 12.5 12.5 12.5H3.5C2.95 12.5 2.5 12.05 2.5 11.5V4.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
       <path d="M2.8 7.5H13.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function PlusIcon({ className = "", size = 14 }) {
+  return (
+    <svg
+      className={mergeClassName("icon plus-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M8 3V13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M3 8H13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function DownloadIcon({ className = "", size = 14 }) {
+  return (
+    <svg
+      className={mergeClassName("icon download-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M8 2.8V9.3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M5.5 7.3L8 9.8L10.5 7.3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 12.2H13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function FolderCodeIcon({ className = "", size = 24 }) {
+  return (
+    <svg
+      className={mergeClassName("icon folder-code-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M3.5 7.2C3.5 6.1 4.4 5.2 5.5 5.2H10.1L12 7.5H18.5C19.6 7.5 20.5 8.4 20.5 9.5V17.7C20.5 18.8 19.6 19.7 18.5 19.7H5.5C4.4 19.7 3.5 18.8 3.5 17.7V7.2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M9 11.1L6.8 12.9L9 14.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 11.1L17.2 12.9L15 14.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12.9 10.8L11.1 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
