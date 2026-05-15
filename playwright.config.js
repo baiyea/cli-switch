@@ -1,5 +1,6 @@
 // @ts-check
 const { defineConfig } = require("@playwright/test");
+const { e2eRawArtifactsDir } = require("./scripts/test-artifacts");
 
 module.exports = defineConfig({
   testDir: "./e2e",
@@ -9,5 +10,14 @@ module.exports = defineConfig({
   },
   fullyParallel: false,
   workers: 1,
-  reporter: "list"
+  outputDir: e2eRawArtifactsDir,
+  reporter: [
+    ["list"],
+    ["./scripts/playwright-docs-reporter.js"]
+  ],
+  use: {
+    screenshot: "only-on-failure",
+    trace: "retain-on-failure",
+    video: "retain-on-failure"
+  }
 });

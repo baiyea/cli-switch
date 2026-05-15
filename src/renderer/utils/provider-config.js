@@ -230,15 +230,18 @@ export function normalizeProviderEntry(providerId, entry = {}) {
     }));
   }
   if (profiles.length === 0) {
-    profiles = [{ id: "default", name: "Default Provider", envVars: [] }];
+    return { defaultProfileId: "", enabledProfileId: "", profiles: [] };
   }
 
   const defaultProfileId = profiles.some((item) => item.id === entry.defaultProfileId)
     ? entry.defaultProfileId
     : profiles[0].id;
-  let enabledProfileId = defaultProfileId;
-  if (profiles.some((item) => item.id === entry.enabledProfileId)) {
+  let enabledProfileId = entry.enabledProfileId === "" ? "" : defaultProfileId;
+  if (enabledProfileId !== "" && profiles.some((item) => item.id === entry.enabledProfileId)) {
     enabledProfileId = entry.enabledProfileId;
+  }
+  if (enabledProfileId !== "" && !profiles.some((item) => item.id === enabledProfileId)) {
+    enabledProfileId = "";
   }
   return { defaultProfileId, enabledProfileId, profiles };
 }

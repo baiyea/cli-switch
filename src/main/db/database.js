@@ -414,19 +414,19 @@ function settingsRepo(db) {
   const defaultValue = {
     providers: {
       claude: {
-        defaultProfileId: "default",
-        enabledProfileId: "default",
-        profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
+        defaultProfileId: "",
+        enabledProfileId: "",
+        profiles: []
       },
       codex: {
-        defaultProfileId: "default",
-        enabledProfileId: "default",
-        profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
+        defaultProfileId: "",
+        enabledProfileId: "",
+        profiles: []
       },
       gemini: {
-        defaultProfileId: "default",
-        enabledProfileId: "default",
-        profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
+        defaultProfileId: "",
+        enabledProfileId: "",
+        profiles: []
       }
     }
   };
@@ -438,19 +438,20 @@ function settingsRepo(db) {
       const current = providers[provider] || {};
       const profiles = Array.isArray(current.profiles) && current.profiles.length > 0
         ? current.profiles.map((profile, idx) => ({
-          id: String(profile?.id || `default-${idx + 1}`),
+          id: String(profile?.id || `provider-${idx + 1}`),
           name: String(profile?.name || `Provider ${idx + 1}`),
           envVars: Array.isArray(profile?.envVars) ? profile.envVars : []
         }))
-        : [{ id: "default", name: "Default Provider", envVars: [] }];
-      const defaultProfileId = profiles.some((p) => p.id === current.defaultProfileId)
+        : [];
+      const defaultProfileId = profiles.length > 0 && profiles.some((p) => p.id === current.defaultProfileId)
         ? current.defaultProfileId
-        : profiles[0].id;
-      let enabledProfileId = defaultProfileId;
-      if (current.enabledProfileId === "") {
-        enabledProfileId = "";
-      } else if (profiles.some((p) => p.id === current.enabledProfileId)) {
+        : (profiles.length > 0 ? profiles[0].id : "");
+      let enabledProfileId = current.enabledProfileId === "" ? "" : defaultProfileId;
+      if (enabledProfileId !== "" && profiles.some((p) => p.id === current.enabledProfileId)) {
         enabledProfileId = current.enabledProfileId;
+      }
+      if (enabledProfileId !== "" && !profiles.some((p) => p.id === enabledProfileId)) {
+        enabledProfileId = "";
       }
       providers[provider] = { defaultProfileId, enabledProfileId, profiles };
     }

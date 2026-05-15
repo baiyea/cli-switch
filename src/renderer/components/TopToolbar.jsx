@@ -1,0 +1,104 @@
+import React from "react";
+import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SmartAiIcon } from "../icons/icon-registry";
+import { Button } from "./ui/button";
+
+export function TopToolbar({
+  sidebarCollapsed,
+  activeSession,
+  activeSessionProviderMeta,
+  runtimeStatusLabel,
+  onExpandSidebar,
+  onRenameActiveSession,
+  skillgenRunning,
+  onRunSkillgen,
+  canRunSkillgen,
+  onArchiveActiveSession,
+  canArchiveActiveSession,
+  explorerVisible,
+  onToggleExplorer
+}) {
+  return (
+    <header className="toolbar">
+      <div className="toolbar-title-group">
+        {sidebarCollapsed && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="toolbar-expand-btn"
+            aria-label="展开会话栏"
+            title="展开会话栏"
+            onClick={onExpandSidebar}
+          >
+            ▸
+          </Button>
+        )}
+        {activeSession && (
+          <ProviderIcon
+            provider={activeSession.provider || "claude"}
+            className="toolbar-provider-icon"
+            size={20}
+          />
+        )}
+        <span
+          className={`toolbar-title ${activeSession ? "editable" : ""}`}
+          onDoubleClick={onRenameActiveSession}
+          title={activeSession ? "双击重命名会话" : ""}
+        >
+          {activeSession ? activeSession.name : "ready"}
+        </span>
+        {activeSessionProviderMeta && (
+          <span className="toolbar-provider-meta" title={activeSessionProviderMeta}>
+            {activeSessionProviderMeta}
+          </span>
+        )}
+        <div className="toolbar-drag-spacer" />
+        {activeSession && (
+          <span className={`status-chip ${activeSession.runtimeStatus || activeSession.status}`}>
+            {runtimeStatusLabel[activeSession.runtimeStatus || activeSession.status]
+              || activeSession.runtimeStatus
+              || activeSession.status}
+          </span>
+        )}
+      </div>
+
+      <div className="toolbar-actions">
+        <Button
+          className={`toolbar-icon-btn ${skillgenRunning ? "active skillgen-running" : ""}`}
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onRunSkillgen}
+          title="分析当前项目会话并生成 Skill"
+          aria-label="生成Skill"
+          disabled={!canRunSkillgen || skillgenRunning}
+        >
+          <SmartAiIcon size={14} />
+        </Button>
+        <Button
+          className="toolbar-icon-btn"
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onArchiveActiveSession}
+          title="归档当前会话"
+          aria-label="归档当前会话"
+          disabled={!canArchiveActiveSession}
+        >
+          <ArchiveIcon size={14} />
+        </Button>
+        <Button
+          className={`toolbar-icon-btn ${explorerVisible ? "active" : ""}`}
+          type="button"
+          variant="ghost"
+          size="icon"
+          title={explorerVisible ? "关闭文件树" : "展开文件树"}
+          aria-label={explorerVisible ? "关闭文件树" : "展开文件树"}
+          onClick={onToggleExplorer}
+        >
+          <ExplorerToggleIcon size={14} />
+        </Button>
+      </div>
+    </header>
+  );
+}

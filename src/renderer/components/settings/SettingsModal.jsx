@@ -4,6 +4,8 @@ import { ArchiveSettingsSection } from "./ArchiveSettingsSection";
 import { AppearanceSettingsSection } from "./AppearanceSettingsSection";
 import { ProviderSettingsSection } from "./ProviderSettingsSection";
 import { SettingsSideNav } from "./SettingsSideNav";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Tabs, TabsContent } from "../ui/tabs";
 
 export function SettingsModal({
   settingsOpen,
@@ -20,51 +22,62 @@ export function SettingsModal({
   appVersion,
   appLogo
 }) {
+  const onSectionChange = async (value) => {
+    if (value === "archive") {
+      await onSelectArchive();
+      return;
+    }
+    if (value === "appearance") {
+      onSelectAppearance();
+      return;
+    }
+    if (value === "about") {
+      onSelectAbout();
+      return;
+    }
+    onSelectProviders();
+  };
+
   if (!settingsOpen) return null;
 
   return (
-    <div className="settings-modal-backdrop" data-testid="settings-wrap" onClick={onClose}>
-      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="settings-modal-header">
-          <div>
-            <div className="settings-modal-title">Settings</div>
-            <div className="settings-modal-subtitle">Configure environments and manage archives.</div>
-          </div>
-          <button className="settings-close" type="button" onClick={onClose}>×</button>
+    <Dialog open={settingsOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="settings-modal flex flex-col h-[min(763px,calc(100vh-32px))] max-h-[calc(100vh-32px)] p-0 gap-0">
+        <div className="settings-modal-header border-b border-white/10 px-7 py-5">
+          <DialogHeader>
+            <DialogTitle className="settings-modal-title">Settings</DialogTitle>
+            <DialogDescription className="settings-modal-subtitle">
+              Configure environments and manage archives.
+            </DialogDescription>
+          </DialogHeader>
         </div>
 
-        <div className="settings-modal-body">
-          <SettingsSideNav
-            settingsSection={settingsSection}
-            onSelectProviders={onSelectProviders}
-            onSelectArchive={onSelectArchive}
-            onSelectAppearance={onSelectAppearance}
-            onSelectAbout={onSelectAbout}
-          />
+        <Tabs value={settingsSection} onValueChange={onSectionChange} className="grid grid-cols-[250px_minmax(0,1fr)] gap-5 flex-1 min-h-0 p-5">
+          <SettingsSideNav />
 
-          <div className="settings-panel">
-            {settingsSection === "providers" && (
+          <div className="settings-panel overflow-auto rounded-lg border border-white/10 bg-white/[0.03]">
+            <TabsContent value="providers" className="mt-0">
               <ProviderSettingsSection {...providerSectionProps} />
-            )}
+            </TabsContent>
 
-            {settingsSection === "archive" && (
+            <TabsContent value="archive" className="mt-0">
               <ArchiveSettingsSection
                 archivedSessions={archivedSessions}
                 providerLabel={providerLabel}
                 onRestoreArchivedSession={onRestoreArchivedSession}
               />
-            )}
+            </TabsContent>
 
-            {settingsSection === "appearance" && (
+            <TabsContent value="appearance" className="mt-0">
               <AppearanceSettingsSection />
-            )}
+            </TabsContent>
 
-            {settingsSection === "about" && (
+            <TabsContent value="about" className="mt-0">
               <AboutSettingsSection appVersion={appVersion} appLogo={appLogo} />
-            )}
+            </TabsContent>
           </div>
-        </div>
-      </div>
-    </div>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }

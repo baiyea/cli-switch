@@ -28,6 +28,11 @@ const { createProxyConnectivityService } = require("./services/proxy-connectivit
 const { createSkillgenRunner } = require("./services/skillgen/runner");
 const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../main/db/database");
 
+// LSUIElement=1 in Info.plist hides all instances from the dock.
+// The main process explicitly requests activation to show its dock icon,
+// while CLI subprocesses (ELECTRON_RUN_AS_NODE=1) stay hidden.
+if (process.platform === "darwin") app.setActivationPolicy("regular");
+
 const isDev = !app.isPackaged || !!process.env.VITE_DEV_SERVER_URL;
 let mainWindow = null;
 let tray = null;
@@ -2940,6 +2945,7 @@ function createWindow() {
 
   if (isDev) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(app.getAppPath(), "dist/renderer/index.html"));
   }

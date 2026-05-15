@@ -1,17 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Tree } from "react-arborist";
-import { FileIcon, FolderIcon, OpenFolderIcon } from "react-files-icons";
 import { fileBridge, logBridge, projectBridge, ptyBridge, sessionBridge, settingsBridge, skillgenBridge, windowBridge } from "../bridge";
 import { TerminalPanel } from "../features/terminal/components/TerminalPanel";
 import {
   ArchiveIcon,
   ExplorerToggleIcon,
-  MousePointerIcon,
   ProviderIcon,
-  SettingsIcon,
-  SmartAiIcon
+  SettingsIcon
 } from "./icons/icon-registry";
 import { SettingsModal } from "./components/settings/SettingsModal";
+import { Button } from "./components/ui/button";
+import { TopToolbar } from "./components/TopToolbar";
+import { ExplorerPane } from "./components/ExplorerPane";
+import { RenameSessionDialog } from "./components/modals/RenameSessionDialog";
+import { SkillgenResultDialog } from "./components/modals/SkillgenResultDialog";
 import { useSessionStore } from "../store/session.store";
 import packageJson from "../../package.json";
 import appLogo from "./assets/brand/app-logo.png";
@@ -37,9 +38,9 @@ import {
 } from "./utils/provider-config";
 
 const DEFAULT_PROVIDER_SETTINGS = {
-  defaultProfileId: "default",
-  enabledProfileId: "default",
-  profiles: [{ id: "default", name: "Default Provider", envVars: [] }]
+  defaultProfileId: "",
+  enabledProfileId: "",
+  profiles: []
 };
 const DEFAULT_SETTINGS = {
   providers: {
@@ -83,9 +84,9 @@ function App() {
   const [settingsSection, setSettingsSection] = useState("providers");
   const [providerTab, setProviderTab] = useState("claude");
   const [editingProfileByProvider, setEditingProfileByProvider] = useState({
-    claude: "default",
-    codex: "default",
-    gemini: "default"
+    claude: "",
+    codex: "",
+    gemini: ""
   });
 
   const [settingsModel, setSettingsModel] = useState(DEFAULT_SETTINGS);
@@ -157,7 +158,7 @@ function App() {
   const editingProfileId = editingProfileByProvider[providerTab]
     || currentProviderSettings.enabledProfileId
     || currentProviderSettings.defaultProfileId
-    || "default";
+    || "";
   const currentProviderPresetConfig = getProviderPresetConfig(providerTab) || { type: "keyList", keys: [] };
   const isFixedProfileProvider = currentProviderPresetConfig.type === "fixedProfiles";
   const currentProviderTestKey = `${providerTab}:${editingProfileId}`;
@@ -212,9 +213,9 @@ function App() {
     const merged = { providers: normalizeProviderSettings(value?.providers || {}) };
     setSettingsModel(merged);
     setEditingProfileByProvider({
-      claude: merged.providers.claude.enabledProfileId || merged.providers.claude.defaultProfileId || merged.providers.claude.profiles?.[0]?.id || "default",
-      codex: merged.providers.codex.enabledProfileId || merged.providers.codex.defaultProfileId || merged.providers.codex.profiles?.[0]?.id || "default",
-      gemini: merged.providers.gemini.enabledProfileId || merged.providers.gemini.defaultProfileId || merged.providers.gemini.profiles?.[0]?.id || "default"
+      claude: merged.providers.claude.enabledProfileId || merged.providers.claude.defaultProfileId || merged.providers.claude.profiles?.[0]?.id || "",
+      codex: merged.providers.codex.enabledProfileId || merged.providers.codex.defaultProfileId || merged.providers.codex.profiles?.[0]?.id || "",
+      gemini: merged.providers.gemini.enabledProfileId || merged.providers.gemini.defaultProfileId || merged.providers.gemini.profiles?.[0]?.id || ""
     });
   }
 
@@ -998,10 +999,13 @@ function App() {
 
       const defaultProfileId = profiles.some((p) => p.id === normalizedSource.defaultProfileId)
         ? normalizedSource.defaultProfileId
-        : profiles[0].id;
-      let enabledProfileId = defaultProfileId;
-      if (profiles.some((p) => p.id === normalizedSource.enabledProfileId)) {
+        : (profiles.length > 0 ? profiles[0].id : "");
+      let enabledProfileId = normalizedSource.enabledProfileId === "" ? "" : defaultProfileId;
+      if (enabledProfileId !== "" && profiles.some((p) => p.id === normalizedSource.enabledProfileId)) {
         enabledProfileId = normalizedSource.enabledProfileId;
+      }
+      if (enabledProfileId !== "" && !profiles.some((p) => p.id === enabledProfileId)) {
+        enabledProfileId = "";
       }
       providersPayload[providerKey] = { defaultProfileId, enabledProfileId, profiles };
     }
@@ -1011,9 +1015,9 @@ function App() {
       const normalizedProviders = normalizeProviderSettings(saved?.providers || providersPayload);
       setSettingsModel({ providers: normalizedProviders });
       setEditingProfileByProvider({
-        claude: normalizedProviders.claude.enabledProfileId || normalizedProviders.claude.defaultProfileId || normalizedProviders.claude.profiles?.[0]?.id || "default",
-        codex: normalizedProviders.codex.enabledProfileId || normalizedProviders.codex.defaultProfileId || normalizedProviders.codex.profiles?.[0]?.id || "default",
-        gemini: normalizedProviders.gemini.enabledProfileId || normalizedProviders.gemini.defaultProfileId || normalizedProviders.gemini.profiles?.[0]?.id || "default"
+        claude: normalizedProviders.claude.enabledProfileId || normalizedProviders.claude.defaultProfileId || normalizedProviders.claude.profiles?.[0]?.id || "",
+        codex: normalizedProviders.codex.enabledProfileId || normalizedProviders.codex.defaultProfileId || normalizedProviders.codex.profiles?.[0]?.id || "",
+        gemini: normalizedProviders.gemini.enabledProfileId || normalizedProviders.gemini.defaultProfileId || normalizedProviders.gemini.profiles?.[0]?.id || ""
       });
       setSettingsSavedAt(Date.now());
       setSettingsError("");
@@ -1304,28 +1308,40 @@ function App() {
   return (
     <div className={`layout ${isMacOS ? "macos" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-title-wrap">
-            <MousePointerIcon className="brand-logo-icon" size={16} />
-            <div className="brand-title">ZeeLinCode</div>
-          </div>
-          {!sidebarCollapsed && (
-            <button
+        <div className="sidebar-logo">
+          <div className="brand">
+            <div className="brand-title-wrap">
+              <span className="brand-title">ZeeLinCode</span>
+            </div>
+            <Button
               type="button"
-              className="sidebar-collapse-btn"
+              variant="ghost"
+              size="icon"
+              className="sidebar-trigger"
               aria-label="收缩会话栏"
               title="收缩会话栏"
               onClick={() => setSidebarCollapsed((prev) => !prev)}
             >
               <ExplorerToggleIcon size={14} />
-            </button>
-          )}
+            </Button>
+          </div>
         </div>
 
-        <button className="add-project-btn" onClick={onAddProject}>+ Add Project</button>
-
-        <div className="block">
-          <div className="label">ACTIVE WORKSPACE</div>
+        <div className="sidebar-sessions">
+          <div className="sidebar-nav-label">
+            <span>ACTIVE WORKSPACE</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="sidebar-nav-collapse-btn"
+              title="添加项目"
+              aria-label="添加项目"
+              onClick={onAddProject}
+            >
+              +
+            </Button>
+          </div>
           <div className="project-tree" data-testid="project-tree">
             {projects.map((p) => {
               const expanded = expandedProjects[p.id] !== false;
@@ -1363,8 +1379,10 @@ function App() {
                     <span className="project-name">{p.name}</span>
                     {primarySessionTool && (
                       <div className={`project-create-wrap ${openCreateMenuProjectId === p.id ? "open" : ""}`}>
-                        <button
+                        <Button
                           className="project-create-main"
+                          variant="ghost"
+                          size="icon"
                           title={`新建会话（${primarySessionTool.label}）`}
                           aria-label={`为项目 ${p.name} 新建会话`}
                           onClick={async (e) => {
@@ -1375,19 +1393,21 @@ function App() {
                           }}
                         >
                           <ProviderIcon provider={primarySessionTool.id} className="project-tool-icon" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           className="project-create-toggle"
+                          variant="ghost"
+                          size="icon"
                           title="选择会话类型"
                           aria-label="选择会话类型"
                           onClick={(e) => {
                             e.stopPropagation();
                             const button = e.currentTarget;
-                            const block = button.closest(".block");
+                            const sessionsEl = button.closest(".sidebar-sessions");
                             const menuEstimatedHeight = 230;
                             let placement = "down";
-                            if (block instanceof HTMLElement && button instanceof HTMLElement) {
-                              const blockRect = block.getBoundingClientRect();
+                            if (sessionsEl instanceof HTMLElement && button instanceof HTMLElement) {
+                              const blockRect = sessionsEl.getBoundingClientRect();
                               const buttonRect = button.getBoundingClientRect();
                               const spaceBelow = blockRect.bottom - buttonRect.bottom;
                               const spaceAbove = buttonRect.top - blockRect.top;
@@ -1400,16 +1420,18 @@ function App() {
                           }}
                         >
                           ▾
-                        </button>
+                        </Button>
                         {openCreateMenuProjectId === p.id && (
                           <div
                             className={`project-create-menu ${createMenuPlacementByProject[p.id] === "up" ? "upward" : ""}`}
                             onClick={(e) => e.stopPropagation()}
                           >
                             {enabledSessionToolOptions.map((option) => (
-                              <button
+                              <Button
                                 key={option.id}
                                 type="button"
+                                variant="ghost"
+                                size="sm"
                                 className={`project-create-item ${primarySessionTool.id === option.id ? "active" : ""}`}
                                 onClick={async () => {
                                   setOpenCreateMenuProjectId(null);
@@ -1419,11 +1441,13 @@ function App() {
                               >
                                 <ProviderIcon provider={option.id} className="project-tool-icon" />
                                 <span>{option.label}</span>
-                              </button>
+                              </Button>
                             ))}
                             <div className="project-create-divider" />
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="sm"
                               className="project-create-item"
                               onClick={async () => {
                                 setOpenCreateMenuProjectId(null);
@@ -1433,7 +1457,7 @@ function App() {
                             >
                               <span className="project-create-history-icon" aria-hidden="true">↻</span>
                               <span>读取历史会话</span>
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -1506,7 +1530,7 @@ function App() {
                                 provider={session.provider || "claude"}
                                 className="project-tool-icon session-provider-icon"
                                 variant="muted"
-                                size={12}
+                                size={10}
                                 title={PROVIDER_LABEL[session.provider] || session.provider || "Claude Code"}
                               />
                             </span>
@@ -1521,8 +1545,10 @@ function App() {
                             >
                               {session.name}
                             </span>
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon"
                               className="session-archive-btn"
                               title="归档会话"
                               aria-label={`归档会话 ${session.name}`}
@@ -1533,14 +1559,16 @@ function App() {
                               }}
                             >
                               <ArchiveIcon size={12} />
-                            </button>
+                            </Button>
                           </div>
                           );
                         })
                       )}
                       {hiddenSessionCount > 0 && (
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="sm"
                           className="session-collapse-toggle"
                           onClick={() => {
                             setShowAllSessionsByProject((prev) => ({
@@ -1550,7 +1578,7 @@ function App() {
                           }}
                         >
                           {showAllSessions ? "收起" : `展开显示（+${hiddenSessionCount}）`}
-                        </button>
+                        </Button>
                       )}
                     </div>
                   )}
@@ -1560,9 +1588,11 @@ function App() {
           </div>
         </div>
 
-        <div className="sidebar-bottom">
-          <button
-            className={`nav-btn ${settingsOpen ? "active" : ""}`}
+        <div className="sidebar-settings">
+          <Button
+            type="button"
+            variant="ghost"
+            className={`sidebar-settings-btn ${settingsOpen ? "active" : ""}`}
             onClick={async () => {
               await loadSettings();
               setSettingsOpen(true);
@@ -1570,86 +1600,29 @@ function App() {
           >
             <SettingsIcon className="settings-link-icon" />
             <span>Settings</span>
-          </button>
+          </Button>
         </div>
       </aside>
 
       <main className="main">
-        <header className="toolbar">
-          <div className="toolbar-title-group">
-            {sidebarCollapsed && (
-              <button
-                type="button"
-                className="toolbar-expand-btn"
-                aria-label="展开会话栏"
-                title="展开会话栏"
-                onClick={() => setSidebarCollapsed(false)}
-              >
-                ▸
-              </button>
-            )}
-            {activeSession && (
-              <ProviderIcon
-                provider={activeSession.provider || "claude"}
-                className="toolbar-provider-icon"
-                size={20}
-              />
-            )}
-            <span
-              className={`toolbar-title ${activeSession ? "editable" : ""}`}
-              onDoubleClick={() => {
-                if (!activeSession?.sessionId) return;
-                openRenameModal(activeSession.sessionId);
-              }}
-              title={activeSession ? "双击重命名会话" : ""}
-            >
-              {activeSession ? activeSession.name : "ready"}
-            </span>
-            {activeSessionProviderMeta && (
-              <span className="toolbar-provider-meta" title={activeSessionProviderMeta}>
-                {activeSessionProviderMeta}
-              </span>
-            )}
-            <div className="toolbar-drag-spacer" />
-            {activeSession && (
-              <span className={`status-chip ${activeSession.runtimeStatus || activeSession.status}`}>
-                {RUNTIME_STATUS_LABEL[activeSession.runtimeStatus || activeSession.status] || activeSession.runtimeStatus || activeSession.status}
-              </span>
-            )}
-          </div>
-
-          <div className="toolbar-actions">
-            <button
-              className={`toolbar-icon-btn ${skillgenRunning ? "active skillgen-running" : ""}`}
-              type="button"
-              onClick={() => void onRunSkillgen()}
-              title="分析当前项目会话并生成 Skill"
-              aria-label="生成Skill"
-              disabled={!activeProject?.id || skillgenRunning}
-            >
-              <SmartAiIcon size={14} />
-            </button>
-            <button
-              className="toolbar-icon-btn"
-              type="button"
-              onClick={() => activeSessionId && destroySession(activeSessionId)}
-              title="归档当前会话"
-              aria-label="归档当前会话"
-              disabled={!activeSessionId}
-            >
-              <ArchiveIcon size={14} />
-            </button>
-            <button
-              className={`toolbar-icon-btn ${explorerVisible ? "active" : ""}`}
-              type="button"
-              title={explorerVisible ? "关闭文件树" : "展开文件树"}
-              aria-label={explorerVisible ? "关闭文件树" : "展开文件树"}
-              onClick={() => setExplorerVisible((prev) => !prev)}
-            >
-              <ExplorerToggleIcon size={14} />
-            </button>
-          </div>
-        </header>
+        <TopToolbar
+          sidebarCollapsed={sidebarCollapsed}
+          activeSession={activeSession}
+          activeSessionProviderMeta={activeSessionProviderMeta}
+          runtimeStatusLabel={RUNTIME_STATUS_LABEL}
+          onExpandSidebar={() => setSidebarCollapsed(false)}
+          onRenameActiveSession={() => {
+            if (!activeSession?.sessionId) return;
+            openRenameModal(activeSession.sessionId);
+          }}
+          skillgenRunning={skillgenRunning}
+          onRunSkillgen={() => void onRunSkillgen()}
+          canRunSkillgen={Boolean(activeProject?.id)}
+          onArchiveActiveSession={() => activeSessionId && destroySession(activeSessionId)}
+          canArchiveActiveSession={Boolean(activeSessionId)}
+          explorerVisible={explorerVisible}
+          onToggleExplorer={() => setExplorerVisible((prev) => !prev)}
+        />
 
         {appError && <div className="banner-error">{appError}</div>}
 
@@ -1664,97 +1637,19 @@ function App() {
             )}
           </section>
 
-          <aside className={`explorer ${explorerVisible ? "open" : "closed"}`}>
-            <div className="explorer-head">
-              <span>EXPLORER</span>
-              <div className="explorer-actions">
-                <button
-                  type="button"
-                  title="Open Workspace"
-                  aria-label="Open Workspace"
-                  onClick={onOpenWorkspaceInFileManager}
-                  disabled={!activeWorkspaceCwd && !activeProject?.path}
-                >
-                  📁
-                </button>
-              </div>
-            </div>
-
-            {activeProject ? (
-              <div className="explorer-tree">
-                <div className="explorer-root-row">
-                  <span className="explorer-root-path" title={explorerCwd || activeWorkspaceCwd}>
-                    {explorerCwd || activeWorkspaceCwd}
-                  </span>
-                </div>
-                <div className="explorer-tree-wrap" ref={explorerTreeWrapRef}>
-                  {explorerLoading ? (
-                    <div className="explorer-empty">Loading directory...</div>
-                  ) : (
-                    <Tree
-                      data={explorerTree}
-                      idAccessor={(item) => item.path}
-                      childrenAccessor={(item) => item.children}
-                      width="100%"
-                      height={explorerTreeHeight}
-                      rowHeight={28}
-                      indent={18}
-                      openByDefault={false}
-                      className="explorer-arborist"
-                    >
-                      {({ node, style, dragHandle }) => (
-                        <div
-                          style={style}
-                          ref={dragHandle}
-                          className={`explorer-node-row ${node.isSelected ? "selected" : ""}`}
-                          title={node.data.path}
-                          onDoubleClick={(e) => {
-                            if (node.data.type !== "file") return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            void onOpenExplorerFile(node.data.path);
-                          }}
-                        >
-                          <button
-                            type="button"
-                            className="explorer-toggle"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (!node.isInternal) return;
-                              node.toggle();
-                            }}
-                          >
-                            {node.isInternal ? (node.isOpen ? "▾" : "▸") : ""}
-                          </button>
-                          {node.isInternal ? (
-                            node.isOpen ? (
-                              <OpenFolderIcon name={node.data.name} className="explorer-node-icon folder" aria-hidden="true" />
-                            ) : (
-                              <FolderIcon name={node.data.name} className="explorer-node-icon folder" aria-hidden="true" />
-                            )
-                          ) : (
-                            <FileIcon name={node.data.name} className="explorer-node-icon file" aria-hidden="true" />
-                          )}
-                          <span className="explorer-node-name">{node.data.name}</span>
-                          {explorerIsGitRepo && node.data.type === "directory" && node.data.hasGitChanges && (
-                            <span className="explorer-git-dot" aria-hidden="true" />
-                          )}
-                          {explorerIsGitRepo && node.data.type === "file" && node.data.gitStatus && (
-                            <span className={`explorer-git-badge git-${String(node.data.gitStatus).toLowerCase()}`}>
-                              {node.data.gitStatus}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </Tree>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="explorer-empty">Select a project to view the file tree.</div>
-            )}
-          </aside>
+          <ExplorerPane
+            explorerVisible={explorerVisible}
+            activeProject={activeProject}
+            activeWorkspaceCwd={activeWorkspaceCwd}
+            explorerCwd={explorerCwd}
+            explorerTreeWrapRef={explorerTreeWrapRef}
+            explorerLoading={explorerLoading}
+            explorerTree={explorerTree}
+            explorerTreeHeight={explorerTreeHeight}
+            explorerIsGitRepo={explorerIsGitRepo}
+            onOpenWorkspaceInFileManager={onOpenWorkspaceInFileManager}
+            onOpenExplorerFile={onOpenExplorerFile}
+          />
         </div>
 
         <SettingsModal
@@ -1810,136 +1705,25 @@ function App() {
           appVersion={APP_VERSION}
           appLogo={appLogo}
         />
-        {renameModalOpen && (
-          <div className="rename-modal-backdrop" onClick={() => closeRenameModal()}>
-            <div className="rename-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="rename-modal-header">
-                <div className="rename-modal-title-wrap">
-                  <h3 className="rename-modal-title">重命名会话</h3>
-                  <div className="rename-modal-subtitle">保持简短且易于识别。</div>
-                </div>
-                <button
-                  type="button"
-                  className="rename-modal-close-btn"
-                  aria-label="关闭"
-                  onClick={() => closeRenameModal()}
-                  disabled={renameSubmitting}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="rename-modal-body">
-                <input
-                  ref={renameInputRef}
-                  type="text"
-                  className="rename-modal-input"
-                  maxLength={64}
-                  value={renameDraft}
-                  onChange={(e) => setRenameDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void submitRenameModal();
-                      return;
-                    }
-                    if (e.key === "Escape") {
-                      e.preventDefault();
-                      closeRenameModal();
-                    }
-                  }}
-                />
-                <div className="rename-suggest-block">
-                  <div className="rename-suggest-label">推荐标题</div>
-                  {renameSuggesting ? (
-                    <div className="rename-suggest-loading">正在生成推荐标题...</div>
-                  ) : renameSuggestedTitle ? (
-                    <button
-                      type="button"
-                      className="rename-suggest-chip"
-                      onClick={() => setRenameDraft(renameSuggestedTitle)}
-                      title={renameSuggestSource === "llm" ? "模型生成，点击使用" : "本地回退生成，点击使用"}
-                    >
-                      {renameSuggestedTitle}
-                    </button>
-                  ) : (
-                    <div className="rename-suggest-loading">暂无推荐标题</div>
-                  )}
-                </div>
-              </div>
-              <div className="rename-modal-footer">
-                <button
-                  type="button"
-                  className="rename-modal-cancel-btn"
-                  onClick={() => closeRenameModal()}
-                  disabled={renameSubmitting}
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  className="rename-modal-submit-btn"
-                  onClick={() => void submitRenameModal()}
-                  disabled={renameSubmitting}
-                >
-                  保存
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {skillgenModalOpen && (
-          <div
-            className="skillgen-modal-backdrop"
-            onClick={() => {
-              if (skillgenRunning) return;
-              setSkillgenModalOpen(false);
-            }}
-          >
-            <div className="skillgen-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="skillgen-modal-header">
-                <div className="skillgen-modal-title">Skill 生成结果</div>
-                <button
-                  type="button"
-                  className="skillgen-modal-close-btn"
-                  onClick={() => setSkillgenModalOpen(false)}
-                  disabled={skillgenRunning}
-                >
-                  ×
-                </button>
-              </div>
-              {skillgenRunning ? (
-                <div className="skillgen-modal-body">正在分析会话内容并提取可复用技能...</div>
-              ) : (
-                <div className="skillgen-modal-body">
-                  {skillgenResult?.ok ? (
-                    <>
-                      <div>已扫描会话文件：{skillgenResult.scanned}</div>
-                      <div>本次增量处理：{skillgenResult.changed}（跳过 {skillgenResult.skipped}）</div>
-                      <div>模型抽取候选：{skillgenResult.modelExtracted || 0}（采纳 {skillgenResult.modelAccepted || 0}）</div>
-                      <div>生成 skill：新增 {skillgenResult.created}，更新 {skillgenResult.updated}</div>
-                      <div>草稿候选：{skillgenResult.drafted}，丢弃：{skillgenResult.discarded}</div>
-                      {skillgenResult.created + skillgenResult.updated === 0 && (
-                        <div>未提取到高价值可复用内容。</div>
-                      )}
-                    </>
-                  ) : (
-                    <div>{skillgenResult?.error || "Skill 生成失败"}</div>
-                  )}
-                </div>
-              )}
-              <div className="skillgen-modal-footer">
-                <button
-                  type="button"
-                  className="skillgen-modal-ok-btn"
-                  onClick={() => setSkillgenModalOpen(false)}
-                  disabled={skillgenRunning}
-                >
-                  确定
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <RenameSessionDialog
+          open={renameModalOpen}
+          onClose={closeRenameModal}
+          submitting={renameSubmitting}
+          inputRef={renameInputRef}
+          draft={renameDraft}
+          onDraftChange={setRenameDraft}
+          onSubmit={() => void submitRenameModal()}
+          suggesting={renameSuggesting}
+          suggestedTitle={renameSuggestedTitle}
+          suggestSource={renameSuggestSource}
+          onUseSuggestedTitle={setRenameDraft}
+        />
+        <SkillgenResultDialog
+          open={skillgenModalOpen}
+          running={skillgenRunning}
+          result={skillgenResult}
+          onClose={() => setSkillgenModalOpen(false)}
+        />
       </main>
     </div>
   );

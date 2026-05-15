@@ -181,11 +181,11 @@ function createProviderSettingsRuntime({
     const activeProfileId = providerSettings.enabledProfileId || providerSettings.defaultProfileId;
     const profile = (providerSettings.profiles || []).find((item) => item.id === activeProfileId)
       || providerSettings.profiles?.[0]
-      || { id: activeProfileId || "default", envVars: [] };
-    const mergedEnvVars = getMergedProviderProfileEnvVars(id, profile.id || activeProfileId, profile.envVars || []);
+      || { id: activeProfileId || "", envVars: [] };
+    const mergedEnvVars = getMergedProviderProfileEnvVars(id, profile.id || activeProfileId || "", profile.envVars || []);
     return {
       providerId: id,
-      profileId: profile.id || activeProfileId || "default",
+      profileId: profile.id || activeProfileId || "",
       envVars: mergedEnvVars
     };
   }

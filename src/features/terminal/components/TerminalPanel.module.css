@@ -19,7 +19,7 @@
 
 .empty {
   padding: 18px;
-  color: #667085;
+  color: var(--text-soft);
   font-size: 14px;
 }
 
@@ -30,9 +30,9 @@
   align-items: center;
   min-height: 36px;
   padding: 8px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: #101010;
-  color: #d0d5dd;
+  border-top: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, #11161f 0%, #0f141c 100%);
+  color: var(--text-main);
   font-size: 12px;
 }
 
@@ -44,18 +44,18 @@
 }
 
 .metric span {
-  color: #98a2b3;
+  color: var(--text-soft);
 }
 
 .metric strong {
-  color: #f2f4f7;
+  color: #f3f6fc;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
 
 .status {
   text-align: right;
-  color: #98a2b3;
+  color: var(--text-soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

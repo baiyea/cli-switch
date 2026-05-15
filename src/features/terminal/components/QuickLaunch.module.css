@@ -6,18 +6,23 @@
 }
 
 .btn {
-  border: none;
+  border: 1px solid var(--line);
   border-radius: 999px;
   padding: 8px 16px;
-  background: var(--surface-container-low);
-  color: var(--on-surface-variant);
+  background: #131a25;
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.1s ease, color 0.1s ease;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
 }
 
 .btn:hover {
-  background: var(--surface-container);
-  color: var(--on-surface);
+  background: #1b2333;
+  border-color: #35435f;
+  color: #e7ecf3;
+}
+
+.btn:active {
+  transform: translateY(1px);
 }

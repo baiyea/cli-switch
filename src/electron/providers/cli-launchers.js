@@ -189,23 +189,6 @@ function applyProviderStartupEnv(provider, env) {
     nextEnv.NO_BROWSER = "true";
     nextEnv.BROWSER = "";
   }
-  if (id === PROVIDERS.CLAUDE) {
-    const base = String(nextEnv.ANTHROPIC_BASE_URL || "").trim().replace(/\/+$/, "").toLowerCase();
-    const isDeepSeekAnthropic = /api\.deepseek\.com\/anthropic/.test(base);
-    if (isDeepSeekAnthropic) {
-      // DeepSeek's Anthropic-compatible endpoints appear in both docs:
-      // - ANTHROPIC_API_KEY (Anthropic API guide)
-      // - ANTHROPIC_AUTH_TOKEN (Claude Code integration)
-      // Normalize both so runtime and helper probes stay consistent.
-      const apiKey = String(nextEnv.ANTHROPIC_API_KEY || "").trim().replace(/^Bearer\s+/i, "");
-      const authToken = String(nextEnv.ANTHROPIC_AUTH_TOKEN || "").trim().replace(/^Bearer\s+/i, "");
-      const resolved = apiKey || authToken;
-      if (resolved) {
-        nextEnv.ANTHROPIC_API_KEY = resolved;
-        nextEnv.ANTHROPIC_AUTH_TOKEN = resolved;
-      }
-    }
-  }
   return nextEnv;
 }
 
