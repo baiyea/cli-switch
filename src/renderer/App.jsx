@@ -1395,6 +1395,7 @@ function App() {
             variant="ghost"
             className={`sidebar-settings-btn ${settingsOpen ? "active" : ""}`}
             onClick={async () => {
+              if (!providerCheckPassed) return;
               await loadSettings();
               setSettingsOpen(true);
             }}
@@ -1460,8 +1461,12 @@ function App() {
         </div>
 
         <SettingsModal
+          forceLock={!providerCheckPassed}
           settingsOpen={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => {
+            if (!providerCheckPassed) return;
+            setSettingsOpen(false);
+          }}
           settingsSection={settingsSection}
           onSelectProviders={() => setSettingsSection("providers")}
           onSelectArchive={async () => {
