@@ -67,6 +67,37 @@ function configureAppDataPaths() {
 
 configureAppDataPaths();
 
+function clearDirectoryContentsSafe(dirPath, report) {
+  if (!dirPath || !fs.existsSync(dirPath)) return;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dirPath);
+  } catch (error) {
+    report.warnings.push(`读取目录失败: ${dirPath} (${error.message || String(error)})`);
+    return;
+  }
+  for (const entry of entries) {
+    const targetPath = path.join(dirPath, entry);
+    try {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+      report.cleanedFiles.push(targetPath);
+    } catch (error) {
+      report.warnings.push(`删除失败: ${targetPath} (${error.message || String(error)})`);
+    }
+  }
+  report.cleanedDirectories.push(dirPath);
+}
+
+function removeFileSafe(filePath, report) {
+  if (!filePath || !fs.existsSync(filePath)) return;
+  try {
+    fs.rmSync(filePath, { force: true });
+    report.cleanedFiles.push(filePath);
+  } catch (error) {
+    report.warnings.push(`删除失败: ${filePath} (${error.message || String(error)})`);
+  }
+}
+
 log.transports.file.level = "info";
 log.transports.console.level = "info";
 log.transports.file.maxSize = 5 * 1024 * 1024;
@@ -311,6 +342,90 @@ const proxyConnectivityService = createProxyConnectivityService({
   internalProxyEnabledKey: INTERNAL_PROXY_ENABLED_KEY,
   internalProxyUrlKey: INTERNAL_PROXY_URL_KEY
 });
+
+function cleanRuntimeData() {
+  const report = {
+    runtimeDirs: [],
+    dbPath,
+    cleanedDirectories: [],
+    cleanedFiles: [],
+    warnings: []
+  };
+
+  const runtimeDirs = Array.from(new Set([
+    path.join(os.homedir(), `.${APP_ID}`),
+    path.join(os.homedir(), `.${APP_ID}dev`),
+    appHomeDir
+  ])).map((item) => path.resolve(item));
+
+  report.runtimeDirs = runtimeDirs;
+
+  ptyService.destroyAll();
+
+  try {
+    db.exec("BEGIN");
+    db.exec("DELETE FROM sessions");
+    db.exec("DELETE FROM projects");
+    db.exec("DELETE FROM app_settings");
+    db.exec("COMMIT");
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+
+  try {
+    db.pragma("wal_checkpoint(TRUNCATE)");
+  } catch (error) {
+    report.warnings.push(`WAL checkpoint 失败: ${error.message || String(error)}`);
+  }
+  try {
+    db.exec("VACUUM");
+  } catch (error) {
+    report.warnings.push(`VACUUM 失败: ${error.message || String(error)}`);
+  }
+
+  const activeDbPath = path.resolve(dbPath);
+  removeFileSafe(`${activeDbPath}-wal`, report);
+  removeFileSafe(`${activeDbPath}-shm`, report);
+
+  for (const runtimeDir of runtimeDirs) {
+    const cacheDir = path.join(runtimeDir, "cache");
+    const logsDir = path.join(runtimeDir, "logs");
+    const tmpDir = path.join(runtimeDir, ".tmp");
+    clearDirectoryContentsSafe(cacheDir, report);
+    clearDirectoryContentsSafe(logsDir, report);
+    clearDirectoryContentsSafe(tmpDir, report);
+
+    if (!fs.existsSync(runtimeDir)) continue;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(runtimeDir, { withFileTypes: true });
+    } catch (error) {
+      report.warnings.push(`读取目录失败: ${runtimeDir} (${error.message || String(error)})`);
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry?.isFile?.()) continue;
+      const fileName = String(entry.name || "");
+      const absPath = path.join(runtimeDir, fileName);
+      if (absPath === activeDbPath) continue;
+      if (
+        /\.sqlite(?:-wal|-shm)?$/i.test(fileName)
+        || /\.db$/i.test(fileName)
+      ) {
+        removeFileSafe(absPath, report);
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    message: "运行数据已清理",
+    ...report
+  };
+}
 
 const providerSettingsSchema = z.object({
   providers: z.object({
@@ -2919,6 +3034,42 @@ function registerAppIpc() {
       return { ok: false, message: `代理测试异常: ${message}` };
     }
   });
+  const runtimeCleanHandler = async () => {
+    try {
+      const result = cleanRuntimeData();
+      logInfo("settings", "Runtime data cleaned", {
+        runtimeDirs: result.runtimeDirs,
+        dbPath: result.dbPath,
+        cleanedDirectories: result.cleanedDirectories.length,
+        cleanedFiles: result.cleanedFiles.length,
+        warnings: result.warnings.length
+      });
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logError("settings", "Runtime data cleanup failed", error);
+      return {
+        ok: false,
+        message: `运行数据清理失败: ${message}`,
+        runtimeDirs: [],
+        dbPath,
+        cleanedDirectories: [],
+        cleanedFiles: [],
+        warnings: []
+      };
+    }
+  };
+  registerIpc(IPC.SETTINGS_RUNTIME_CLEAN || "settings:runtime:clean", runtimeCleanHandler);
+  if (IPC.SETTINGS_RUNTIME_CLEAN !== "settings:runtime:clean") {
+    try {
+      registerIpc("settings:runtime:clean", runtimeCleanHandler);
+    } catch (error) {
+      logWarn("ipc", "Skip duplicate runtime clean IPC registration", {
+        channel: "settings:runtime:clean",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
 }
 
 function createWindow() {

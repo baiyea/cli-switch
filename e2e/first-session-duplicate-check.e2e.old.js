@@ -51,7 +51,7 @@ function countOccurrences(text, needle) {
 }
 
 test("first session should not duplicate rendered text after one message", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zeelincode-dup-check-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-dup-check-"));
   const dbPath = path.join(root, "e2e.db");
   const projectDir = path.join(root, "project-a");
   fs.mkdirSync(projectDir, { recursive: true });

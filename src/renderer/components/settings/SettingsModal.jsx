@@ -1,7 +1,6 @@
 import React from "react";
 import { AboutSettingsSection } from "./AboutSettingsSection";
 import { ArchiveSettingsSection } from "./ArchiveSettingsSection";
-import { AppearanceSettingsSection } from "./AppearanceSettingsSection";
 import { ProviderSettingsSection } from "./ProviderSettingsSection";
 import { SettingsSideNav } from "./SettingsSideNav";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
@@ -13,7 +12,6 @@ export function SettingsModal({
   settingsSection,
   onSelectProviders,
   onSelectArchive,
-  onSelectAppearance,
   onSelectAbout,
   providerSectionProps,
   archivedSessions,
@@ -22,13 +20,38 @@ export function SettingsModal({
   appVersion,
   appLogo
 }) {
+  const headerMeta = (() => {
+    if (settingsSection === "about") {
+      return {
+        title: "About",
+        subtitle: "Application details and system information."
+      };
+    }
+    if (settingsSection === "providers") {
+      return {
+        title: "Providers",
+        subtitle: providerSectionProps?.isEditingOAuthProfile
+          ? "Configure OAuth authentication for AI providers."
+          : "Configure your AI provider API keys and settings."
+      };
+    }
+    if (settingsSection === "archive") {
+      return {
+        title: "Archive",
+        subtitle: "Manage archived sessions and restore history."
+      };
+    }
+    return {
+      title: "Providers",
+      subtitle: providerSectionProps?.isEditingOAuthProfile
+        ? "Configure OAuth authentication for AI providers."
+        : "Configure your AI provider API keys and settings."
+    };
+  })();
+
   const onSectionChange = async (value) => {
     if (value === "archive") {
       await onSelectArchive();
-      return;
-    }
-    if (value === "appearance") {
-      onSelectAppearance();
       return;
     }
     if (value === "about") {
@@ -42,25 +65,33 @@ export function SettingsModal({
 
   return (
     <Dialog open={settingsOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="settings-modal flex flex-col h-[min(763px,calc(100vh-32px))] max-h-[calc(100vh-32px)] p-0 gap-0">
-        <div className="settings-modal-header border-b border-white/10 px-7 py-5">
+      <DialogContent showClose={false} className="settings-modal flex flex-col h-[min(763px,calc(100vh-32px))] max-h-[calc(100vh-32px)] p-0 gap-0">
+        <div className="settings-modal-header relative border-b border-white/[0.08] px-5 pt-2.5 pb-4">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close settings"
+            className="absolute right-5 top-2 text-[18px] leading-none text-[#8A8A90] transition-opacity duration-150 hover:opacity-80"
+          >
+            ✕
+          </button>
           <DialogHeader>
-            <DialogTitle className="settings-modal-title">Settings</DialogTitle>
+            <DialogTitle className="settings-modal-title">{headerMeta.title}</DialogTitle>
             <DialogDescription className="settings-modal-subtitle">
-              Configure environments and manage archives.
+              {headerMeta.subtitle}
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <Tabs value={settingsSection} onValueChange={onSectionChange} className="grid grid-cols-[250px_minmax(0,1fr)] gap-5 flex-1 min-h-0 p-5">
+        <Tabs value={settingsSection} onValueChange={onSectionChange} className="grid grid-cols-[240px_minmax(0,1fr)] gap-0 flex-1 min-h-0">
           <SettingsSideNav />
 
-          <div className="settings-panel overflow-auto rounded-lg border border-white/10 bg-white/[0.03]">
-            <TabsContent value="providers" className="mt-0">
+          <div className="settings-panel flex-1 overflow-auto">
+            <TabsContent value="providers" className="mt-0 h-full">
               <ProviderSettingsSection {...providerSectionProps} />
             </TabsContent>
 
-            <TabsContent value="archive" className="mt-0">
+            <TabsContent value="archive" className="mt-0 h-full">
               <ArchiveSettingsSection
                 archivedSessions={archivedSessions}
                 providerLabel={providerLabel}
@@ -68,11 +99,7 @@ export function SettingsModal({
               />
             </TabsContent>
 
-            <TabsContent value="appearance" className="mt-0">
-              <AppearanceSettingsSection />
-            </TabsContent>
-
-            <TabsContent value="about" className="mt-0">
+            <TabsContent value="about" className="mt-0 h-full">
               <AboutSettingsSection appVersion={appVersion} appLogo={appLogo} />
             </TabsContent>
           </div>

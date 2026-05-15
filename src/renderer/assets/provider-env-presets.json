@@ -23,11 +23,11 @@
         "id": "deepseek-api",
         "name": "DeepSeek API",
         "envVars": [
-          { "key": "ANTHROPIC_API_KEY", "value": null },
+          { "key": "ANTHROPIC_AUTH_TOKEN", "value": null },
           { "key": "ANTHROPIC_BASE_URL", "value": "https://api.deepseek.com/anthropic" },
-          { "key": "ANTHROPIC_MODEL", "value": "deepseek-v4-pro" },
-          { "key": "ANTHROPIC_DEFAULT_OPUS_MODEL", "value": "deepseek-v4-pro" },
-          { "key": "ANTHROPIC_DEFAULT_SONNET_MODEL", "value": "deepseek-v4-pro" },
+          { "key": "ANTHROPIC_MODEL", "value": "deepseek-v4-pro[1m]" },
+          { "key": "ANTHROPIC_DEFAULT_OPUS_MODEL", "value": "deepseek-v4-pro[1m]" },
+          { "key": "ANTHROPIC_DEFAULT_SONNET_MODEL", "value": "deepseek-v4-pro[1m]" },
           { "key": "ANTHROPIC_DEFAULT_HAIKU_MODEL", "value": "deepseek-v4-flash" },
           { "key": "CLAUDE_CODE_SUBAGENT_MODEL", "value": "deepseek-v4-flash" },
           { "key": "CLAUDE_CODE_EFFORT_LEVEL", "value": "max" }

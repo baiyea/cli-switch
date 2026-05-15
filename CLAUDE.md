@@ -1,13 +1,13 @@
 # CLAUDE.md
 始终以中文简体方式回答、编写文档
 
-# ZeeLinCode · 迭代与更新规范
+# Cli-Switch · 迭代与更新规范
 
 ---
 
 ## 0. 当前项目目录结构
 
-ZeeLinCode 是一个 Electron + React 的桌面应用，核心形态是“左侧项目/会话管理 + 中间 xterm 终端 + 右侧文件树”。主进程负责 Node 能力、PTY、SQLite、文件系统和 Provider 会话扫描；渲染进程只负责 React UI，通过 bridge 调用 preload 暴露的安全 IPC。
+Cli-Switch 是一个 Electron + React 的桌面应用，核心形态是“左侧项目/会话管理 + 中间 xterm 终端 + 右侧文件树”。主进程负责 Node 能力、PTY、SQLite、文件系统和 Provider 会话扫描；渲染进程只负责 React UI，通过 bridge 调用 preload 暴露的安全 IPC。
 
 ```text
 .

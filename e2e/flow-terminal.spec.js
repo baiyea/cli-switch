@@ -44,7 +44,7 @@ function seedClaudeSession(homeDir, projectDir, sid, title) {
 }
 
 async function launchApp(options = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zeelincode-terminal-flow-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-terminal-flow-"));
   const dbPath = path.join(root, "e2e.db");
   const projectDir = path.join(root, "project-a");
   fs.mkdirSync(projectDir, { recursive: true });

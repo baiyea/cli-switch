@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const { DatabaseSync } = require("node:sqlite");
 
 function makeTempWorkspace() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zeelincode-e2e-switch-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-e2e-switch-"));
   const dbPath = path.join(root, "e2e.db");
   const projectDir = path.join(root, "project-a");
   fs.mkdirSync(projectDir, { recursive: true });

@@ -55,6 +55,7 @@ const AWAITING_CONFIRMATION_PATTERN =
 const ERROR_PATTERN =
   /(error:|failed|not logged in|permission error|command not found|no such file or directory|api error|unable to|no saved session found|exception|handler failed)/i;
 const IDLE_AFTER_MS = 1600;
+const OUTPUT_STATUS_THROTTLE_MS = 120;
 const startInFlightSessionIds = new Set<string>();
 const startedSessionIds = new Set<string>();
 
@@ -306,7 +307,11 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   },
 
   setActiveSession(sessionId: string) {
-    set({ activeSessionId: sessionId });
+    set((state) => (
+      state.activeSessionId === sessionId
+        ? state
+        : { activeSessionId: sessionId }
+    ));
   },
 
   async destroySession(sessionId: string) {
@@ -348,35 +353,49 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         : "streaming";
     startedSessionIds.add(sessionId);
 
-    set((state) => ({
-      sessions: state.sessions.map((s) =>
-        s.sessionId === sessionId
-          ? {
-            ...s,
-            status: s.status === "exited" ? "running" : s.status,
-            runtimeStatus,
-            lastOutputAt: now,
-            updatedAt: now
-          }
-          : s
-      )
-    }));
+    set((state) => {
+      let changed = false;
+      const sessions = state.sessions.map((s) => {
+        if (s.sessionId !== sessionId) return s;
+        const lastOutputAt = Number(s.lastOutputAt || 0);
+        const status = s.status === "exited" ? "running" : s.status;
+        const shouldBumpOutputTime = (now - lastOutputAt) >= OUTPUT_STATUS_THROTTLE_MS || lastOutputAt <= 0;
+        const runtimeChanged = s.runtimeStatus !== runtimeStatus;
+        const statusChanged = s.status !== status;
+        if (!runtimeChanged && !statusChanged && !shouldBumpOutputTime) {
+          return s;
+        }
+        changed = true;
+        return {
+          ...s,
+          status,
+          runtimeStatus,
+          lastOutputAt: now,
+          updatedAt: now
+        };
+      });
+      return changed ? { sessions } : state;
+    });
   },
 
   refreshRuntimeStatuses() {
     const now = Date.now();
-    set((state) => ({
-      sessions: state.sessions.map((s) => {
+    set((state) => {
+      let changed = false;
+      const sessions = state.sessions.map((s) => {
         if (s.status === "exited" || s.runtimeStatus === "exited" || s.runtimeStatus === "awaiting_confirmation" || s.runtimeStatus === "error") {
           return s;
         }
         const lastOutputAt = s.lastOutputAt || 0;
         if (lastOutputAt > 0 && now - lastOutputAt > IDLE_AFTER_MS) {
+          if (s.runtimeStatus === "awaiting_input") return s;
+          changed = true;
           return { ...s, runtimeStatus: "awaiting_input" };
         }
         return s;
-      })
-    }));
+      });
+      return changed ? { sessions } : state;
+    });
   },
 
   markExited(sessionId: string, exitCode: number) {

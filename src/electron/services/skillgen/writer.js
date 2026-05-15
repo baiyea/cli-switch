@@ -37,7 +37,7 @@ function buildSkillMarkdown(candidate) {
   return `---
 name: ${candidate.slug}
 description: ${description}
-author: ZeeLinCode
+author: Cli-Switch
 version: 1.0.0
 tags: [${tags.join(", ")}]
 ---

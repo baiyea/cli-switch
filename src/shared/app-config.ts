@@ -1,4 +1,3 @@
-export const APP_NAME = "ZeeLinCode";
-export const APP_ID = "zeelincode";
-export const DB_FILENAME = "zeelincode.sqlite";
-
+export const APP_NAME = "Cli-Switch";
+export const APP_ID = "cliswitch";
+export const DB_FILENAME = "cliswitch.sqlite";

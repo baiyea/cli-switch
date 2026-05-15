@@ -132,6 +132,52 @@ export function ExplorerToggleIcon({ className = "", size = 16 }) {
   );
 }
 
+export function ChevronDownIcon({ className = "", size = 14 }) {
+  return (
+    <svg
+      className={mergeClassName("icon chevron-down-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M4 6.5L8 10L12 6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function ChevronRightIcon({ className = "", size = 14 }) {
+  return (
+    <svg
+      className={mergeClassName("icon chevron-right-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function FolderOpenIcon({ className = "", size = 14 }) {
+  return (
+    <svg
+      className={mergeClassName("icon folder-open-icon", className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M2.5 4.5C2.5 3.95 2.95 3.5 3.5 3.5H6L7.2 5H12.5C13.05 5 13.5 5.45 13.5 6V11.5C13.5 12.05 13.05 12.5 12.5 12.5H3.5C2.95 12.5 2.5 12.05 2.5 11.5V4.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M2.8 7.5H13.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function ExternalLinkIcon({ className = "", size = 16 }) {
   return (
     <svg

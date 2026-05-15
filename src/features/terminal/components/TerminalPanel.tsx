@@ -29,6 +29,9 @@ export function TerminalPanel({ projectId, cwd }: Props) {
       if (activeSessionId && sessionIds.has(activeSessionId) && !next.includes(activeSessionId)) {
         next.push(activeSessionId);
       }
+      if (next.length === prev.length && next.every((id, index) => id === prev[index])) {
+        return prev;
+      }
       return next;
     });
   }, [activeSessionId, sessionIds]);
@@ -94,6 +97,16 @@ export function TerminalPanel({ projectId, cwd }: Props) {
     return new Intl.NumberFormat("en-US").format(Number(stats.tokens.total || 0));
   }, [stats]);
 
+  const statusInfo = useMemo(() => {
+    if (!activeSession) return { dotClass: "", text: "" };
+    if (statsError) return { dotClass: styles.error, text: statsError };
+    if (statsLoading && !stats) return { dotClass: styles.loading, text: "加载中..." };
+    if (activeSession.status === "running") return { dotClass: styles.running, text: "运行中" };
+    if (activeSession.status === "creating") return { dotClass: styles.loading, text: "创建中" };
+    if (activeSession.status === "exited") return { dotClass: styles.loading, text: "已退出" };
+    return { dotClass: "", text: "" };
+  }, [activeSession, statsError, statsLoading, stats]);
+
   return (
     <section className={styles.panel}>
       <div className={styles.viewport} data-testid="terminal-viewport">
@@ -110,12 +123,18 @@ export function TerminalPanel({ projectId, cwd }: Props) {
         ))}
       </div>
       <div className={styles.footer} data-testid="terminal-session-stats">
+        <div className={styles.status}>
+          {statusInfo.text && (
+            <>
+              <span className={styles.statusLabel}>状态</span>
+              <span className={`${styles.statusDot} ${statusInfo.dotClass}`} />
+              <span className={styles.statusText}>{statusInfo.text}</span>
+            </>
+          )}
+        </div>
         <div className={styles.metric}><span>总时长</span><strong>{durationText}</strong></div>
         <div className={styles.metric}><span>轮次</span><strong>{roundsText}</strong></div>
         <div className={styles.metric}><span>Token</span><strong>{tokensText}</strong></div>
-        <div className={styles.status}>
-          {statsLoading && !stats ? "统计加载中..." : (statsError ? `统计异常：${statsError}` : "")}
-        </div>
       </div>
     </section>
   );

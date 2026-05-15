@@ -41,11 +41,15 @@ export function ProviderSettingsSection({
   onSaveSettings,
   settingsError
 }) {
-  return (
-    <div className="space-y-4 text-[var(--text-main)]">
-      <h3 className="text-[30px] font-semibold leading-tight text-[var(--text-main)]">Model Provider Settings</h3>
+  const linearFieldClass = "h-8 rounded-[6px] border border-[#2a3345] bg-[#0e1520] px-3 text-[13px] font-medium text-[#EDEDEF]";
+  const linearBtnClass = "h-8 rounded-lg border border-white/10 bg-white/[0.08] px-[14px] text-[14px] font-medium text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]";
+  const linearDangerBtnClass = "h-8 rounded-lg border border-[#7a2f39] bg-[#7a2f39]/35 px-[14px] text-[14px] font-medium text-[#ffd7dc] transition-opacity duration-150 hover:bg-[#7a2f39]/55";
 
-      <div className="flex flex-wrap gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-1.5">
+  return (
+    <div className="space-y-3 text-[var(--text-main)]">
+      <h3 className="text-[22px] font-bold leading-tight text-[var(--text-main)]">Provider Settings</h3>
+
+      <div className="flex flex-wrap gap-1 rounded-[4px] border border-white/10 bg-white/[0.08] p-1">
         {[
           { id: "claude", label: "Claude Code" },
           { id: "codex", label: "Codex CLI" },
@@ -55,7 +59,11 @@ export function ProviderSettingsSection({
             key={item.id}
             variant="ghost"
             size="sm"
-            className={providerTab === item.id ? "bg-white/[0.05] text-[var(--text-main)]" : "text-[var(--text-muted)]"}
+            className={`h-8 rounded-[4px] px-[10px] text-[14px] font-medium transition-opacity duration-150 ${
+              providerTab === item.id
+                ? "border border-white/10 bg-white/[0.13] text-[#EDEDEF]"
+                : "border border-transparent bg-transparent text-[#8A8A90] hover:bg-white/[0.04] hover:text-[#EDEDEF]"
+            }`}
             onClick={() => setProviderTab(item.id)}
           >
             {item.label}
@@ -63,30 +71,30 @@ export function ProviderSettingsSection({
         ))}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {!isFixedProfileProvider && (
           <div className="flex justify-end">
-            <Button type="button" variant="secondary" size="sm" onClick={addProviderProfile}>
+            <Button type="button" variant="secondary" size="sm" className={linearBtnClass} onClick={addProviderProfile}>
               + 新增供应商
             </Button>
           </div>
         )}
 
         {editingProfile && (
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 space-y-4">
+          <div className="rounded-[4px] border border-white/10 bg-white/[0.05] p-3 space-y-3">
             {isFixedProfileProvider ? (
               <div className="flex flex-wrap items-center gap-2">
                 <Select
                   value={editingProfile.id || ""}
                   onChange={(e) => onSelectEditingProfile(e.target.value)}
-                  className="w-full max-w-[420px]"
+                  className={`w-full max-w-[420px] ${linearFieldClass}`}
                 >
                   {(currentProviderSettings.profiles || []).map((profile) => (
                     <option key={profile.id} value={profile.id}>{profile.name}</option>
                   ))}
                 </Select>
                 {currentProviderSettings.enabledProfileId === editingProfile.id && (
-                  <Badge variant="success">已启用</Badge>
+                  <Badge variant="success" className="rounded-lg text-[12px] font-medium">已启用</Badge>
                 )}
               </div>
             ) : (
@@ -96,9 +104,9 @@ export function ProviderSettingsSection({
                     key={profile.id}
                     type="button"
                     variant="secondary"
-                    className={`h-auto w-full justify-between gap-2 px-3 py-2 text-left ${
+                    className={`h-auto w-full justify-between gap-2 rounded-[4px] border border-white/10 bg-white/[0.06] px-3 py-2 text-left text-[13px] ${
                       profile.id === editingProfile.id
-                        ? "border-[var(--line)] bg-[var(--bg-active)] text-[var(--text-main)]"
+                        ? "bg-white/[0.12] text-[var(--text-main)]"
                         : ""
                     }`}
                     onClick={() => onSelectProfileItem(profile.id)}
@@ -106,10 +114,10 @@ export function ProviderSettingsSection({
                     <span className="truncate text-sm font-semibold">{profile.name}</span>
                     <span className="flex items-center gap-2">
                       {currentProviderSettings.defaultProfileId === profile.id && (
-                        <Badge variant="default">默认</Badge>
+                        <Badge variant="default" className="rounded-lg text-[12px] font-medium">默认</Badge>
                       )}
                       {currentProviderSettings.enabledProfileId === profile.id && (
-                        <Badge variant="success">已启用</Badge>
+                        <Badge variant="success" className="rounded-lg text-[12px] font-medium">已启用</Badge>
                       )}
                     </span>
                   </Button>
@@ -124,10 +132,12 @@ export function ProviderSettingsSection({
                   value={editingProfile.name}
                   onChange={(e) => renameProviderProfile(editingProfile.id, e.target.value)}
                   placeholder="供应商名称"
+                  className={linearFieldClass}
                 />
                 <Button
                   type="button"
                   variant="secondary"
+                  className={linearBtnClass}
                   onClick={() => setDefaultProviderProfile(editingProfile.id)}
                   disabled={currentProviderSettings.defaultProfileId === editingProfile.id}
                 >
@@ -136,6 +146,7 @@ export function ProviderSettingsSection({
                 <Button
                   type="button"
                   variant="destructive"
+                  className={linearDangerBtnClass}
                   onClick={() => removeProviderProfile(editingProfile.id)}
                   disabled={(currentProviderSettings.profiles || []).length <= 1}
                 >
@@ -158,6 +169,7 @@ export function ProviderSettingsSection({
                     <Button
                       type="button"
                       variant="secondary"
+                      className={linearBtnClass}
                       onClick={() => onStartOAuthLogin(editingProfile.id)}
                       disabled={currentProviderTestState.status === "testing"}
                     >
@@ -176,6 +188,7 @@ export function ProviderSettingsSection({
                           type="button"
                           variant="secondary"
                           size="sm"
+                          className={linearBtnClass}
                           onClick={() => openOAuthLink(currentOauthDisplayUrl)}
                         >
                           点击浏览器打开URL
@@ -190,7 +203,7 @@ export function ProviderSettingsSection({
                       <div className="flex items-center gap-2">
                         <Input
                           type="text"
-                          className="flex-1"
+                          className={`flex-1 ${linearFieldClass}`}
                           placeholder="粘贴 Gemini 页面显示的 authorization code"
                           value={currentOauthCode}
                           onChange={(e) => onOauthCodeChange(e.target.value)}
@@ -199,6 +212,7 @@ export function ProviderSettingsSection({
                           type="button"
                           variant="secondary"
                           size="sm"
+                          className={linearBtnClass}
                           onClick={() => submitOAuthCode(providerTab, editingProfile.id, currentOauthCode)}
                         >
                           提交验证码
@@ -219,7 +233,7 @@ export function ProviderSettingsSection({
                         type="text"
                         placeholder="KEY"
                         value={pair.key}
-                        className={!pair.keyEditable ? "opacity-75" : ""}
+                        className={`${linearFieldClass} ${!pair.keyEditable ? "opacity-75" : ""}`}
                         readOnly={!pair.keyEditable}
                         onChange={pair.keyEditable ? (e) => updateEnvVar(index, "key", e.target.value) : undefined}
                       />
@@ -227,7 +241,7 @@ export function ProviderSettingsSection({
                         type="text"
                         placeholder="输入值"
                         value={pair.value}
-                        className={!pair.editable ? "bg-[var(--bg-hover)] text-[var(--text-soft)]" : ""}
+                        className={`${linearFieldClass} ${!pair.editable ? "bg-[var(--bg-hover)] text-[var(--text-soft)]" : ""}`}
                         readOnly={!pair.editable}
                         onChange={pair.editable ? (e) => updateEnvVar(index, "value", e.target.value) : undefined}
                       />
@@ -235,6 +249,7 @@ export function ProviderSettingsSection({
                         type="button"
                         variant="secondary"
                         size="sm"
+                        className={linearBtnClass}
                         onClick={() => removeEnvVar(index)}
                         disabled={!pair.removable}
                       >
@@ -247,7 +262,7 @@ export function ProviderSettingsSection({
 
               {!isEditingOAuthProfile && (
                 <div className="flex justify-start">
-                  <Button type="button" variant="secondary" size="sm" onClick={addEnvVar}>
+                  <Button type="button" variant="secondary" size="sm" className={linearBtnClass} onClick={addEnvVar}>
                     + 新增变量
                   </Button>
                 </div>
@@ -274,7 +289,7 @@ export function ProviderSettingsSection({
         )}
 
         {editingProfile && (
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 space-y-3">
+          <div className="rounded-[4px] border border-white/10 bg-white/[0.05] p-3 space-y-2.5">
             <div className="flex items-center justify-between gap-3">
               <h4 className="text-sm font-semibold text-[#e7ecf3]">代理地址</h4>
               <label className="inline-flex items-center gap-2 text-xs text-[var(--text-muted)]">
@@ -295,14 +310,15 @@ export function ProviderSettingsSection({
               type="text"
               placeholder="代理地址，例如 http://127.0.0.1:7890"
               value={proxyState.url}
+              className={linearFieldClass}
               onChange={(e) => setProxyConfig({ enabled: proxyState.enabled, url: e.target.value })}
             />
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end gap-1.5">
           {settingsSavedAt > 0 && <span className="text-xs font-medium text-[var(--success)]">✓ 已保存</span>}
-          <Button type="button" onClick={onSaveSettings}>保存</Button>
+          <Button type="button" className={linearBtnClass} onClick={onSaveSettings}>保存</Button>
         </div>
       </div>
 

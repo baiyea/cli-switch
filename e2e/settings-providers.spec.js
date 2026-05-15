@@ -58,7 +58,7 @@ function setupDb(dbPath, projectDir, providerSettings) {
 }
 
 async function launchAppWithFixtures(providerSettings) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zeelincode-settings-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-settings-"));
   const dbPath = path.join(root, "e2e.db");
   const projectDir = path.join(root, "project-a");
   ensureDir(projectDir);

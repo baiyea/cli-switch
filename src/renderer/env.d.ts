@@ -190,6 +190,15 @@ declare global {
           ok: boolean;
           message: string;
         }>;
+        cleanRuntimeData: () => Promise<{
+          ok: boolean;
+          message: string;
+          runtimeDirs: string[];
+          dbPath: string;
+          cleanedDirectories: string[];
+          cleanedFiles: string[];
+          warnings: string[];
+        }>;
       };
       skillgen: {
         run: (payload: {

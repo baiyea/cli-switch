@@ -72,5 +72,16 @@ export const settingsBridge = {
     proxyUrl: string;
   }): Promise<{ ok: boolean; message: string }> {
     return window.electronAPI.settings.testProviderProxy(payload);
+  },
+  cleanRuntimeData(): Promise<{
+    ok: boolean;
+    message: string;
+    runtimeDirs: string[];
+    dbPath: string;
+    cleanedDirectories: string[];
+    cleanedFiles: string[];
+    warnings: string[];
+  }> {
+    return window.electronAPI.settings.cleanRuntimeData();
   }
 };

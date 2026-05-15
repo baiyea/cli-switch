@@ -42,7 +42,7 @@ function writePackageJson(target) {
   const pkg = {
     name: 'zeelin-cli-runtime',
     private: true,
-    description: 'Bundled CLI runtime for ZeeLinCode',
+    description: 'Bundled CLI runtime for Cli-Switch',
     version: '0.0.0',
     dependencies: cliVersions
   };

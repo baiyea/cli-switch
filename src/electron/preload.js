@@ -44,7 +44,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     startProviderOAuthLogin: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_OAUTH_LOGIN, payload),
     probeProviderOAuth: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_OAUTH_PROBE, payload),
     getProviderOAuthLinks: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_OAUTH_LINKS, payload),
-    testProviderProxy: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_PROXY_TEST, payload)
+    testProviderProxy: (payload) => ipcRenderer.invoke(IPC.SETTINGS_PROVIDER_PROXY_TEST, payload),
+    cleanRuntimeData: () => ipcRenderer.invoke(IPC.SETTINGS_RUNTIME_CLEAN)
   },
   skillgen: {
     run: (payload) => ipcRenderer.invoke(IPC.SKILLGEN_RUN, payload)

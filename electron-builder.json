@@ -1,7 +1,7 @@
 {
-  "appId": "com.zeelincode.app",
-  "productName": "ZeeLinCode",
-  "executableName": "ZeeLinCode",
+  "appId": "com.cliswitch.app",
+  "productName": "Cli-Switch",
+  "executableName": "Cli-Switch",
   "directories": {
     "output": "release"
   },

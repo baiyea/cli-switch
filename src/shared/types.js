@@ -32,7 +32,8 @@ const IPC = Object.freeze({
   SETTINGS_PROVIDER_OAUTH_LOGIN: "settings:provider:oauth:login",
   SETTINGS_PROVIDER_OAUTH_PROBE: "settings:provider:oauth:probe",
   SETTINGS_PROVIDER_OAUTH_LINKS: "settings:provider:oauth:links",
-  SETTINGS_PROVIDER_PROXY_TEST: "settings:provider:proxy:test"
+  SETTINGS_PROVIDER_PROXY_TEST: "settings:provider:proxy:test",
+  SETTINGS_RUNTIME_CLEAN: "settings:runtime:clean"
 });
 
 module.exports = { IPC };

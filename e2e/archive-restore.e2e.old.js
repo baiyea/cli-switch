@@ -51,7 +51,7 @@ function setupDb(dbPath, projectDir) {
 }
 
 test("archive and restore session from settings", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zeelincode-archive-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-archive-"));
   const dbPath = path.join(root, "e2e.db");
   const projectDir = path.join(root, "project-a");
   fs.mkdirSync(projectDir, { recursive: true });

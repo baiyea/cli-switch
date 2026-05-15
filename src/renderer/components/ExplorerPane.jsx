@@ -2,6 +2,7 @@ import React from "react";
 import { Tree } from "react-arborist";
 import { FileIcon, FolderIcon, OpenFolderIcon } from "react-files-icons";
 import { Button } from "./ui/button";
+import { ChevronDownIcon, ChevronRightIcon, FolderOpenIcon } from "../icons/icon-registry";
 
 export function ExplorerPane({
   explorerVisible,
@@ -30,18 +31,13 @@ export function ExplorerPane({
             onClick={onOpenWorkspaceInFileManager}
             disabled={!activeWorkspaceCwd && !activeProject?.path}
           >
-            📁
+            <FolderOpenIcon size={14} />
           </Button>
         </div>
       </div>
 
       {activeProject ? (
         <div className="explorer-tree">
-          <div className="explorer-root-row">
-            <span className="explorer-root-path" title={explorerCwd || activeWorkspaceCwd}>
-              {explorerCwd || activeWorkspaceCwd}
-            </span>
-          </div>
           <div className="explorer-tree-wrap" ref={explorerTreeWrapRef}>
             {explorerLoading ? (
               <div className="explorer-empty">Loading directory...</div>
@@ -52,8 +48,8 @@ export function ExplorerPane({
                 childrenAccessor={(item) => item.children}
                 width="100%"
                 height={explorerTreeHeight}
-                rowHeight={28}
-                indent={18}
+                rowHeight={20}
+                indent={20}
                 openByDefault={false}
                 className="explorer-arborist"
               >
@@ -82,7 +78,7 @@ export function ExplorerPane({
                         node.toggle();
                       }}
                     >
-                      {node.isInternal ? (node.isOpen ? "▾" : "▸") : ""}
+                      {node.isInternal ? (node.isOpen ? <ChevronDownIcon size={10} /> : <ChevronRightIcon size={10} />) : ""}
                     </Button>
                     {node.isInternal ? (
                       node.isOpen ? (

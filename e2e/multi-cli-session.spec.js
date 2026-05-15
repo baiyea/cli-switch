@@ -104,7 +104,7 @@ function seedProviderSessions(homeDir, projectDir) {
 }
 
 async function launchAppWithFixtures() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zeelincode-multi-cli-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-multi-cli-"));
   const dbPath = path.join(root, "e2e.db");
   const projectDir = path.join(root, "project-a");
   ensureDir(projectDir);

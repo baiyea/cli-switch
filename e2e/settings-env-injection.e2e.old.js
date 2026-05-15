@@ -47,7 +47,7 @@ function setupDb(dbPath, projectDir) {
 }
 
 test("save settings then create session should inject env vars into claude process", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zeelincode-settings-env-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-settings-env-"));
   const dbPath = path.join(root, "e2e.db");
   const projectDir = path.join(root, "project-a");
   fs.mkdirSync(projectDir, { recursive: true });

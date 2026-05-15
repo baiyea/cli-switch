@@ -40,7 +40,7 @@ function setupDb(dbPath, projectDir) {
 }
 
 test("settings page should render form instead of terminal", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zeelincode-settings-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-settings-"));
   const dbPath = path.join(root, "e2e.db");
   const projectDir = path.join(root, "project-a");
   fs.mkdirSync(projectDir, { recursive: true });

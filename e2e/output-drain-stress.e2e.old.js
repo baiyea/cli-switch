@@ -51,7 +51,7 @@ function setupDb(dbPath, projectDir) {
 }
 
 test("drained terminal writes stay responsive under heavy output", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "zeelincode-drain-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-drain-"));
   const dbPath = path.join(root, "e2e.db");
   const projectDir = path.join(root, "project-a");
   fs.mkdirSync(projectDir, { recursive: true });

@@ -3,6 +3,8 @@ import { fileBridge, logBridge, projectBridge, ptyBridge, sessionBridge, setting
 import { TerminalPanel } from "../features/terminal/components/TerminalPanel";
 import {
   ArchiveIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
   ExplorerToggleIcon,
   ProviderIcon,
   SettingsIcon
@@ -1311,7 +1313,7 @@ function App() {
         <div className="sidebar-logo">
           <div className="brand">
             <div className="brand-title-wrap">
-              <span className="brand-title">ZeeLinCode</span>
+              <span className="brand-title">Cli-Switch</span>
             </div>
             <Button
               type="button"
@@ -1339,7 +1341,7 @@ function App() {
               aria-label="添加项目"
               onClick={onAddProject}
             >
-              +
+              <ChevronDownIcon size={14} />
             </Button>
           </div>
           <div className="project-tree" data-testid="project-tree">
@@ -1375,7 +1377,7 @@ function App() {
                       setSettingsOpen(false);
                     }}
                   >
-                    <span className="project-caret">{expanded ? "▾" : "▸"}</span>
+                    <span className="project-caret">{expanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}</span>
                     <span className="project-name">{p.name}</span>
                     {primarySessionTool && (
                       <div className={`project-create-wrap ${openCreateMenuProjectId === p.id ? "open" : ""}`}>
@@ -1661,7 +1663,6 @@ function App() {
             setSettingsSection("archive");
             await loadArchivedSessions();
           }}
-          onSelectAppearance={() => setSettingsSection("appearance")}
           onSelectAbout={() => setSettingsSection("about")}
           providerSectionProps={{
             providerTab,

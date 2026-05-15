@@ -1,5 +1,5 @@
 import React from "react";
-import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SmartAiIcon } from "../icons/icon-registry";
+import { ArchiveIcon, ExplorerToggleIcon, SmartAiIcon } from "../icons/icon-registry";
 import { Button } from "./ui/button";
 
 export function TopToolbar({
@@ -17,6 +17,9 @@ export function TopToolbar({
   explorerVisible,
   onToggleExplorer
 }) {
+  const sessionStatus = activeSession?.runtimeStatus || activeSession?.status || "";
+  const ringActive = sessionStatus === "running" || sessionStatus === "streaming";
+
   return (
     <header className="toolbar">
       <div className="toolbar-title-group">
@@ -33,38 +36,30 @@ export function TopToolbar({
             ▸
           </Button>
         )}
-        {activeSession && (
-          <ProviderIcon
-            provider={activeSession.provider || "claude"}
-            className="toolbar-provider-icon"
-            size={20}
-          />
-        )}
-        <span
-          className={`toolbar-title ${activeSession ? "editable" : ""}`}
-          onDoubleClick={onRenameActiveSession}
-          title={activeSession ? "双击重命名会话" : ""}
-        >
-          {activeSession ? activeSession.name : "ready"}
+        <span className={`toolbar-session-ring ${ringActive ? "active" : ""}`} aria-hidden="true">
+          <span className="toolbar-session-dot" />
         </span>
-        {activeSessionProviderMeta && (
-          <span className="toolbar-provider-meta" title={activeSessionProviderMeta}>
-            {activeSessionProviderMeta}
+        <div className="toolbar-session-texts">
+          <span
+            className={`toolbar-title ${activeSession ? "editable" : ""}`}
+            onDoubleClick={onRenameActiveSession}
+            title={activeSession ? "双击重命名会话" : ""}
+          >
+            {activeSession ? activeSession.name : "ready"}
           </span>
-        )}
+          {activeSessionProviderMeta && (
+            <span className="toolbar-provider-meta" title={activeSessionProviderMeta}>
+              {activeSessionProviderMeta}
+            </span>
+          )}
+        </div>
         <div className="toolbar-drag-spacer" />
-        {activeSession && (
-          <span className={`status-chip ${activeSession.runtimeStatus || activeSession.status}`}>
-            {runtimeStatusLabel[activeSession.runtimeStatus || activeSession.status]
-              || activeSession.runtimeStatus
-              || activeSession.status}
-          </span>
-        )}
+        {activeSession && <span className="toolbar-session-status" title={runtimeStatusLabel[sessionStatus] || sessionStatus}>{runtimeStatusLabel[sessionStatus] || sessionStatus}</span>}
       </div>
 
       <div className="toolbar-actions">
         <Button
-          className={`toolbar-icon-btn ${skillgenRunning ? "active skillgen-running" : ""}`}
+          className={`toolbar-icon-btn toolbar-skill-btn ${skillgenRunning ? "active skillgen-running" : ""}`}
           type="button"
           variant="ghost"
           size="icon"

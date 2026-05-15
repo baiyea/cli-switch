@@ -1,6 +1,6 @@
 {
   "name": "zee-lin-code",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Electron + React terminal-style AI workspace",
   "main": "src/electron/main.js",
@@ -13,9 +13,9 @@
     "prepack:electron": "electron-builder install-app-deps",
     "pretest": "pnpm prepack:electron",
     "postinstall": "electron-builder install-app-deps",
-    "dist:mac:x64": "pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=darwin CLI_TARGET_ARCH=x64 pnpm prepare:cli-runtime && pnpm build && electron-builder --mac --x64 --config electron-builder.json",
-    "dist:mac:arm64": "pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=darwin CLI_TARGET_ARCH=arm64 pnpm prepare:cli-runtime && pnpm build && electron-builder --mac --arm64 --config electron-builder.json",
-    "dist:win": "pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=win32 CLI_TARGET_ARCH=x64 pnpm prepare:cli-runtime && pnpm build && electron-builder --win --x64 --config electron-builder.json",
+    "dist:mac:x64": "node scripts/guard-dist-mac-env.js && pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=darwin CLI_TARGET_ARCH=x64 pnpm prepare:cli-runtime && pnpm build && electron-builder --mac --x64 --config electron-builder.json",
+    "dist:mac:arm64": "node scripts/guard-dist-mac-env.js && pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=darwin CLI_TARGET_ARCH=arm64 pnpm prepare:cli-runtime && pnpm build && electron-builder --mac --arm64 --config electron-builder.json",
+    "dist:win": "node scripts/guard-dist-win-env.js && pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=win32 CLI_TARGET_ARCH=x64 pnpm prepare:cli-runtime && pnpm build && electron-builder --win --x64 --config electron-builder.json",
     "start": "cross-env ELECTRON_RUN_AS_NODE= electron .",
     "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron --test src/**/*.test.js",
     "test:e2e": "node scripts/clean-e2e-artifacts.js && pnpm prepare:cli-runtime && pnpm build && playwright test"
