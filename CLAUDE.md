@@ -7,21 +7,30 @@
 
 ## 0. 当前项目目录结构
 
-Cli-Switch 是一个 Electron + React 的桌面应用，核心形态是“左侧项目/会话管理 + 中间 xterm 终端 + 右侧文件树”。主进程负责 Node 能力、PTY、SQLite、文件系统和 Provider 会话扫描；渲染进程只负责 React UI，通过 bridge 调用 preload 暴露的安全 IPC。
+Cli-Switch 是一个 Electron + React 的桌面应用，核心形态是”左侧项目/会话管理 + 中间 xterm 终端 + 右侧文件树”。主进程负责 Node 能力、PTY、SQLite、文件系统和 Provider 会话扫描；渲染进程只负责 React UI，通过 bridge 调用 preload 暴露的安全 IPC。
+
+项目同时集成三种 AI CLI 工具：**Claude Code**、**OpenAI Codex**、**Gemini CLI**，通过统一的 Provider 层管理启动、恢复和会话扫描。
 
 ```text
 .
 ├── src/
-│   ├── electron/              # Electron 主进程：窗口、IPC handler、PTY、Provider
+│   ├── electron/              # Electron 主进程：窗口、IPC handler、PTY
+│   │   ├── ipc/               # IPC handler 注册层
+│   │   ├── services/          # 业务逻辑（PtyService 等）
+│   │   ├── providers/         # Claude/Codex/Gemini CLI 启动与会话扫描
+│   │   └── utils/             # shell、环境变量等工具
 │   ├── bridge/                # 渲染进程 bridge 层，封装 preload 暴露的安全 IPC
 │   ├── renderer/
 │   │   ├── components/        # React UI 组件
-│   │   └── store/             # Zustand 状态管理
+│   │   ├── store/             # Zustand 状态管理（渲染进程）
+│   │   └── lib/               # 渲染进程工具函数（cn 等）
+│   ├── features/              # 按 UI 区域划分的功能模块（terminal 等）
 │   ├── shared/                # 共享类型、IPC 枚举、常量
 │   ├── main/db/               # SQLite 数据库模块
-│   └── store/                 # 持久化 session store
+│   ├── main/providers/        # 持久化 Provider 会话数据
+│   └── store/                 # 主进程持久化 session store
 ├── docs/                      # 产品流程（flow-*.md）、架构约束（constraints.md）
-├── e2e/                       # Playwright Electron 端到端测试
+├── scripts/e2e/               # Playwright Electron 端到端测试
 ├── .claude/                   # 项目级 Claude 配置与 skills
 ├── package.json               # 脚本、依赖、Electron main 入口
 ├── vite.config.mjs            # Vite 渲染进程构建配置
@@ -39,10 +48,13 @@ Cli-Switch 是一个 Electron + React 的桌面应用，核心形态是“左侧
 |---------|-------------|
 | `pnpm dev` | 启动开发环境（Vite + Electron 并行） |
 | `pnpm build` | Vite 生产构建 |
-| `pnpm start` | 直接启动 Electron（无 HMR） |
-| `pnpm test` | 运行单元测试（`src/**/*.test.js`） |
-| `pnpm test:e2e` | 运行 Playwright E2E 测试 |
+| `pnpm start` | 直接启动 Electron（生产模式，无 HMR） |
+| `pnpm test` | 运行单元测试（`src/**/*.test.js`，通过 `electron --test`） |
+| `pnpm test:e2e` | 运行 Playwright E2E 测试（需先 `pnpm build`） |
+| `pnpm prepare:cli-runtime` | 预构建 CLI 运行时依赖 |
 | `pnpm dist:mac:arm64` | 打包 macOS ARM64 安装包 |
+| `pnpm dist:mac:x64` | 打包 macOS x64 安装包 |
+| `pnpm dist:win` | 打包 Windows x64 安装包 |
 
 ## Environment
 
@@ -54,7 +66,7 @@ Cli-Switch 是一个 Electron + React 的桌面应用，核心形态是“左侧
 
 ## Testing
 
-- **E2E**: `e2e/` 目录，Playwright + Electron，运行 `pnpm test:e2e`
+- **E2E**: `scripts/e2e/` 目录，Playwright + Electron，运行 `pnpm test:e2e`
 - **单元测试**: `src/**/*.test.js`，通过 `electron --test` 运行
 - E2E 测试前需先 `pnpm build`，因为测试依赖构建产物
 
@@ -141,9 +153,12 @@ scope 对应目录：`terminal`、`sidebar`、`explorer`、`pty`、`bridge`、`s
 
 
 ## 7. 参考文档
-Gemini Cli：https://geminicli.org.cn/docs/get-started/configuration/#available-settings-in-settingsjson
-Codex Cli：https://developers.openai.com/codex/cli/reference
-Claude Code：https://code.claude.com/docs/zh-CN/cli-reference
+
+| CLI 工具 | 文档链接 |
+|----------|----------|
+| Gemini CLI | https://geminicli.org.cn/docs/get-started/configuration/ |
+| Codex CLI | https://developers.openai.com/codex/cli/reference |
+| Claude Code | https://code.claude.com/docs/zh-CN/cli-reference |
 
 
 ---

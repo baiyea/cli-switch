@@ -3,7 +3,7 @@ const { defineConfig } = require("@playwright/test");
 const { e2eRawArtifactsDir } = require("./scripts/test-artifacts");
 
 module.exports = defineConfig({
-  testDir: "./e2e",
+  testDir: "./scripts/e2e",
   timeout: 120000,
   expect: {
     timeout: 15000
