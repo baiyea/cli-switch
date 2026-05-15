@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsContent } from "../ui/tabs";
 
 export function SettingsModal({
+  forceLock,
   settingsOpen,
   onClose,
   settingsSection,
@@ -64,17 +65,19 @@ export function SettingsModal({
   if (!settingsOpen) return null;
 
   return (
-    <Dialog open={settingsOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={settingsOpen} onOpenChange={(open) => { if (!open && forceLock) return; if (!open) onClose(); }}>
       <DialogContent showClose={false} className="settings-modal flex flex-col h-[min(763px,calc(100vh-32px))] max-h-[calc(100vh-32px)] p-0 gap-0">
         <div className="settings-modal-header relative border-b border-white/[0.08] px-5 pt-2.5 pb-4">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close settings"
-            className="absolute right-5 top-2 text-[18px] leading-none text-[#8A8A90] transition-opacity duration-150 hover:opacity-80"
-          >
-            ✕
-          </button>
+          {!forceLock && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close settings"
+              className="absolute right-5 top-2 text-[18px] leading-none text-[#8A8A90] transition-opacity duration-150 hover:opacity-80"
+            >
+              ✕
+            </button>
+          )}
           <DialogHeader>
             <DialogTitle className="settings-modal-title">{headerMeta.title}</DialogTitle>
             <DialogDescription className="settings-modal-subtitle">
@@ -82,6 +85,12 @@ export function SettingsModal({
             </DialogDescription>
           </DialogHeader>
         </div>
+
+        {forceLock && (
+          <div className="provider-guard-banner">
+            请先配置并启用至少一个大模型 Provider，方可使用 Cli-Switch
+          </div>
+        )}
 
         <Tabs value={settingsSection} onValueChange={onSectionChange} className="grid grid-cols-[240px_minmax(0,1fr)] gap-0 flex-1 min-h-0">
           <SettingsSideNav />
