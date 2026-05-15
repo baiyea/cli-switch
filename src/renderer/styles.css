@@ -538,52 +538,40 @@ select {
   height: 10px;
 }
 
-.session-provider-ring {
-  width: 16px;
-  height: 16px;
+.session-provider-icon {
+  width: 14px;
+  height: 14px;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  border: 2px solid var(--line);
-  background: transparent;
+  transition: filter 0.2s ease, opacity 0.2s ease;
 }
 
-.session-provider-ring.no-status,
-.session-provider-ring.idle {
-  border-color: var(--line);
-  background: transparent;
+.session-provider-icon.no-status,
+.session-provider-icon.idle {
+  filter: none;
+  opacity: 1;
 }
 
-.session-provider-ring.streaming {
-  border-color: var(--success);
+.session-provider-icon.streaming,
+.session-provider-icon.starting,
+.session-provider-icon.creating,
+.session-provider-icon.running,
+.session-provider-icon.awaiting_input,
+.session-provider-icon.awaiting_confirmation {
+  filter: none;
+  opacity: 1;
 }
 
-.session-provider-ring.starting,
-.session-provider-ring.creating,
-.session-provider-ring.running {
-  border-color: var(--primary);
+.session-provider-icon.error {
+  filter: drop-shadow(0 0 3px var(--danger));
+  opacity: 1;
 }
 
-.session-provider-ring.awaiting_input {
-  border-color: var(--outline);
-}
-
-.session-provider-ring.awaiting_confirmation {
-  border-color: #f79009;
-}
-
-.session-provider-ring.error {
-  border-color: var(--danger);
-}
-
-.session-provider-ring.exited {
-  border-color: var(--text-soft);
-}
-
-.session-item.active .session-provider-ring {
-  border-color: var(--success);
+.session-provider-icon.exited {
+  filter: grayscale(1);
+  opacity: 0.45;
 }
 
 .session-archive-btn {
@@ -1789,18 +1777,14 @@ body,
   color: var(--text-main);
 }
 
-.session-provider-ring {
-  border: 2px solid var(--line);
-  background: transparent;
+.session-provider-icon {
+  width: 14px;
+  height: 14px;
 }
 
-.session-provider-ring.no-status,
-.session-provider-ring.idle {
-  border-color: var(--line);
-}
-
-.session-item.active .session-provider-ring {
-  border-color: var(--success);
+.session-provider-icon.no-status,
+.session-provider-icon.idle {
+  filter: none;
 }
 
 .session-archive-btn {
