@@ -67,7 +67,7 @@ async function launchApp() {
   seedClaudeSession(root, projectBPath, sidB, "session-project-b");
 
   const app = await electron.launch({
-    args: [path.resolve(__dirname, "../")],
+    args: [path.resolve(__dirname, "../../")],
     env: {
       ...process.env,
       HOME: root,

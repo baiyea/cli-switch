@@ -32,7 +32,7 @@
   padding: 0 16px;
   border-top: 1px solid var(--border-soft);
   background: transparent;
-  gap: 0;
+  gap: 16px;
   flex: 0 0 auto;
 }
 
@@ -41,8 +41,7 @@
   align-items: center;
   gap: 4px;
   padding: 6px 0;
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 0 0 auto;
 }
 
 .metric span {
@@ -67,11 +66,8 @@
   justify-content: flex-start;
   gap: 4px;
   padding: 6px 0;
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 0 0 auto;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .statusLabel {

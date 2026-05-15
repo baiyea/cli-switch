@@ -61,7 +61,7 @@ test("archive and restore session from settings", async () => {
   fs.mkdirSync(screenshotDir, { recursive: true });
 
   const app = await electron.launch({
-    args: [path.resolve(__dirname, "../")],
+    args: [path.resolve(__dirname, "../../")],
     env: { ...process.env, ZEELIN_DB_PATH: dbPath, ZEELIN_CLAUDE_START_CMD: "cat", ZEELIN_CLAUDE_RESUME_CMD_TEMPLATE: "cat" }
   });
 

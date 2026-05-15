@@ -63,7 +63,7 @@ test("save settings then create session should inject env vars into claude proce
   const extraValue = "claude-3-5-haiku-20241022";
 
   const app = await electron.launch({
-    args: [path.resolve(__dirname, "../")],
+    args: [path.resolve(__dirname, "../../")],
     env: {
       ...process.env,
       ZEELIN_DB_PATH: dbPath,

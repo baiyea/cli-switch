@@ -51,7 +51,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     run: (payload) => ipcRenderer.invoke(IPC.SKILLGEN_RUN, payload)
   },
   windowControls: {
-    setTrafficLightPosition: (payload) => ipcRenderer.invoke(IPC.WINDOW_SET_TRAFFIC_LIGHT, payload)
+    setTrafficLightPosition: (payload) => ipcRenderer.invoke(IPC.WINDOW_SET_TRAFFIC_LIGHT, payload),
+    openExternal: (payload) => ipcRenderer.invoke(IPC.WINDOW_OPEN_EXTERNAL, payload)
   },
   logs: {
     write: (payload) => ipcRenderer.send(IPC.APP_LOG, payload)

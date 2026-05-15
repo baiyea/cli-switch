@@ -54,7 +54,7 @@ async function launchApp(options = {}) {
   }
 
   const app = await electron.launch({
-    args: [path.resolve(__dirname, "../")],
+    args: [path.resolve(__dirname, "../../")],
     env: {
       ...process.env,
       HOME: root,

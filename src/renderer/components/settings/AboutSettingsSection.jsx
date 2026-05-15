@@ -1,9 +1,20 @@
 import React, { useState } from "react";
 import { settingsBridge } from "../../../bridge";
 import { Button } from "../ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "../ui/alert-dialog";
 
 export function AboutSettingsSection({ appVersion, appLogo }) {
   const [cleaning, setCleaning] = useState(false);
+  const [cleanConfirmOpen, setCleanConfirmOpen] = useState(false);
   const [cleanResult, setCleanResult] = useState({ type: "", message: "", paths: [] });
 
   const toDisplayPath = (value) => {
@@ -18,8 +29,6 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
 
   const handleCleanRuntimeData = async () => {
     if (cleaning) return;
-    const confirmed = window.confirm("确认清理运行数据库和缓存文件吗？该操作不可撤销。");
-    if (!confirmed) return;
     setCleaning(true);
     setCleanResult({ type: "", message: "", paths: [] });
     try {
@@ -90,7 +99,7 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
               type="button"
               variant="secondary"
               size="sm"
-              onClick={handleCleanRuntimeData}
+              onClick={() => setCleanConfirmOpen(true)}
               disabled={cleaning}
               className="h-7 rounded-[4px] border border-white/10 bg-white/[0.08] px-3 text-[12px] font-semibold text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]"
             >
@@ -118,6 +127,30 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={cleanConfirmOpen} onOpenChange={setCleanConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认清理运行数据</AlertDialogTitle>
+            <AlertDialogDescription>
+              这会清理本地运行数据库和缓存文件（通常位于 ~/zeelincode 目录），该操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cleaning}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                setCleanConfirmOpen(false);
+                void handleCleanRuntimeData();
+              }}
+              disabled={cleaning}
+            >
+              继续清理
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

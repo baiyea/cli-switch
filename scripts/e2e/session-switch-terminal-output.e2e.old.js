@@ -65,7 +65,7 @@ test("session switch keeps independent terminal output", async () => {
   setupDb(dbPath, projectDir);
 
   const electronApp = await electron.launch({
-    args: [path.resolve(__dirname, "../")],
+    args: [path.resolve(__dirname, "../../")],
     env: {
       ...process.env,
       ZEELIN_DB_PATH: dbPath,

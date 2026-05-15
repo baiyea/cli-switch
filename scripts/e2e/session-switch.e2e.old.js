@@ -66,7 +66,7 @@ test("switching between two sessions keeps both running", async () => {
   const { projectId } = setupDb(dbPath, projectDir);
 
   const electronApp = await electron.launch({
-    args: [path.resolve(__dirname, "../")],
+    args: [path.resolve(__dirname, "../../")],
     env: {
       ...process.env,
       ZEELIN_DB_PATH: dbPath

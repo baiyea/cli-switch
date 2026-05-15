@@ -2534,6 +2534,11 @@ function registerAppIpc() {
     return true;
   };
 
+  registerIpc(IPC.WINDOW_OPEN_EXTERNAL, async (_event, { url }) => {
+    if (!url || typeof url !== "string") return;
+    await shell.openExternal(url);
+  });
+
   ipcMain.on(IPC.APP_LOG, (_event, payload = {}) => {
     const level = payload.level || "info";
     const scope = payload.scope || "renderer";

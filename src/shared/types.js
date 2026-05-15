@@ -25,6 +25,7 @@ const IPC = Object.freeze({
   FILE_ATTACHMENT_SAVE: "file:attachment:save",
   SKILLGEN_RUN: "skillgen:run",
   WINDOW_SET_TRAFFIC_LIGHT: "window:traffic-light:set",
+  WINDOW_OPEN_EXTERNAL: "window:open-external",
   APP_LOG: "app:log",
   SETTINGS_CLAUDE_GET: "settings:claude:get",
   SETTINGS_CLAUDE_SAVE: "settings:claude:save",

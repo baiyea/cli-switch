@@ -21,6 +21,7 @@
     "test:e2e": "node scripts/clean-e2e-artifacts.js && pnpm prepare:cli-runtime && pnpm build && playwright test"
   },
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
@@ -56,8 +57,9 @@
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.7",
-    "electron": "^35.1.5",
+    "electron": "^40.2.1",
     "electron-builder": "^24.13.3",
+    "patch-package": "^8.0.1",
     "playwright": "^1.54.2",
     "postcss": "^8.4.49",
     "prebuild-install": "^7.1.3",

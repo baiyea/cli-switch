@@ -63,7 +63,7 @@ test("first session should not duplicate rendered text after one message", async
   const message = "ONLY_ONCE_MARKER_7788";
 
   const app = await electron.launch({
-    args: [path.resolve(__dirname, "../")],
+    args: [path.resolve(__dirname, "../../")],
     env: {
       ...process.env,
       ZEELIN_DB_PATH: dbPath,

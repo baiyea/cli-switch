@@ -47,7 +47,7 @@ test("settings page should render form instead of terminal", async () => {
   setupDb(dbPath, projectDir);
 
   const app = await electron.launch({
-    args: [path.resolve(__dirname, "../")],
+    args: [path.resolve(__dirname, "../../")],
     env: { ...process.env, ZEELIN_DB_PATH: dbPath }
   });
   const win = await app.firstWindow();
