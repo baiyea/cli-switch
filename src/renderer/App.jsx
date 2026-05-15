@@ -225,6 +225,7 @@ function App() {
       codex: merged.providers.codex.enabledProfileId || merged.providers.codex.defaultProfileId || merged.providers.codex.profiles?.[0]?.id || "",
       gemini: merged.providers.gemini.enabledProfileId || merged.providers.gemini.defaultProfileId || merged.providers.gemini.profiles?.[0]?.id || ""
     });
+    return merged;
   }
 
   async function onAddProject() {
@@ -1085,7 +1086,16 @@ function App() {
   useEffect(() => {
     (async () => {
       const list = await loadProjects();
-      await Promise.all([loadSettings(), loadSessionsByProjects(list.map((p) => p.id))]);
+      const [settings] = await Promise.all([
+        loadSettings(),
+        loadSessionsByProjects(list.map((p) => p.id))
+      ]);
+      if (!isProviderConfigured(settings)) {
+        setProviderCheckPassed(false);
+        setSettingsOpen(true);
+      } else {
+        setProviderCheckPassed(true);
+      }
     })();
   }, []);
 
