@@ -52,7 +52,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   windowControls: {
     setTrafficLightPosition: (payload) => ipcRenderer.invoke(IPC.WINDOW_SET_TRAFFIC_LIGHT, payload),
-    openExternal: (payload) => ipcRenderer.invoke(IPC.WINDOW_OPEN_EXTERNAL, payload)
+    openExternal: (payload) => ipcRenderer.invoke(IPC.WINDOW_OPEN_EXTERNAL, payload),
+    minimize: () => ipcRenderer.invoke(IPC.WINDOW_MINIMIZE),
+    toggleMaximize: () => ipcRenderer.invoke(IPC.WINDOW_TOGGLE_MAXIMIZE),
+    close: () => ipcRenderer.invoke(IPC.WINDOW_CLOSE)
   },
   logs: {
     write: (payload) => ipcRenderer.send(IPC.APP_LOG, payload)

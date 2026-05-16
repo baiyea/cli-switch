@@ -9,5 +9,14 @@ export const windowBridge = {
   },
   openExternal(url: string): Promise<void> {
     return window.electronAPI.windowControls.openExternal({ url });
+  },
+  minimize(): Promise<{ ok: boolean }> {
+    return window.electronAPI.windowControls.minimize();
+  },
+  toggleMaximize(): Promise<{ ok: boolean; isMaximized: boolean }> {
+    return window.electronAPI.windowControls.toggleMaximize();
+  },
+  close(): Promise<{ ok: boolean }> {
+    return window.electronAPI.windowControls.close();
   }
 };

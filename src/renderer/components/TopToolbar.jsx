@@ -1,4 +1,5 @@
 import React from "react";
+import { Minus, Square, X } from "lucide-react";
 import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SmartAiIcon } from "../icons/icon-registry";
 import { Button } from "./ui/button";
 
@@ -15,7 +16,11 @@ export function TopToolbar({
   onArchiveActiveSession,
   canArchiveActiveSession,
   explorerVisible,
-  onToggleExplorer
+  onToggleExplorer,
+  isWindows,
+  onWindowMinimize,
+  onWindowToggleMaximize,
+  onWindowClose
 }) {
   const sessionStatus = activeSession?.runtimeStatus || activeSession?.status || "";
   const sessionProvider = activeSession?.provider || "claude";
@@ -98,6 +103,38 @@ export function TopToolbar({
           <ExplorerToggleIcon size={14} />
         </Button>
       </div>
+
+      {isWindows && (
+        <div className="window-controls" aria-label="窗口控制">
+          <button
+            type="button"
+            className="window-control-btn"
+            aria-label="最小化"
+            title="最小化"
+            onClick={onWindowMinimize}
+          >
+            <Minus size={14} strokeWidth={1.8} />
+          </button>
+          <button
+            type="button"
+            className="window-control-btn"
+            aria-label="最大化"
+            title="最大化"
+            onClick={onWindowToggleMaximize}
+          >
+            <Square size={12} strokeWidth={1.8} />
+          </button>
+          <button
+            type="button"
+            className="window-control-btn close"
+            aria-label="关闭"
+            title="关闭"
+            onClick={onWindowClose}
+          >
+            <X size={15} strokeWidth={1.8} />
+          </button>
+        </div>
+      )}
     </header>
   );
 }

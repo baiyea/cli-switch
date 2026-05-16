@@ -6,6 +6,7 @@ const PROVIDERS = Object.freeze({
 
 const path = require("node:path");
 const fs = require("node:fs");
+const { getProviderUpdateDisableEnv } = require("../services/cli-config-sync-service");
 
 function normalizeProviderId(provider) {
   const value = String(provider || PROVIDERS.CLAUDE).toLowerCase();
@@ -50,6 +51,27 @@ function platformKey(platform = process.platform, arch = process.arch) {
   return `${normalizePlatform(platform)}-${normalizeArch(arch)}`;
 }
 
+function codexTargetTriple(platform = process.platform, arch = process.arch) {
+  const normalizedPlatform = normalizePlatform(platform);
+  const normalizedArch = normalizeArch(arch);
+  if (normalizedPlatform === "win32" && normalizedArch === "x64") return "x86_64-pc-windows-msvc";
+  if (normalizedPlatform === "win32" && normalizedArch === "arm64") return "aarch64-pc-windows-msvc";
+  if (normalizedPlatform === "darwin" && normalizedArch === "x64") return "x86_64-apple-darwin";
+  if (normalizedPlatform === "darwin" && normalizedArch === "arm64") return "aarch64-apple-darwin";
+  if (normalizedPlatform === "linux" && normalizedArch === "x64") return "x86_64-unknown-linux-musl";
+  if (normalizedPlatform === "linux" && normalizedArch === "arm64") return "aarch64-unknown-linux-musl";
+  return "";
+}
+
+function codexPlatformPackage(platform = process.platform, arch = process.arch) {
+  const normalizedPlatform = normalizePlatform(platform);
+  const normalizedArch = normalizeArch(arch);
+  if (normalizedPlatform === "win32") return normalizedArch === "arm64" ? "@openai/codex-win32-arm64" : "@openai/codex-win32-x64";
+  if (normalizedPlatform === "darwin") return normalizedArch === "arm64" ? "@openai/codex-darwin-arm64" : "@openai/codex-darwin-x64";
+  if (normalizedPlatform === "linux") return normalizedArch === "arm64" ? "@openai/codex-linux-arm64" : "@openai/codex-linux-x64";
+  return "";
+}
+
 function resolveCliRuntimeDir() {
   const key = platformKey();
   const candidates = [
@@ -78,16 +100,59 @@ function resolveCliEntrypoint(provider, runtimeDir) {
   return "";
 }
 
-function buildNodeRunnerCommand(entrypoint, args = []) {
+function resolveNodeRuntime(runtimeDir) {
+  const candidates = [
+    runtimeDir ? path.join(runtimeDir, "node-runtime", process.platform === "win32" ? "node.exe" : "node") : "",
+    process.execPath
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fileExists(candidate)) return candidate;
+  }
+  return process.execPath;
+}
+
+function resolveCodexNativeBinary(runtimeDir) {
+  const platformPackage = codexPlatformPackage();
+  const triple = codexTargetTriple();
+  if (!platformPackage || !triple) return { binary: "", pathDir: "" };
+
+  const roots = [runtimeDir, resolveProjectRoot()].filter(Boolean);
+  for (const root of roots) {
+    const vendorRoot = path.join(root, "node_modules", ...platformPackage.split("/"), "vendor", triple);
+    const binary = path.join(vendorRoot, "codex", process.platform === "win32" ? "codex.exe" : "codex");
+    if (fileExists(binary)) {
+      return {
+        binary,
+        pathDir: path.join(vendorRoot, "path")
+      };
+    }
+  }
+
+  return { binary: "", pathDir: "" };
+}
+
+function buildNodeRunnerCommand(entrypoint, args = [], nodeExecutable = process.execPath) {
   if (!entrypoint) return "";
-  const executable = process.execPath;
   const isWin = process.platform === "win32";
   const quote = isWin ? quotePowerShell : quotePosix;
   const joinedArgs = [entrypoint, ...args].map((item) => quote(item)).join(" ");
+  const eol = isWin ? "\r" : "\n";
   if (isWin) {
-    return `$env:ELECTRON_RUN_AS_NODE='1'; & ${quote(executable)} ${joinedArgs}\n`;
+    return `& ${quote(nodeExecutable)} ${joinedArgs}${eol}`;
   }
-  return `ELECTRON_RUN_AS_NODE=1 ${quote(executable)} ${joinedArgs}\n`;
+  return `${quote(nodeExecutable)} ${joinedArgs}${eol}`;
+}
+
+function buildExecutableCommand(executable, args = [], envMap = {}) {
+  if (!executable) return "";
+  const isWin = process.platform === "win32";
+  const quote = isWin ? quotePowerShell : quotePosix;
+  const eol = isWin ? "\r" : "\n";
+  const command = isWin
+    ? `& ${quote(executable)} ${args.map((item) => quote(item)).join(" ")}${eol}`
+    : `${quote(executable)} ${args.map((item) => quote(item)).join(" ")}${eol}`;
+  return prependEnvForCommand(command, envMap);
 }
 
 function prependEnvForCommand(command, envMap = {}) {
@@ -113,23 +178,31 @@ function prependEnvForCommand(command, envMap = {}) {
 function getLaunchCommandForProvider(provider) {
   const id = normalizeProviderId(provider);
   const runtimeDir = resolveCliRuntimeDir();
+  if (id === PROVIDERS.CODEX) {
+    const { binary, pathDir } = resolveCodexNativeBinary(runtimeDir);
+    return buildExecutableCommand(binary, ["--dangerously-bypass-approvals-and-sandbox"], fileExists(pathDir) ? { PATH: `${pathDir}${path.delimiter}${process.env.PATH || ""}` } : {});
+  }
   const entrypoint = resolveCliEntrypoint(id, runtimeDir);
+  const nodeRuntime = resolveNodeRuntime(runtimeDir);
   if (!entrypoint) return "";
-  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["--dangerously-skip-permissions"]);
-  if (id === PROVIDERS.CODEX) return buildNodeRunnerCommand(entrypoint, ["--dangerously-bypass-approvals-and-sandbox"]);
-  if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--approval-mode", "yolo"]);
+  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["--dangerously-skip-permissions"], nodeRuntime);
+  if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--approval-mode", "yolo"], nodeRuntime);
   return "";
 }
 
 function getOAuthLoginCommandForProvider(provider) {
   const id = normalizeProviderId(provider);
   const runtimeDir = resolveCliRuntimeDir();
+  if (id === PROVIDERS.CODEX) {
+    const { binary, pathDir } = resolveCodexNativeBinary(runtimeDir);
+    return buildExecutableCommand(binary, ["login"], fileExists(pathDir) ? { PATH: `${pathDir}${path.delimiter}${process.env.PATH || ""}` } : {});
+  }
   const entrypoint = resolveCliEntrypoint(id, runtimeDir);
+  const nodeRuntime = resolveNodeRuntime(runtimeDir);
   if (!entrypoint) return "";
-  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["auth", "login"]);
-  if (id === PROVIDERS.CODEX) return buildNodeRunnerCommand(entrypoint, ["login"]);
+  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["auth", "login"], nodeRuntime);
   if (id === PROVIDERS.GEMINI) {
-    const base = buildNodeRunnerCommand(entrypoint, []);
+    const base = buildNodeRunnerCommand(entrypoint, [], nodeRuntime);
     return prependEnvForCommand(base, {
       NO_BROWSER: "true",
       BROWSER: ""
@@ -141,14 +214,18 @@ function getOAuthLoginCommandForProvider(provider) {
 function getOAuthProbeCommandForProvider(provider) {
   const id = normalizeProviderId(provider);
   const runtimeDir = resolveCliRuntimeDir();
+  if (id === PROVIDERS.CODEX) {
+    const { binary, pathDir } = resolveCodexNativeBinary(runtimeDir);
+    return buildExecutableCommand(binary, ["login", "status"], fileExists(pathDir) ? { PATH: `${pathDir}${path.delimiter}${process.env.PATH || ""}` } : {});
+  }
   const entrypoint = resolveCliEntrypoint(id, runtimeDir);
+  const nodeRuntime = resolveNodeRuntime(runtimeDir);
   if (!entrypoint) return "";
-  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["-p", "ping", "--output-format", "json"]);
-  if (id === PROVIDERS.CODEX) return buildNodeRunnerCommand(entrypoint, ["exec", "ping", "--json", "--skip-git-repo-check"]);
+  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["-p", "ping", "--output-format", "json"], nodeRuntime);
   // Gemini CLI v0.34+ may reject `-p/--prompt` in some adapter flows with
   // "Cannot use both a positional prompt and the --prompt flag together".
   // Use positional prompt probe to avoid this conflict.
-  if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--output-format", "json", "ping"]);
+  if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--output-format", "json", "ping"], nodeRuntime);
   return "";
 }
 
@@ -164,17 +241,22 @@ function getResumeCommandForProvider(provider, sessionId) {
   if (!sid) return "";
   if (isLocalGeneratedSessionId(id, sid)) return "";
   const runtimeDir = resolveCliRuntimeDir();
+  if (id === PROVIDERS.CODEX) {
+    const { binary, pathDir } = resolveCodexNativeBinary(runtimeDir);
+    return buildExecutableCommand(binary, ["resume", sid, "--dangerously-bypass-approvals-and-sandbox"], fileExists(pathDir) ? { PATH: `${pathDir}${path.delimiter}${process.env.PATH || ""}` } : {});
+  }
   const entrypoint = resolveCliEntrypoint(id, runtimeDir);
+  const nodeRuntime = resolveNodeRuntime(runtimeDir);
   if (!entrypoint) return "";
-  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["--dangerously-skip-permissions", "-r", sid]);
-  if (id === PROVIDERS.CODEX) return buildNodeRunnerCommand(entrypoint, ["resume", sid, "--dangerously-bypass-approvals-and-sandbox"]);
-  if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--approval-mode", "yolo", "--resume", sid]);
+  if (id === PROVIDERS.CLAUDE) return buildNodeRunnerCommand(entrypoint, ["--dangerously-skip-permissions", "-r", sid], nodeRuntime);
+  if (id === PROVIDERS.GEMINI) return buildNodeRunnerCommand(entrypoint, ["--approval-mode", "yolo", "--resume", sid], nodeRuntime);
   return "";
 }
 
 function applyProviderStartupEnv(provider, env) {
   const nextEnv = { ...(env || {}) };
   const id = normalizeProviderId(provider);
+  Object.assign(nextEnv, getProviderUpdateDisableEnv(id));
   const authMode = String(nextEnv.ZEELIN_AUTH_MODE || "").trim().toLowerCase();
   if (authMode === "oauth") {
     nextEnv.GEMINI_API_KEY = "";
@@ -188,6 +270,14 @@ function applyProviderStartupEnv(provider, env) {
     // Force manual URL + verification-code flow for stable OAuth behavior.
     nextEnv.NO_BROWSER = "true";
     nextEnv.BROWSER = "";
+  }
+  if (
+    id === PROVIDERS.CLAUDE
+    && /api\.deepseek\.com\/anthropic/i.test(String(nextEnv.ANTHROPIC_BASE_URL || ""))
+  ) {
+    // DeepSeek's Claude Code preset is auth-token based. Clear inherited
+    // Anthropic API keys so host env does not override the active preset.
+    nextEnv.ANTHROPIC_API_KEY = "";
   }
   return nextEnv;
 }

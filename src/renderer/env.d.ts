@@ -3,9 +3,21 @@ export {};
 declare global {
   interface Window {
     __ZEELIN_TEST__?: {
+      getActiveSessionId: () => string;
       getSessionBuffer: (sessionId: string) => string;
       getPaneDisplay: (sessionId: string) => string | null;
       getLastResize: (sessionId: string) => { cols: number; rows: number } | null;
+      getTerminalScrollState: (sessionId: string) => {
+        baseY: number;
+        viewportY: number;
+        rows: number;
+        scrollTop: number;
+        scrollHeight: number;
+        clientHeight: number;
+      } | null;
+      scrollTerminalLines: (sessionId: string, lines: number) => boolean;
+      appendTerminalData: (sessionId: string, data: string) => boolean;
+      destroyAllSessions: () => boolean;
     };
     electronAPI: {
       pty: {
@@ -231,6 +243,10 @@ declare global {
       };
       windowControls: {
         setTrafficLightPosition: (payload: { x: number; y: number }) => Promise<{ ok: boolean }>;
+        openExternal: (payload: { url: string }) => Promise<void>;
+        minimize: () => Promise<{ ok: boolean }>;
+        toggleMaximize: () => Promise<{ ok: boolean; isMaximized: boolean }>;
+        close: () => Promise<{ ok: boolean }>;
       };
       logs: {
         write: (payload: {

@@ -84,6 +84,8 @@ const APP_VERSION = String(packageJson?.version || "0.1.0");
 function App() {
   const isMacOS = typeof navigator !== "undefined"
     && /mac/i.test(String(navigator.platform || navigator.userAgent || ""));
+  const isWindows = typeof navigator !== "undefined"
+    && /win/i.test(String(navigator.platform || navigator.userAgent || ""));
   const [projects, setProjects] = useState([]);
   const [expandedProjects, setExpandedProjects] = useState({});
   const [activeProjectId, setActiveProjectId] = useState(null);
@@ -1335,7 +1337,7 @@ function App() {
   const hasProjects = projects.length > 0;
 
   return (
-    <div className={`layout ${isMacOS ? "macos" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+    <div className={`layout ${isMacOS ? "macos" : ""} ${isWindows ? "windows" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="brand">
@@ -1424,6 +1426,16 @@ function App() {
           canArchiveActiveSession={Boolean(activeSessionId)}
           explorerVisible={explorerVisible}
           onToggleExplorer={() => setExplorerVisible((prev) => !prev)}
+          isWindows={isWindows}
+          onWindowMinimize={() => {
+            void windowBridge.minimize().catch(() => {});
+          }}
+          onWindowToggleMaximize={() => {
+            void windowBridge.toggleMaximize().catch(() => {});
+          }}
+          onWindowClose={() => {
+            void windowBridge.close().catch(() => {});
+          }}
         />
 
         {appError && <div className="banner-error">{appError}</div>}

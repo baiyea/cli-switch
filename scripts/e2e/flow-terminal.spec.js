@@ -25,10 +25,39 @@ function setupDb(dbPath, projectDir) {
   `);
 
   const now = new Date().toISOString();
+  const providerSettings = {
+    providers: {
+      claude: {
+        defaultProfileId: "deepseek-api",
+        enabledProfileId: "deepseek-api",
+        profiles: [
+          {
+            id: "deepseek-api",
+            name: "DeepSeek API",
+            envVars: [{ key: "ANTHROPIC_AUTH_TOKEN", value: "e2e-dummy-token" }]
+          }
+        ]
+      },
+      codex: {
+        defaultProfileId: "oauth-login",
+        enabledProfileId: "",
+        profiles: [{ id: "oauth-login", name: "OAuth 登录", envVars: [] }]
+      },
+      gemini: {
+        defaultProfileId: "oauth-login",
+        enabledProfileId: "",
+        profiles: [{ id: "oauth-login", name: "OAuth 登录", envVars: [] }]
+      }
+    }
+  };
   db.prepare(
     `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
      VALUES (?, ?, ?, 'claude', ?, ?)`
   ).run("p1", "DemoProject", projectDir, now, now);
+  db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES (?, ?, ?)`
+  ).run("provider_startup_settings", JSON.stringify(providerSettings), now);
 
   db.close();
 }
@@ -69,6 +98,14 @@ async function launchApp(options = {}) {
   return { app, win, projectDir };
 }
 
+async function closeApp(app, win) {
+  try {
+    await win.evaluate(() => window.__ZEELIN_TEST__?.destroyAllSessions?.());
+  } catch {
+  }
+  await app.close();
+}
+
 async function syncFirstProjectHistory(win) {
   await win.locator(".project-create-toggle").first().click({ force: true });
   await win.getByRole("button", { name: "读取历史会话" }).click({ force: true });
@@ -79,9 +116,9 @@ test("Task acceptance: quick launch creates claude-01 and injects command", asyn
 
   await win.locator(".project-create-main").first().click({ force: true });
   await expect(win.locator(".session-item-name").first()).toHaveText("claude-01");
-  await expect(win.locator(".status-chip")).toBeVisible();
+  await expect(win.locator(".toolbar-session-status")).toBeVisible();
 
-  await app.close();
+  await closeApp(app, win);
 });
 
 test("Task acceptance: switching sessions keeps both entries and switches active state", async () => {
@@ -109,7 +146,7 @@ test("Task acceptance: switching sessions keeps both entries and switches active
   await expect(win.getByTestId(`session-item-${secondSessionId}`)).toHaveClass(/active/);
   await expect(win.getByTestId(`session-item-${firstSessionId}`)).not.toHaveClass(/active/);
 
-  await app.close();
+  await closeApp(app, win);
 });
 
 test("Task acceptance: resize triggers cols/rows update", async () => {
@@ -128,7 +165,44 @@ test("Task acceptance: resize triggers cols/rows update", async () => {
     expect(after.rows > 0).toBeTruthy();
   }
 
-  await app.close();
+  await closeApp(app, win);
+});
+
+test("Task acceptance: terminal keeps manual scroll position while new output arrives", async () => {
+  const { app, win } = await launchApp();
+
+  await win.locator(".project-create-main").first().click({ force: true });
+  const sessionId = await win.locator("[data-session-id]").first().getAttribute("data-session-id");
+  expect(sessionId).toBeTruthy();
+
+  const initialLines = Array.from({ length: 220 }, (_, index) => `scroll-e2e-line-${String(index).padStart(3, "0")}`).join("\r\n");
+  await win.evaluate(
+    ({ sid, data }) => window.__ZEELIN_TEST__?.appendTerminalData(sid, `${data}\r\n`),
+    { sid: sessionId, data: initialLines }
+  );
+
+  await expect
+    .poll(async () => win.evaluate((sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid), sessionId))
+    .toMatchObject({ baseY: expect.any(Number), viewportY: expect.any(Number) });
+
+  const atBottom = await win.evaluate((sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid), sessionId);
+  expect(atBottom.baseY - atBottom.viewportY).toBeLessThanOrEqual(1);
+
+  await win.evaluate((sid) => window.__ZEELIN_TEST__?.scrollTerminalLines(sid, -80), sessionId);
+  const scrolledUp = await win.evaluate((sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid), sessionId);
+  expect(scrolledUp.baseY - scrolledUp.viewportY).toBeGreaterThan(1);
+
+  await win.evaluate(
+    ({ sid }) => window.__ZEELIN_TEST__?.appendTerminalData(sid, "scroll-e2e-new-output-after-manual-scroll\r\n"),
+    { sid: sessionId }
+  );
+  await win.waitForTimeout(250);
+
+  const afterOutput = await win.evaluate((sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid), sessionId);
+  expect(afterOutput.baseY - afterOutput.viewportY).toBeGreaterThan(1);
+  expect(afterOutput.viewportY).toBe(scrolledUp.viewportY);
+
+  await closeApp(app, win);
 });
 
 test("Task acceptance: archive closes active session without renderer crash", async () => {
@@ -141,7 +215,7 @@ test("Task acceptance: archive closes active session without renderer crash", as
 
   await expect(win.locator("[data-session-id]")).toHaveCount(0);
 
-  await app.close();
+  await closeApp(app, win);
 });
 
 test("Task acceptance: explorer panel remains flex so tree uses full height", async () => {
@@ -168,5 +242,5 @@ test("Task acceptance: explorer panel remains flex so tree uses full height", as
 
   expect(display).toBe("flex");
 
-  await app.close();
+  await closeApp(app, win);
 });

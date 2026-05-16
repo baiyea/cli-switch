@@ -132,6 +132,10 @@ select {
   padding-left: 72px;
 }
 
+.layout.windows .toolbar {
+  padding-right: 0;
+}
+
 .layout.macos:not(.sidebar-collapsed) .brand {
   padding-left: 72px;
   padding-top: 20px;
@@ -395,6 +399,7 @@ select {
   width: 100%;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   border: 0;
   border-radius: 8px;
@@ -404,6 +409,12 @@ select {
   font-size: 13px;
   padding: 7px 8px;
   cursor: pointer;
+}
+
+.project-create-item span:last-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: left;
 }
 
 .project-create-item:hover {
@@ -823,6 +834,47 @@ select {
   -webkit-app-region: no-drag;
 }
 
+.window-controls {
+  align-self: stretch;
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  margin-left: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.window-control-btn {
+  width: 46px;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.window-control-btn:hover {
+  background: var(--surface-container-highest);
+  color: var(--on-surface);
+}
+
+.window-control-btn.close:hover {
+  background: #e81123;
+  color: #ffffff;
+}
+
+.window-control-btn:active {
+  background: var(--surface-variant);
+}
+
+.window-control-btn.close:active {
+  background: #c50f1f;
+}
+
 @media (max-width: 1500px) {
   .toolbar-provider-meta {
     display: none;
@@ -927,7 +979,7 @@ select {
 }
 
 .main-panel .xterm .xterm-viewport {
-  overflow-y: overlay !important;
+  overflow-y: auto !important;
   scrollbar-width: thin;
   scrollbar-color: #35435f transparent;
 }
@@ -1647,8 +1699,11 @@ select {
 html,
 body,
 #root {
+  width: 100%;
+  height: 100%;
   background: var(--bg-page);
   color: var(--text-main);
+  overflow: hidden;
 }
 
 * {

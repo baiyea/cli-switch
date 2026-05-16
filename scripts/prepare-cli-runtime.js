@@ -13,7 +13,7 @@ const workDir = path.join(rootDir, '.tmp', 'cli-runtime', key);
 
 const cliVersions = {
   '@anthropic-ai/claude-code': '2.1.98',
-  '@openai/codex': '0.121.0',
+  '@openai/codex': '0.130.0',
   '@google/gemini-cli': '0.35.3'
 };
 
@@ -31,6 +31,23 @@ function run(cmd, args, cwd, extraEnv = {}) {
   if (result.status !== 0) {
     throw new Error(`Command failed: ${cmd} ${args.join(' ')}`);
   }
+}
+
+function findNpmCli() {
+  const candidates = process.platform === 'win32'
+    ? [
+        path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+      ]
+    : [
+        path.join(path.dirname(process.execPath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+        path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+      ];
+
+  const npmCli = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!npmCli) {
+    throw new Error(`[cli-runtime] Unable to locate npm-cli.js for ${process.execPath}`);
+  }
+  return npmCli;
 }
 
 function ensureCleanDir(target) {
@@ -57,6 +74,24 @@ function writeManifest(target) {
     cliVersions
   };
   fs.writeFileSync(path.join(target, 'manifest.json'), JSON.stringify(manifest, null, 2));
+}
+
+function copyNodeRuntime(target) {
+  if (targetPlatform === process.platform && targetArch !== process.arch) {
+    throw new Error(`[cli-runtime] Refusing to copy ${process.arch} Node runtime into ${key}. Run this script with a ${targetArch} Node binary or add target-arch Node runtime resolution first.`);
+  }
+
+  const runtimeDir = path.join(target, "node-runtime");
+  ensureCleanDir(runtimeDir);
+
+  const source = process.execPath;
+  const fileName = process.platform === "win32" ? "node.exe" : "node";
+  const dest = path.join(runtimeDir, fileName);
+  fs.copyFileSync(source, dest);
+
+  if (process.platform !== "win32") {
+    fs.chmodSync(dest, 0o755);
+  }
 }
 
 function walkDir(root, onEntry) {
@@ -102,7 +137,7 @@ function main() {
   ensureCleanDir(workDir);
   writePackageJson(workDir);
 
-  run('npm', ['install', '--omit=dev', '--no-audit', '--no-fund'], workDir, {
+  run(process.execPath, [findNpmCli(), 'install', '--omit=dev', '--no-audit', '--no-fund'], workDir, {
     npm_config_update_notifier: 'false'
   });
 
@@ -124,6 +159,7 @@ function main() {
     dereference: true
   });
   pruneRuntime(outputRoot);
+  copyNodeRuntime(outputRoot);
 
   writeManifest(outputRoot);
   console.log(`[cli-runtime] Runtime ready at ${outputRoot}`);

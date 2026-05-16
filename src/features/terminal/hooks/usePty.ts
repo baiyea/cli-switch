@@ -36,6 +36,39 @@ function stripEchoedTerminalReports(data: string) {
     .join("\r\n");
 }
 
+function getSessionProvider(sessionId: string) {
+  const session = useSessionStore.getState().sessions.find((item) => item.sessionId === sessionId);
+  return String(session?.provider || "").toLowerCase();
+}
+
+function hasBlockedCodexTerminalMode(params: (number | number[])[]) {
+  const blockedModes = new Set([47, 1047, 1048, 1049]);
+  for (const param of params || []) {
+    if (Array.isArray(param)) {
+      if (param.some((value) => blockedModes.has(Number(value)))) return true;
+      continue;
+    }
+    if (blockedModes.has(Number(param))) return true;
+  }
+  return false;
+}
+
+function installCodexScrollbackGuard(sessionId: string, term: Terminal) {
+  if (getSessionProvider(sessionId) !== "codex") return;
+  const intercept = (params: (number | number[])[]) => hasBlockedCodexTerminalMode(params);
+  try {
+    term.parser.registerCsiHandler({ prefix: "?", final: "h" }, intercept);
+    term.parser.registerCsiHandler({ prefix: "?", final: "l" }, intercept);
+  } catch (error) {
+    logBridge.write({
+      level: "warn",
+      scope: "terminal",
+      message: "Failed to install Codex scrollback guard",
+      meta: { sessionId, error: error instanceof Error ? error.message : String(error) }
+    });
+  }
+}
+
 export function usePty() {
   const terminalRef = useRef<Map<string, TermEntry>>(new Map());
   const containerRef = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -102,6 +135,24 @@ export function usePty() {
     }
   }
 
+  function isAtScrollBottom(term: Terminal) {
+    try {
+      const buffer = term.buffer.active;
+      return buffer.baseY - buffer.viewportY <= 1;
+    } catch {
+      return true;
+    }
+  }
+
+  function writeLiveTerminalData(sessionId: string, term: Terminal, data: string) {
+    const shouldFollowOutput = activeSessionIdRef.current === sessionId && isAtScrollBottom(term);
+    term.write(data, () => {
+      if (shouldFollowOutput) {
+        scrollToBottomIfActive(sessionId, term);
+      }
+    });
+  }
+
   function ensureTerminal(sessionId: string, container: HTMLDivElement) {
     const existing = terminalRef.current.get(sessionId);
     if (existing) {
@@ -132,6 +183,7 @@ export function usePty() {
     const term = new Terminal({
       convertEol: true,
       cursorBlink: true,
+      scrollback: 10000,
       fontSize: 11,
       lineHeight: 1.18,
       letterSpacing: 0,
@@ -164,13 +216,16 @@ export function usePty() {
     const linkAddon = new WebLinksAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(linkAddon);
+    installCodexScrollbackGuard(sessionId, term);
     term.open(container);
     fitAddon.fit();
 
     const refreshTerminal = () => {
       window.requestAnimationFrame(() => {
         try {
-          scrollToBottomIfActive(sessionId, term);
+          if (isAtScrollBottom(term)) {
+            scrollToBottomIfActive(sessionId, term);
+          }
           term.refresh(0, Math.max(0, term.rows - 1));
         } catch {
         }
@@ -377,9 +432,12 @@ export function usePty() {
     if (!sid) return;
     const entry = terminalRef.current.get(sid);
     if (!entry) return;
+    const shouldFollowOutput = isAtScrollBottom(entry.term);
     entry.fitAddon.fit();
     safeResizePty(sid, entry);
-    scrollToBottomIfActive(sid, entry.term);
+    if (shouldFollowOutput) {
+      scrollToBottomIfActive(sid, entry.term);
+    }
     entry.term.focus();
   }
 
@@ -390,8 +448,7 @@ export function usePty() {
       const entry = terminalRef.current.get(sessionId);
       if (entry && containerRef.current.has(sessionId)) {
         try {
-          entry.term.write(data);
-          scrollToBottomIfActive(sessionId, entry.term);
+          writeLiveTerminalData(sessionId, entry.term, data);
         } catch (error) {
           logBridge.write({
             level: "warn",
@@ -409,8 +466,7 @@ export function usePty() {
       const entry = terminalRef.current.get(sessionId);
       if (entry && containerRef.current.has(sessionId)) {
         try {
-          entry.term.write(line);
-          scrollToBottomIfActive(sessionId, entry.term);
+          writeLiveTerminalData(sessionId, entry.term, line);
         } catch (error) {
           logBridge.write({
             level: "warn",
@@ -477,13 +533,44 @@ export function usePty() {
 
   useEffect(() => {
     window.__ZEELIN_TEST__ = {
+      getActiveSessionId: () => activeSessionIdRef.current || "",
       getSessionBuffer: (sessionId: string) => bufferRef.current.get(sessionId) || "",
       getPaneDisplay: (sessionId: string) => {
         const el = containerRef.current.get(sessionId);
         if (!el) return null;
         return window.getComputedStyle(el).display;
       },
-      getLastResize: (sessionId: string) => lastResizeRef.current.get(sessionId) || null
+      getLastResize: (sessionId: string) => lastResizeRef.current.get(sessionId) || null,
+      getTerminalScrollState: (sessionId: string) => {
+        const entry = terminalRef.current.get(sessionId);
+        if (!entry) return null;
+        const buffer = entry.term.buffer.active;
+        const viewport = containerRef.current.get(sessionId)?.querySelector(".xterm-viewport") as HTMLElement | null;
+        return {
+          baseY: buffer.baseY,
+          viewportY: buffer.viewportY,
+          rows: entry.term.rows,
+          scrollTop: viewport?.scrollTop ?? 0,
+          scrollHeight: viewport?.scrollHeight ?? 0,
+          clientHeight: viewport?.clientHeight ?? 0
+        };
+      },
+      scrollTerminalLines: (sessionId: string, lines: number) => {
+        const entry = terminalRef.current.get(sessionId);
+        if (!entry) return false;
+        entry.term.scrollLines(lines);
+        return true;
+      },
+      appendTerminalData: (sessionId: string, data: string) => {
+        const entry = terminalRef.current.get(sessionId);
+        if (!entry) return false;
+        writeLiveTerminalData(sessionId, entry.term, data);
+        return true;
+      },
+      destroyAllSessions: () => {
+        useSessionStore.getState().destroyAll();
+        return true;
+      }
     };
 
     return () => {

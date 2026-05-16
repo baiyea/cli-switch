@@ -25,6 +25,7 @@ const { createProviderSettingsRuntime } = require("./services/provider-settings-
 const { createProviderConnectionService } = require("./services/provider-connection-service");
 const { createOAuthProbeService } = require("./services/oauth-probe-service");
 const { createProxyConnectivityService } = require("./services/proxy-connectivity-service");
+const { createCliConfigSyncService } = require("./services/cli-config-sync-service");
 const { createSkillgenRunner } = require("./services/skillgen/runner");
 const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../main/db/database");
 
@@ -33,7 +34,7 @@ const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../m
 // while CLI subprocesses (ELECTRON_RUN_AS_NODE=1) stay hidden.
 if (process.platform === "darwin") app.setActivationPolicy("regular");
 
-const isDev = !app.isPackaged || !!process.env.VITE_DEV_SERVER_URL;
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
 let mainWindow = null;
 let tray = null;
 const runtimeAppId = isDev ? `${APP_ID}dev` : APP_ID;
@@ -96,6 +97,118 @@ function removeFileSafe(filePath, report) {
   } catch (error) {
     report.warnings.push(`删除失败: ${filePath} (${error.message || String(error)})`);
   }
+}
+
+function tryReadJsonFile(filePath, fallback = {}) {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return fallback;
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJsonFileSafe(filePath, value) {
+  ensureDirSafe(path.dirname(filePath));
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function toClaudeProjectKey(cwd) {
+  const value = String(cwd || "").trim();
+  if (!value) return "";
+  return path.resolve(value).replace(/\\/g, "/");
+}
+
+function syncClaudeProjectTrust(cwd) {
+  const projectKey = toClaudeProjectKey(cwd);
+  if (!projectKey) return;
+  const configPath = path.join(os.homedir(), ".claude.json");
+  const currentConfig = tryReadJsonFile(configPath, {});
+  const currentProjects = currentConfig.projects && typeof currentConfig.projects === "object"
+    ? currentConfig.projects
+    : {};
+  const currentProject = currentProjects[projectKey] && typeof currentProjects[projectKey] === "object"
+    ? currentProjects[projectKey]
+    : {};
+  if (currentProject.hasTrustDialogAccepted === true && currentProject.projectOnboardingSeenCount === 0) return;
+
+  const nextConfig = {
+    ...currentConfig,
+    projects: {
+      ...currentProjects,
+      [projectKey]: {
+        ...currentProject,
+        allowedTools: Array.isArray(currentProject.allowedTools) ? currentProject.allowedTools : [],
+        disabledMcpjsonServers: Array.isArray(currentProject.disabledMcpjsonServers) ? currentProject.disabledMcpjsonServers : [],
+        enabledMcpjsonServers: Array.isArray(currentProject.enabledMcpjsonServers) ? currentProject.enabledMcpjsonServers : [],
+        hasClaudeMdExternalIncludesApproved: currentProject.hasClaudeMdExternalIncludesApproved === true,
+        hasClaudeMdExternalIncludesWarningShown: currentProject.hasClaudeMdExternalIncludesWarningShown === true,
+        hasTrustDialogAccepted: true,
+        mcpContextUris: Array.isArray(currentProject.mcpContextUris) ? currentProject.mcpContextUris : [],
+        mcpServers: currentProject.mcpServers && typeof currentProject.mcpServers === "object" ? currentProject.mcpServers : {},
+        projectOnboardingSeenCount: 0
+      }
+    }
+  };
+  const currentText = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf8") : "";
+  const nextText = `${JSON.stringify(nextConfig, null, 2)}\n`;
+  if (currentText === nextText) return;
+  try {
+    if (currentText) {
+      const backupDir = path.join(os.homedir(), ".claude", "backups");
+      ensureDirSafe(backupDir);
+      const backupPath = path.join(backupDir, `claude-json.before-cliswitch-trust.${Date.now()}.json`);
+      fs.writeFileSync(backupPath, currentText, "utf8");
+    }
+    writeJsonFileSafe(configPath, nextConfig);
+    logInfo("claude-runtime", "Synced Claude project trust from active workspace", {
+      configPath,
+      projectKey
+    });
+  } catch (error) {
+    logWarn("claude-runtime", "Failed to sync Claude project trust", {
+      configPath,
+      projectKey,
+      reason: error instanceof Error ? error.message : String(error)
+    });
+  }
+}
+
+function syncClaudeSettingsEnv(provider, startupEnv = {}, cwd = "") {
+  const id = normalizeProviderId(provider);
+  if (id !== "claude") return startupEnv;
+  syncClaudeProjectTrust(cwd);
+
+  const userClaudeDir = path.join(os.homedir(), ".claude");
+  const userSettingsPath = path.join(userClaudeDir, "settings.json");
+  const currentSettings = tryReadJsonFile(userSettingsPath, {});
+  const nextSettings = {
+    ...currentSettings,
+    env: { ...(startupEnv || {}) }
+  };
+  const currentText = fs.existsSync(userSettingsPath) ? fs.readFileSync(userSettingsPath, "utf8") : "";
+  const nextText = `${JSON.stringify(nextSettings, null, 2)}\n`;
+  if (currentText === nextText) return startupEnv;
+  try {
+    if (currentText) {
+      const backupDir = path.join(userClaudeDir, "backups");
+      ensureDirSafe(backupDir);
+      const backupPath = path.join(backupDir, `settings.before-cliswitch-env.${Date.now()}.json`);
+      fs.writeFileSync(backupPath, currentText, "utf8");
+    }
+    writeJsonFileSafe(userSettingsPath, nextSettings);
+    logInfo("claude-runtime", "Synced Claude settings env from active provider profile", {
+      settingsPath: userSettingsPath,
+      env: maskEnvForLog(nextSettings.env || {})
+    });
+  } catch (error) {
+    logWarn("claude-runtime", "Failed to sync Claude settings env", {
+      settingsPath: userSettingsPath,
+      reason: error instanceof Error ? error.message : String(error)
+    });
+  }
+  return startupEnv;
 }
 
 log.transports.file.level = "info";
@@ -2443,9 +2556,28 @@ const oauthLoginTracker = createOAuthLoginTracker({
   logInfo,
   logWarn
 });
+const cliConfigSyncService = createCliConfigSyncService({
+  normalizeProviderId,
+  logInfo,
+  logWarn
+});
+
+function syncCliConfigAfterSuccessfulProviderTest(parsed, source) {
+  const provider = normalizeProviderId(parsed?.provider);
+  const profileId = String(parsed?.profileId || "");
+  const mergedPairs = getMergedProviderProfileEnvVars(provider, profileId, parsed?.envVars || []);
+  const env = applyProviderStartupEnv(provider, applyUnifiedProxyEnv(buildEnvFromPairs(mergedPairs)));
+  return cliConfigSyncService.syncProviderCliConfig({
+    provider,
+    profileId,
+    env,
+    source
+  });
+}
 
 const ptyService = new PtyService({
-  getStartupEnv: ({ provider }) => getStartupEnvForProvider(provider),
+  getStartupEnv: ({ provider, cwd }) => syncClaudeSettingsEnv(provider, getStartupEnvForProvider(provider), cwd),
+  logWarn,
   onData: ({ sessionId, data }) => {
     oauthLoginTracker.handleOutput(sessionId, data);
     sendToRenderer(IPC.PTY_DATA, { sessionId, data });
@@ -2539,6 +2671,31 @@ function registerAppIpc() {
     await shell.openExternal(url);
   });
 
+  registerIpc(IPC.WINDOW_MINIMIZE, async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return { ok: false };
+    win.minimize();
+    return { ok: true };
+  });
+
+  registerIpc(IPC.WINDOW_TOGGLE_MAXIMIZE, async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return { ok: false, isMaximized: false };
+    if (win.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win.maximize();
+    }
+    return { ok: true, isMaximized: win.isMaximized() };
+  });
+
+  registerIpc(IPC.WINDOW_CLOSE, async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return { ok: false };
+    win.close();
+    return { ok: true };
+  });
+
   ipcMain.on(IPC.APP_LOG, (_event, payload = {}) => {
     const level = payload.level || "info";
     const scope = payload.scope || "renderer";
@@ -2547,7 +2704,7 @@ function registerAppIpc() {
     logByLevel(level, scope, message, meta);
   });
 
-  registerAllIpc(ipcMain, { ptyService });
+  registerAllIpc(ipcMain, { ptyService, logger: { logInfo } });
 
   registerIpc(IPC.PROJECT_LIST, async () => {
     const projects = projectStore.list();
@@ -2977,7 +3134,11 @@ function registerAppIpc() {
   registerIpc(IPC.SETTINGS_PROVIDER_TEST, async (_event, payload) => {
     const parsed = providerTestSchema.parse(payload);
     try {
-      return await providerConnectionService.testProviderConnection(parsed);
+      const result = await providerConnectionService.testProviderConnection(parsed);
+      if (result?.ok) {
+        syncCliConfigAfterSuccessfulProviderTest(parsed, "provider-test");
+      }
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logError("provider-test", "Unhandled provider connection test error", error, {
@@ -3002,7 +3163,11 @@ function registerAppIpc() {
   registerIpc(IPC.SETTINGS_PROVIDER_OAUTH_PROBE, async (_event, payload) => {
     const parsed = providerOAuthProbeSchema.parse(payload);
     try {
-      return await oauthProbeService.probeProviderOAuthConnection(parsed);
+      const result = await oauthProbeService.probeProviderOAuthConnection(parsed);
+      if (result?.ok) {
+        syncCliConfigAfterSuccessfulProviderTest(parsed, "oauth-probe");
+      }
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logError("oauth-probe", "Unhandled OAuth real probe error", error, {
@@ -3080,13 +3245,17 @@ function registerAppIpc() {
 function createWindow() {
   logInfo("app", "Creating main window", { isDev });
   const iconPath = getWindowIconPath();
+  const useHiddenTitleBar = process.platform === "darwin" || process.platform === "win32";
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 860,
     minWidth: 1000,
     minHeight: 680,
     title: APP_NAME,
-    titleBarStyle: process.platform === "darwin" ? "hidden" : undefined,
+    autoHideMenuBar: true,
+    frame: process.platform === "win32" ? false : undefined,
+    titleBarStyle: useHiddenTitleBar ? "hidden" : undefined,
+    titleBarOverlay: undefined,
     trafficLightPosition: process.platform === "darwin"
       ? { x: 14, y: 20 }
       : undefined,
@@ -3098,6 +3267,10 @@ function createWindow() {
       sandbox: false
     }
   });
+
+  if (process.platform !== "darwin") {
+    mainWindow.setMenuBarVisibility(false);
+  }
 
   if (isDev) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -3132,6 +3305,9 @@ app.whenReady().then(() => {
     appHomeDir
   });
   registerAppIpc();
+  if (process.platform !== "darwin") {
+    Menu.setApplicationMenu(null);
+  }
   if (process.platform === "darwin" && app.dock) {
     const dockIconPath = pickExistingPath([
       resolveAssetPath("icons", "mac", "dock-icon.png"),
@@ -3150,7 +3326,7 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   logInfo("app", "Before quit: destroying PTY sessions");
-  ptyService.destroyAll();
+  ptyService.destroyAll({ quiet: process.platform === "win32" });
   if (tray) {
     tray.destroy();
     tray = null;
