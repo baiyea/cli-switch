@@ -642,6 +642,12 @@ const fileAttachmentSaveSchema = z.object({
   cwd: z.string().min(1),
   sessionId: z.string().min(1)
 });
+const fileAttachmentSaveBufferSchema = z.object({
+  cwd: z.string().min(1),
+  sessionId: z.string().min(1),
+  base64: z.string().min(1),
+  mimeType: z.string().min(1)
+});
 const skillgenRunSchema = z.object({
   projectId: z.string().min(1),
   trigger: z.string().optional().default("manual"),
@@ -3065,19 +3071,88 @@ function registerAppIpc() {
   registerIpc(IPC.FILE_ATTACHMENT_SAVE, async (_event, payload) => {
     const parsed = fileAttachmentSaveSchema.parse(payload || {});
     const root = path.resolve(parsed.cwd);
-    const image = clipboard.readImage();
-    if (!image || image.isEmpty()) {
-      return { ok: false, reason: "no-image" };
+
+    // 1) Try Electron's high-level readImage first (works on macOS and some Windows cases).
+    let image = clipboard.readImage();
+    let bytes = null;
+    let mimeType = "image/png";
+    let ext = "png";
+
+    if (image && !image.isEmpty()) {
+      bytes = image.toPNG();
     }
-    const bytes = image.toPNG();
+
+    // 2) On Windows, readImage often fails for CF_DIB / screenshot tools.
+    // Probe raw clipboard formats and read via readBuffer().
     if (!bytes || bytes.length === 0) {
-      return { ok: false, reason: "empty-image" };
+      const formats = clipboard.availableFormats();
+      logInfo("files", "Clipboard formats", { sessionId: parsed.sessionId, formats });
+
+      const formatMap = [
+        { fmt: "PNG", mime: "image/png", ext: "png" },
+        { fmt: "image/png", mime: "image/png", ext: "png" },
+        { fmt: "JFIF", mime: "image/jpeg", ext: "jpg" },
+        { fmt: "image/jpeg", mime: "image/jpeg", ext: "jpg" },
+        { fmt: "GIF", mime: "image/gif", ext: "gif" },
+        { fmt: "image/gif", mime: "image/gif", ext: "gif" },
+        { fmt: "WEBP", mime: "image/webp", ext: "webp" },
+        { fmt: "image/webp", mime: "image/webp", ext: "webp" }
+      ];
+
+      for (const candidate of formatMap) {
+        if (formats.includes(candidate.fmt)) {
+          try {
+            bytes = clipboard.readBuffer(candidate.fmt);
+            if (bytes && bytes.length > 0) {
+              mimeType = candidate.mime;
+              ext = candidate.ext;
+              logInfo("files", "Read clipboard image via readBuffer", {
+                sessionId: parsed.sessionId,
+                format: candidate.fmt,
+                size: bytes.length
+              });
+              break;
+            }
+          } catch (err) {
+            logWarn("files", "readBuffer failed", { format: candidate.fmt, error: err.message });
+          }
+        }
+      }
+
+      // 3) Fallback: try DIB / DeviceIndependentBitmap via nativeImage.
+      if (!bytes || bytes.length === 0) {
+        const dibFormat = formats.find((f) => /dib|bitmap/i.test(f));
+        if (dibFormat) {
+          try {
+            const dib = clipboard.readBuffer(dibFormat);
+            if (dib && dib.length > 0) {
+              image = nativeImage.createFromBuffer(dib, { width: 1, height: 1 });
+              if (image && !image.isEmpty()) {
+                bytes = image.toPNG();
+                mimeType = "image/png";
+                ext = "png";
+                logInfo("files", "Converted DIB to PNG via nativeImage", {
+                  sessionId: parsed.sessionId,
+                  format: dibFormat,
+                  size: bytes.length
+                });
+              }
+            }
+          } catch (err) {
+            logWarn("files", "DIB conversion failed", { format: dibFormat, error: err.message });
+          }
+        }
+      }
+    }
+
+    if (!bytes || bytes.length === 0) {
+      return { ok: false, reason: "no-image" };
     }
 
     const dir = path.join(root, ".claude", "attachments");
     ensureDirSafe(dir);
     const micros = (BigInt(Date.now()) * 1000n + (process.hrtime.bigint() % 1000n)).toString();
-    const fileName = `${micros}.png`;
+    const fileName = `${micros}.${ext}`;
     const absPath = path.join(dir, fileName);
     fs.writeFileSync(absPath, bytes);
 
@@ -3085,9 +3160,45 @@ function registerAppIpc() {
     logInfo("files", "Saved clipboard image attachment", {
       sessionId: parsed.sessionId,
       cwd: root,
-      relPath
+      relPath,
+      mimeType,
+      size: bytes.length
     });
-    return { ok: true, absPath, relPath, mimeType: "image/png" };
+    return { ok: true, absPath, relPath, mimeType };
+  });
+  registerIpc(IPC.FILE_ATTACHMENT_SAVE_BUFFER, async (_event, payload) => {
+    const parsed = fileAttachmentSaveBufferSchema.parse(payload || {});
+    const root = path.resolve(parsed.cwd);
+    const bytes = Buffer.from(parsed.base64, "base64");
+    if (!bytes || bytes.length === 0) {
+      return { ok: false, reason: "empty-image" };
+    }
+
+    const mimeToExt = {
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/jpg": "jpg",
+      "image/gif": "gif",
+      "image/webp": "webp"
+    };
+    const ext = mimeToExt[parsed.mimeType.toLowerCase()] || "png";
+
+    const dir = path.join(root, ".claude", "attachments");
+    ensureDirSafe(dir);
+    const micros = (BigInt(Date.now()) * 1000n + (process.hrtime.bigint() % 1000n)).toString();
+    const fileName = `${micros}.${ext}`;
+    const absPath = path.join(dir, fileName);
+    fs.writeFileSync(absPath, bytes);
+
+    const relPath = `.claude/attachments/${fileName}`;
+    logInfo("files", "Saved clipboard image attachment (buffer)", {
+      sessionId: parsed.sessionId,
+      cwd: root,
+      relPath,
+      mimeType: parsed.mimeType,
+      size: bytes.length
+    });
+    return { ok: true, absPath, relPath, mimeType: parsed.mimeType };
   });
   const skillgenHandler = async (_event, payload = {}) => {
     const parsed = skillgenRunSchema.parse(payload || {});
@@ -3304,9 +3415,34 @@ app.whenReady().then(() => {
     runtimeAppId,
     appHomeDir
   });
+
+  // 允许渲染进程通过 navigator.clipboard 读写剪贴板
+  const { session } = require("electron");
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+    if (permission === "clipboard-read" || permission === "clipboard-write") {
+      return true;
+    }
+    return false;
+  });
+
   registerAppIpc();
+  // Windows/Linux 只保留 Undo/Redo/SelectAll，去掉 Copy/Paste role。
+  // Copy/Paste 快捷键由 xterm.js 的 attachCustomKeyEventHandler 处理，
+  // 避免 Edit 菜单 role 拦截系统快捷键导致键盘事件不传递到 renderer。
   if (process.platform !== "darwin") {
-    Menu.setApplicationMenu(null);
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate([
+        {
+          label: "Edit",
+          submenu: [
+            { role: "undo" },
+            { role: "redo" },
+            { type: "separator" },
+            { role: "selectAll" }
+          ]
+        }
+      ])
+    );
   }
   if (process.platform === "darwin" && app.dock) {
     const dockIconPath = pickExistingPath([

@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     readTree: (payload) => ipcRenderer.invoke(IPC.FILE_TREE_READ, payload),
     openPath: (payload) => ipcRenderer.invoke(IPC.FILE_OPEN_PATH, payload),
     saveAttachmentImage: (payload) => ipcRenderer.invoke(IPC.FILE_ATTACHMENT_SAVE, payload),
+    saveAttachmentImageBuffer: (payload) => ipcRenderer.invoke(IPC.FILE_ATTACHMENT_SAVE_BUFFER, payload),
     // Backward compatibility with older renderer bridge naming.
     open: (payload) => ipcRenderer.invoke(IPC.FILE_OPEN_PATH, payload)
   }

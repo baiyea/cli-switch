@@ -23,6 +23,7 @@ export enum IPC {
   FILE_TREE_READ = "file:tree:read",
   FILE_OPEN_PATH = "file:open:path",
   FILE_ATTACHMENT_SAVE = "file:attachment:save",
+  FILE_ATTACHMENT_SAVE_BUFFER = "file:attachment:save:buffer",
   SKILLGEN_RUN = "skillgen:run",
   WINDOW_SET_TRAFFIC_LIGHT = "window:traffic-light:set",
   WINDOW_OPEN_EXTERNAL = "window:open-external",

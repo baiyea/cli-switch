@@ -18,6 +18,12 @@ declare global {
       scrollTerminalLines: (sessionId: string, lines: number) => boolean;
       appendTerminalData: (sessionId: string, data: string) => boolean;
       destroyAllSessions: () => boolean;
+      simulateImagePaste: (sessionId: string, base64: string, mimeType?: string) => Promise<{
+        ok: boolean;
+        reason?: string;
+        relPath?: string;
+        absPath?: string;
+      }>;
     };
     electronAPI: {
       pty: {
@@ -271,6 +277,18 @@ declare global {
         }>;
         openPath: (payload: { path: string }) => Promise<{ ok: boolean }>;
         saveAttachmentImage: (payload: { cwd: string; sessionId: string }) => Promise<{
+          ok: boolean;
+          reason?: string;
+          absPath?: string;
+          relPath?: string;
+          mimeType?: string;
+        }>;
+        saveAttachmentImageBuffer: (payload: {
+          cwd: string;
+          sessionId: string;
+          base64: string;
+          mimeType: string;
+        }) => Promise<{
           ok: boolean;
           reason?: string;
           absPath?: string;

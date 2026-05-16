@@ -2,6 +2,7 @@
   "appId": "com.cliswitch.app",
   "productName": "Cli-Switch",
   "executableName": "Cli-Switch",
+  "npmRebuild": false,
   "directories": {
     "output": "release"
   },
@@ -51,7 +52,8 @@
     "entitlementsInherit": "build/entitlements.mac.plist"
   },
   "dmg": {
-    "sign": false
+    "sign": false,
+    "artifactName": "${productName}-${os}-${arch}-${version}.${ext}"
   },
   "afterSign": "scripts/notarize.js",
   "win": {
@@ -65,7 +67,8 @@
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "runAfterFinish": true,
-    "deleteAppDataOnUninstall": true
+    "deleteAppDataOnUninstall": true,
+    "artifactName": "${productName}-${os}-${arch}-${version}.${ext}"
   },
   "asarUnpack": [
     "node_modules/better-sqlite3/**",
