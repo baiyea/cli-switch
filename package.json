@@ -11,6 +11,7 @@
   },
   "scripts": {
     "dev": "concurrently -k \"pnpm dev:renderer\" \"pnpm dev:electron\"",
+    "predev": "node scripts/cleanup-dev-processes.js",
     "dev:renderer": "vite",
     "dev:electron": "wait-on tcp:5073 && cross-env VITE_DEV_SERVER_URL=http://localhost:5073 node scripts/run-electron.js",
     "prepare:cli-runtime": "node scripts/prepare-cli-runtime.js",
@@ -22,6 +23,7 @@
     "dist:mac:arm64": "node scripts/guard-dist-mac-env.js arm64 && pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=darwin CLI_TARGET_ARCH=arm64 pnpm prepare:cli-runtime && pnpm build && electron-builder --mac --arm64 --config electron-builder.json",
     "dist:win": "node scripts/guard-dist-win-env.js x64 && pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=win32 CLI_TARGET_ARCH=x64 pnpm prepare:cli-runtime && pnpm build && electron-builder --win --x64 --config electron-builder.json",
     "start": "node scripts/run-electron.js",
+    "check:architecture": "node scripts/check-architecture.js",
     "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron --test src/**/*.test.js",
     "test:e2e": "node scripts/clean-e2e-artifacts.js && pnpm prepare:cli-runtime && pnpm build && playwright test"
   },

@@ -1,14 +1,13 @@
-import type { RefObject } from "react";
 import { Button } from "../ui/button";
 import { ExplorerToggleIcon, SettingsIcon } from "../ui/icon-registry";
-import { SidebarProjectsPanel } from "../features/sidebar/renderer/SidebarProjectsPanel";
-import { TerminalPanel } from "../features/terminal/renderer/TerminalPanel";
-import { ExplorerPane } from "../features/file-tree/renderer/ExplorerPane";
-import { TopToolbar } from "../features/terminal/renderer/TopToolbar";
+import { SidebarProjectsPanel } from "./home/sidebar/renderer/SidebarProjectsPanel";
+import { TerminalPanel } from "./home/terminal/renderer/TerminalPanel";
+import { ExplorerPane } from "./home/file-tree/renderer/ExplorerPane";
+import { TopToolbar } from "./home/top-toolbar/renderer/TopToolbar";
 import { WelcomeView } from "./WelcomeView";
-import { SettingsModal } from "../features/providers/renderer/SettingsModal";
-import { RenameSessionDialog } from "../features/terminal/renderer/RenameSessionDialog";
-import { SkillgenResultDialog } from "../features/terminal/renderer/SkillgenResultDialog";
+import { SettingsModal } from "./settings/providers/renderer/SettingsModal";
+import { RenameSessionDialog } from "./home/terminal/renderer/RenameSessionDialog";
+import { SkillgenResultDialog } from "./home/top-toolbar/renderer/SkillgenResultDialog";
 
 export interface HomePageProps {
   isMacOS: boolean;
@@ -19,93 +18,41 @@ export interface HomePageProps {
   setExplorerVisible: (updater: boolean | ((prev: boolean) => boolean)) => void;
   settingsOpen: boolean;
   setSettingsOpen: (updater: boolean | ((prev: boolean) => boolean)) => void;
+  settingsSection: string;
+  setSettingsSection: (section: string) => void;
+  providerCheckPassed: boolean;
   appError: string;
-
-  projects: any[];
-  activeProjectId: string | null;
   activeProject: any;
   activeSession: any;
   activeSessionId: string | null;
   activeSessionProviderMeta: string;
-  activeWorkspaceCwd: string;
-
-  sessions: any[];
-  expandedProjects: Record<string, boolean>;
-  showAllSessionsByProject: Record<string, boolean>;
-  openCreateMenuProjectId: string | null;
-  createMenuPlacementByProject: Record<string, any>;
-  draggingSessionId: string;
-  dragOverSessionId: string;
-
-  enabledProviderIds: string[];
-  enabledSessionToolOptions: { id: string; label: string }[];
-  primarySessionTool: { id: string; label: string } | null;
+  projects: any[];
   providerLabel: Record<string, string>;
   runtimeStatusLabel: Record<string, string>;
-  providerCheckPassed: boolean;
-
-  explorerCwd: string;
-  explorerTreeWrapRef: RefObject<HTMLDivElement | null>;
-  explorerLoading: boolean;
-  explorerTree: any[];
-  explorerTreeHeight: number;
-  explorerIsGitRepo: boolean;
-
-  settingsSection: string;
+  enabledProviderIds: string[];
+  enabledSessionToolOptions: Array<{ id: string; label: string }>;
+  primarySessionTool: { id: string; label: string } | null;
+  sidebarProjectsPanelProps: any;
+  explorerPaneProps: any;
+  providerSectionProps: any;
+  renameDialogProps: any;
+  skillgenResultDialogProps: any;
+  skillgenRunning: boolean;
   archivedSessions: any[];
   appVersion: string;
   appLogo: string;
-  providerSectionProps: any;
-
-  renameModalOpen: boolean;
-  renameSubmitting: boolean;
-  renameInputRef: RefObject<HTMLInputElement | null>;
-  renameDraft: string;
-  setRenameDraft: (value: string) => void;
-  closeRenameModal: (forceClose?: boolean) => void;
-  submitRenameModal: () => Promise<void>;
-  renameSuggesting: boolean;
-  renameSuggestedTitle: string;
-  renameSuggestSource: string;
-
-  skillgenModalOpen: boolean;
-  skillgenRunning: boolean;
-  skillgenResult: any;
-  setSkillgenModalOpen: (open: boolean) => void;
-
   onAddProject: () => Promise<void>;
-  setActiveProjectId: (id: string) => void;
-  setExpandedProjects: (updater: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)) => void;
-  setOpenCreateMenuProjectId: (id: string | null) => void;
-  setCreateMenuPlacementByProject: (updater: Record<string, any> | ((prev: Record<string, any>) => Record<string, any>)) => void;
   createSessionForProject: (project: any, toolId?: string) => Promise<void>;
-  onSyncProjectHistory: (project: any) => Promise<void>;
-  setDraggingSessionId: (id: string) => void;
-  setDragOverSessionId: (id: string) => void;
-  handleSessionDrop: (projectId: string, orderedProjectSessions: any[], targetSessionId: string) => Promise<void>;
-  setActiveSession: (sessionId: string) => void;
   openRenameModal: (sessionId: string) => void;
   destroySession: (sessionId: string) => Promise<void>;
-  setShowAllSessionsByProject: (updater: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)) => void;
-
-  onRenameActiveSession: () => void;
+  loadSettings: () => Promise<any>;
+  loadArchivedSessions: () => Promise<any>;
+  onRestoreArchivedSession: (archiveId: string) => Promise<void>;
   onRunSkillgen: () => void;
-  canRunSkillgen: boolean;
-  onArchiveActiveSession: () => void;
-  canArchiveActiveSession: boolean;
   onWindowMinimize: () => void;
   onWindowToggleMaximize: () => void;
   onWindowClose: () => void;
-
-  onOpenWorkspaceInFileManager: () => Promise<void>;
-  onOpenExplorerFile: (path: string) => Promise<void>;
-  loadSettings: () => Promise<any>;
   onLearnMore: () => void;
-
-  onSelectProviders: () => void;
-  onSelectArchive: () => Promise<void>;
-  onSelectAbout: () => void;
-  onRestoreArchivedSession: (archiveId: string) => Promise<void>;
 }
 
 export function HomePage({
@@ -117,89 +64,46 @@ export function HomePage({
   setExplorerVisible,
   settingsOpen,
   setSettingsOpen,
+  settingsSection,
+  setSettingsSection,
+  providerCheckPassed,
   appError,
-  projects,
-  activeProjectId,
   activeProject,
   activeSession,
   activeSessionId,
   activeSessionProviderMeta,
-  activeWorkspaceCwd,
-  sessions,
-  expandedProjects,
-  showAllSessionsByProject,
-  openCreateMenuProjectId,
-  createMenuPlacementByProject,
-  draggingSessionId,
-  dragOverSessionId,
+  projects,
+  providerLabel,
+  runtimeStatusLabel,
   enabledProviderIds,
   enabledSessionToolOptions,
   primarySessionTool,
-  providerLabel,
-  runtimeStatusLabel,
-  providerCheckPassed,
-  explorerCwd,
-  explorerTreeWrapRef,
-  explorerLoading,
-  explorerTree,
-  explorerTreeHeight,
-  explorerIsGitRepo,
-  settingsSection,
+  sidebarProjectsPanelProps,
+  explorerPaneProps,
+  providerSectionProps,
+  renameDialogProps,
+  skillgenResultDialogProps,
+  skillgenRunning,
   archivedSessions,
   appVersion,
   appLogo,
-  providerSectionProps,
-  renameModalOpen,
-  renameSubmitting,
-  renameInputRef,
-  renameDraft,
-  setRenameDraft,
-  closeRenameModal,
-  submitRenameModal,
-  renameSuggesting,
-  renameSuggestedTitle,
-  renameSuggestSource,
-  skillgenModalOpen,
-  skillgenRunning,
-  skillgenResult,
-  setSkillgenModalOpen,
   onAddProject,
-  setActiveProjectId,
-  setExpandedProjects,
-  setOpenCreateMenuProjectId,
-  setCreateMenuPlacementByProject,
   createSessionForProject,
-  onSyncProjectHistory,
-  setDraggingSessionId,
-  setDragOverSessionId,
-  handleSessionDrop,
-  setActiveSession,
   openRenameModal,
   destroySession,
-  setShowAllSessionsByProject,
-  onRenameActiveSession,
+  loadSettings,
+  loadArchivedSessions,
+  onRestoreArchivedSession,
   onRunSkillgen,
-  canRunSkillgen,
-  onArchiveActiveSession,
-  canArchiveActiveSession,
   onWindowMinimize,
   onWindowToggleMaximize,
   onWindowClose,
-  onOpenWorkspaceInFileManager,
-  onOpenExplorerFile,
-  loadSettings,
-  onLearnMore,
-  onSelectProviders,
-  onSelectArchive,
-  onSelectAbout,
-  onRestoreArchivedSession
+  onLearnMore
 }: HomePageProps) {
   const hasProjects = projects.length > 0;
 
   return (
-    <div
-      className={`layout ${isMacOS ? "macos" : ""} ${isWindows ? "windows" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}
-    >
+    <div className={`layout ${isMacOS ? "macos" : ""} ${isWindows ? "windows" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="brand">
@@ -221,36 +125,15 @@ export function HomePage({
         </div>
 
         <SidebarProjectsPanel
-          projects={projects}
-          sessions={sessions}
-          expandedProjects={expandedProjects}
-          activeProjectId={activeProjectId}
+          {...sidebarProjectsPanelProps}
           enabledProviderIds={enabledProviderIds}
-          activeSessionId={activeSessionId}
-          showAllSessionsByProject={showAllSessionsByProject}
-          openCreateMenuProjectId={openCreateMenuProjectId}
-          createMenuPlacementByProject={createMenuPlacementByProject}
           primarySessionTool={primarySessionTool}
           enabledSessionToolOptions={enabledSessionToolOptions}
-          draggingSessionId={draggingSessionId}
-          dragOverSessionId={dragOverSessionId}
           providerLabel={providerLabel}
           runtimeStatusLabel={runtimeStatusLabel}
-          onAddProject={onAddProject}
-          setActiveProjectId={setActiveProjectId}
-          setExpandedProjects={setExpandedProjects}
           setSettingsOpen={setSettingsOpen}
-          setOpenCreateMenuProjectId={setOpenCreateMenuProjectId}
-          setCreateMenuPlacementByProject={setCreateMenuPlacementByProject}
           createSessionForProject={createSessionForProject}
-          onSyncProjectHistory={onSyncProjectHistory}
-          setDraggingSessionId={setDraggingSessionId}
-          setDragOverSessionId={setDragOverSessionId}
-          handleSessionDrop={handleSessionDrop}
-          setActiveSession={setActiveSession}
           openRenameModal={openRenameModal}
-          destroySession={destroySession}
-          setShowAllSessionsByProject={setShowAllSessionsByProject}
         />
 
         <div className="sidebar-settings">
@@ -279,12 +162,12 @@ export function HomePage({
           onExpandSidebar={() => setSidebarCollapsed(false)}
           onRenameActiveSession={() => {
             if (!activeSession?.sessionId) return;
-            onRenameActiveSession();
+            openRenameModal(activeSession.sessionId);
           }}
           skillgenRunning={skillgenRunning}
           onRunSkillgen={() => void onRunSkillgen()}
           canRunSkillgen={Boolean(activeProject?.id)}
-          onArchiveActiveSession={() => activeSessionId && onArchiveActiveSession()}
+          onArchiveActiveSession={() => activeSessionId && destroySession(activeSessionId)}
           canArchiveActiveSession={Boolean(activeSessionId)}
           explorerVisible={explorerVisible}
           onToggleExplorer={() => setExplorerVisible((prev) => !prev)}
@@ -313,19 +196,7 @@ export function HomePage({
             )}
           </section>
 
-          <ExplorerPane
-            explorerVisible={explorerVisible}
-            activeProject={activeProject}
-            activeWorkspaceCwd={activeWorkspaceCwd}
-            explorerCwd={explorerCwd}
-            explorerTreeWrapRef={explorerTreeWrapRef}
-            explorerLoading={explorerLoading}
-            explorerTree={explorerTree}
-            explorerTreeHeight={explorerTreeHeight}
-            explorerIsGitRepo={explorerIsGitRepo}
-            onOpenWorkspaceInFileManager={onOpenWorkspaceInFileManager}
-            onOpenExplorerFile={onOpenExplorerFile}
-          />
+          <ExplorerPane {...explorerPaneProps} />
         </div>
 
         <SettingsModal
@@ -336,9 +207,12 @@ export function HomePage({
             setSettingsOpen(false);
           }}
           settingsSection={settingsSection}
-          onSelectProviders={onSelectProviders}
-          onSelectArchive={onSelectArchive}
-          onSelectAbout={onSelectAbout}
+          onSelectProviders={() => setSettingsSection("providers")}
+          onSelectArchive={async () => {
+            setSettingsSection("archive");
+            await loadArchivedSessions();
+          }}
+          onSelectAbout={() => setSettingsSection("about")}
           providerSectionProps={providerSectionProps}
           archivedSessions={archivedSessions}
           providerLabel={providerLabel}
@@ -346,27 +220,8 @@ export function HomePage({
           appVersion={appVersion}
           appLogo={appLogo}
         />
-
-        <RenameSessionDialog
-          open={renameModalOpen}
-          onClose={closeRenameModal}
-          submitting={renameSubmitting}
-          inputRef={renameInputRef}
-          draft={renameDraft}
-          onDraftChange={setRenameDraft}
-          onSubmit={() => void submitRenameModal()}
-          suggesting={renameSuggesting}
-          suggestedTitle={renameSuggestedTitle}
-          suggestSource={renameSuggestSource}
-          onUseSuggestedTitle={setRenameDraft}
-        />
-
-        <SkillgenResultDialog
-          open={skillgenModalOpen}
-          running={skillgenRunning}
-          result={skillgenResult}
-          onClose={() => setSkillgenModalOpen(false)}
-        />
+        <RenameSessionDialog {...renameDialogProps} />
+        <SkillgenResultDialog {...skillgenResultDialogProps} />
       </main>
     </div>
   );

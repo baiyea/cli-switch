@@ -6,10 +6,11 @@ const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, cli
 const log = require("electron-log");
 const { z } = require("zod");
 const { IPC } = require("../shared/types.js");
-const { APP_NAME, APP_ID, DB_FILENAME } = require("../shared/app-config.js");
+const { APP_NAME, APP_ID } = require("../shared/app-config.js");
 const providerEnvPresets = require("../assets/provider-env-presets.json");
-const { registerTerminalMain } = require("../features/terminal/feature.main");
-const { PtyService } = require("../features/terminal/main/pty.service");
+const { IS_DEV, getDataDir, getDbPath } = require("../kernel/test-mode.js");
+const { registerPageMain } = require("./register-page-main");
+const { PtyService } = require("../pages/home/terminal/main/pty.service");
 const {
   applyProviderStartupEnv,
   getLaunchCommandForProvider,
@@ -18,15 +19,15 @@ const {
   getResumeCommandForProvider,
   isLocalGeneratedSessionId,
   normalizeProviderId
-} = require("../features/providers/main/cli-launchers");
-const { listProviderSessions, mapSessionsToProjects } = require("../features/providers/main/session-sources");
-const { createOAuthLoginTracker } = require("../features/providers/main/oauth-login-tracker");
-const { createProviderSettingsRuntime } = require("../features/providers/main/provider-settings-runtime");
-const { createProviderConnectionService } = require("../features/providers/main/provider-connection-service");
-const { createOAuthProbeService } = require("../features/providers/main/oauth-probe-service");
-const { createProxyConnectivityService } = require("../features/providers/main/proxy-connectivity-service");
-const { createCliConfigSyncService } = require("../features/providers/main/cli-config-sync-service");
-const { createSkillgenRunner } = require("../features/providers/main/skillgen/runner");
+} = require("../pages/settings/providers/main/cli-launchers");
+const { listProviderSessions, mapSessionsToProjects } = require("../pages/settings/providers/main/session-sources");
+const { createOAuthLoginTracker } = require("../pages/settings/providers/main/oauth-login-tracker");
+const { createProviderSettingsRuntime } = require("../pages/settings/providers/main/provider-settings-runtime");
+const { createProviderConnectionService } = require("../pages/settings/providers/main/provider-connection-service");
+const { createOAuthProbeService } = require("../pages/settings/providers/main/oauth-probe-service");
+const { createProxyConnectivityService } = require("../pages/settings/providers/main/proxy-connectivity-service");
+const { createCliConfigSyncService } = require("../pages/settings/providers/main/cli-config-sync-service");
+const { createSkillgenRunner } = require("../pages/settings/providers/main/skillgen/runner");
 const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../kernel/db/connection");
 
 // LSUIElement=1 in Info.plist hides all instances from the dock.
@@ -34,11 +35,11 @@ const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../k
 // while CLI subprocesses (ELECTRON_RUN_AS_NODE=1) stay hidden.
 if (process.platform === "darwin") app.setActivationPolicy("regular");
 
-const isDev = !!process.env.VITE_DEV_SERVER_URL;
+const isDev = IS_DEV;
 let mainWindow = null;
 let tray = null;
-const runtimeAppId = isDev ? `${APP_ID}dev` : APP_ID;
-const appHomeDir = path.join(os.homedir(), `.${runtimeAppId}`);
+const appHomeDir = getDataDir();
+const runtimeAppId = path.basename(appHomeDir).replace(/^\./, "") || (isDev ? `${APP_ID}dev` : APP_ID);
 const appLogsDir = path.join(appHomeDir, "logs");
 const appCacheDir = path.join(appHomeDir, "cache");
 
@@ -384,7 +385,7 @@ function createMacTray() {
   });
 }
 
-const dbPath = process.env.ZEELIN_DB_PATH || path.join(app.getPath("userData"), DB_FILENAME);
+const dbPath = getDbPath();
 const db = initDatabase(dbPath);
 const projectStore = projectsRepo(db);
 const sessionStore = sessionsRepo(db);
@@ -2710,513 +2711,6 @@ function registerAppIpc() {
     logByLevel(level, scope, message, meta);
   });
 
-  registerTerminalMain(ptyService);
-
-  registerIpc(IPC.PROJECT_LIST, async () => {
-    const projects = projectStore.list();
-    return projects.filter((p) => {
-      try {
-        return fs.existsSync(p.path);
-      } catch {
-        return false;
-      }
-    });
-  });
-  registerIpc(IPC.PROJECT_ADD, async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: "Select Project Folder",
-      properties: ["openDirectory"]
-    });
-
-    if (result.canceled || result.filePaths.length === 0) return null;
-    const folderPath = result.filePaths[0];
-    const created = projectStore.create({
-      name: path.basename(folderPath),
-      path: folderPath
-    });
-    const { count: syncedCount } = syncDiscoveredSessionsForProjects([created]);
-    logInfo("project", "Project created and sessions synced", {
-      projectId: created.id,
-      path: created.path,
-      syncedCount
-    });
-    return created;
-  });
-
-  registerIpc(IPC.PROJECT_REMOVE, async (_event, { id }) => projectStore.remove(id));
-  registerIpc(IPC.SESSION_LIST, async (_event, payload = {}) => {
-    const projectIds = Array.isArray(payload.projectIds) ? payload.projectIds : [];
-    const providers = Array.isArray(payload.providers) ? payload.providers.map(normalizeProviderId) : [];
-    const allProjects = projectStore.list();
-    const selectedProjects = projectIds.length > 0
-      ? allProjects.filter((p) => projectIds.includes(p.id))
-      : allProjects;
-    const rows = sessionStore.listAllActive(selectedProjects.map((p) => p.id));
-    return rows
-      .filter(sessionBelongsToProjectRoot)
-      .map(toSessionView)
-      .filter((session) => providers.length === 0 || providers.includes(normalizeProviderId(session.provider)));
-  });
-  registerIpc(IPC.SESSION_SYNC_PROJECT, async (_event, payload) => {
-    const parsed = z.object({ projectId: z.string().min(1) }).parse(payload);
-    const project = projectStore.getById(parsed.projectId);
-    if (!project) throw new Error("Project not found");
-    const { count } = syncDiscoveredSessionsForProjects([project]);
-    logInfo("session", "Manual project session sync complete", {
-      projectId: project.id,
-      path: project.path,
-      syncedCount: count
-    });
-    return { ok: true, count };
-  });
-  registerIpc(IPC.SESSION_REORDER, async (_event, payload) => {
-    const parsed = sessionReorderSchema.parse(payload || {});
-    sessionStore.reorderActiveByProject({
-      projectId: parsed.projectId,
-      orderedSessions: parsed.orderedSessions.map((item) => ({
-        provider: normalizeProviderId(item.provider),
-        providerSessionId: item.providerSessionId
-      }))
-    });
-    return { ok: true };
-  });
-  registerIpc(IPC.SESSION_STATS, async (_event, payload) => {
-    const parsed = sessionStatsSchema.parse(payload || {});
-    const provider = normalizeProviderId(parsed.provider || "claude");
-    const providerSessionId = String(parsed.providerSessionId || parsed.sessionId || "").trim();
-    if (!providerSessionId) return { ok: false, reason: "missing session identifier" };
-
-    const row = sessionStore.getByProviderSessionId({
-      provider,
-      providerSessionId
-    });
-
-    try {
-      const stats = readSessionStats({
-        provider,
-        providerSessionId,
-        row
-      });
-      return { ok: true, stats };
-    } catch (error) {
-      return {
-        ok: false,
-        reason: error instanceof Error ? error.message : String(error)
-      };
-    }
-  });
-  registerIpc(IPC.SESSION_CREATE, async (_event, payload) => {
-    const parsed = sessionCreateSchema.parse(payload);
-    const provider = normalizeProviderId(parsed.provider);
-    const localSessionId = `${provider}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-    const name = parsed.title || "New Chat";
-    const launchCommand = getStartupCommandForProvider(provider);
-    const startupEnv = getStartupEnvForProvider(provider);
-    const project = projectStore.getById(parsed.projectId);
-    const cwd = project?.path || parsed.cwd || "";
-    if (!cwd) throw new Error("Project path not found");
-    logInfo("session", "Creating session", {
-      sessionId: localSessionId,
-      projectId: parsed.projectId,
-      provider,
-      cwd,
-      startupEnv: maskEnvForLog(startupEnv)
-    });
-
-    ptyService.create({
-      cwd,
-      name,
-      provider,
-      sessionId: localSessionId
-    });
-    await waitForShellBootstrap(localSessionId);
-    if (launchCommand) {
-      logInfo("session", "Writing launch command", {
-        sessionId: localSessionId,
-        provider,
-        command: launchCommand.trim()
-      });
-      const wrote = ptyService.write(localSessionId, launchCommand);
-      if (!wrote) logWarn("session", "Launch command write skipped: PTY not found", { sessionId: localSessionId, provider });
-    } else {
-      const message = `No launch command available for provider=${provider}. CLI runtime may be missing for platform ${process.platform}-${process.arch}.`;
-      logWarn("session", message, { sessionId: localSessionId, provider });
-      const wroteError = ptyService.write(localSessionId, `${message}\n`);
-      if (!wroteError) logWarn("session", "Launch error write skipped: PTY not found", { sessionId: localSessionId, provider });
-    }
-
-    sessionStore.create({
-      projectId: parsed.projectId,
-      title: name,
-      provider,
-      providerSessionId: localSessionId,
-      cwd,
-      sessionFilePath: null,
-      status: "running"
-    });
-    const createdRecord = sessionStore.getByProviderSessionId({
-      provider,
-      providerSessionId: localSessionId
-    });
-    sessionStore.updateStateByProviderSessionId({
-      provider,
-      providerSessionId: localSessionId,
-      status: "running"
-    });
-
-    return toSessionView({
-      ...(createdRecord || {}),
-      project_path: cwd,
-      project_id: parsed.projectId,
-      provider,
-      provider_session_id: localSessionId,
-      title: name,
-      status: "running"
-    });
-  });
-  registerIpc(IPC.SESSION_START, async (_event, payload) => {
-    const parsed = sessionStartSchema.parse(payload);
-    const lockKey = parsed.providerSessionId || parsed.sessionId;
-    return runWithSessionStartLock(lockKey, async () => {
-      const provider = normalizeProviderId(parsed.provider);
-      let providerSessionId = parsed.providerSessionId || parsed.sessionId;
-      let record = sessionStore.getByProviderSessionId({ provider, providerSessionId });
-      const project = record?.project_id ? projectStore.getById(record.project_id) : null;
-      const sessionCwd = record?.cwd || parsed.cwd || project?.path || "";
-      if (!sessionCwd) throw new Error("Session project path not found");
-      if (project && isLocalGeneratedSessionId(provider, providerSessionId)) {
-        const { mappings } = syncDiscoveredSessionsForProjects([project]);
-        const reconciled = mappings.find((item) => item.provider === provider && item.fromProviderSessionId === providerSessionId);
-        if (reconciled?.toProviderSessionId) {
-          providerSessionId = reconciled.toProviderSessionId;
-          record = sessionStore.getByProviderSessionId({ provider, providerSessionId });
-          logInfo("session", "Reconciled local session id to provider session id", {
-            provider,
-            fromProviderSessionId: reconciled.fromProviderSessionId,
-            toProviderSessionId: reconciled.toProviderSessionId
-          });
-        }
-      }
-      logInfo("session", "Starting session", { sessionId: parsed.sessionId, provider, providerSessionId, cwd: sessionCwd });
-      const startupEnv = getStartupEnvForProvider(provider);
-      logInfo("session", "Resolved startup env", {
-        sessionId: parsed.sessionId,
-        provider,
-        providerSessionId,
-        startupEnv: maskEnvForLog(startupEnv)
-      });
-      const runtimeSessionId = providerSessionId || parsed.sessionId;
-
-      if (!ptyService.hasSession(runtimeSessionId)) {
-        ptyService.create({
-          cwd: sessionCwd,
-          name: parsed.name || `session-${parsed.sessionId.slice(0, 8)}`,
-          provider,
-          sessionId: runtimeSessionId
-        });
-        await waitForShellBootstrap(runtimeSessionId);
-        const resumeCommand = getResumeCommandForProvider(provider, providerSessionId);
-        const startupCommand = resumeCommand || getStartupCommandForProvider(provider);
-        if (startupCommand) {
-          logInfo("session", "Writing resume command", {
-            sessionId: runtimeSessionId,
-            provider,
-            providerSessionId,
-            mode: resumeCommand ? "resume" : "launch",
-            command: startupCommand.trim()
-          });
-          const wroteResume = ptyService.write(runtimeSessionId, startupCommand);
-          if (!wroteResume) logWarn("session", "Resume command write skipped: PTY not found", { sessionId: runtimeSessionId, provider });
-        } else {
-          const message = `No startup command available for provider=${provider}. CLI runtime may be missing for platform ${process.platform}-${process.arch}.`;
-          logWarn("session", message, {
-            sessionId: runtimeSessionId,
-            provider,
-            providerSessionId
-          });
-          const wroteError = ptyService.write(runtimeSessionId, `${message}\n`);
-          if (!wroteError) logWarn("session", "Startup error write skipped: PTY not found", { sessionId: runtimeSessionId, provider });
-        }
-      } else {
-        logInfo("session", "Skip session bootstrapping because PTY already exists", {
-          sessionId: runtimeSessionId,
-          provider,
-          providerSessionId
-        });
-      }
-      sessionStore.updateStateByProviderSessionId({
-        provider,
-        providerSessionId,
-        status: "running"
-      });
-
-      return toSessionView({
-        ...(record || {}),
-        provider,
-        provider_session_id: providerSessionId,
-        title: parsed.name || record?.title || `session-${parsed.sessionId.slice(0, 8)}`,
-        project_path: sessionCwd,
-        status: "running"
-      });
-    });
-  });
-  registerIpc(IPC.SESSION_RENAME, async (_event, payload) => {
-    const parsed = z.object({
-      sessionId: z.string().min(1),
-      title: z.string().min(1),
-      provider: z.string().optional().default("claude"),
-      providerSessionId: z.string().optional()
-    }).parse(payload || {});
-
-    const provider = normalizeProviderId(parsed.provider);
-    const providerSessionId = parsed.providerSessionId || parsed.sessionId;
-    const nextTitle = parsed.title.trim();
-    if (!nextTitle) {
-      throw new Error("Session title is required");
-    }
-
-    sessionStore.renameByProviderSessionId({
-      provider,
-      providerSessionId,
-      title: nextTitle
-    });
-    return { ok: true };
-  });
-  registerIpc(IPC.SESSION_SUGGEST_TITLE, async (_event, payload) => {
-    const parsed = sessionSuggestTitleSchema.parse(payload || {});
-    const provider = normalizeProviderId(parsed.provider);
-    const providerSessionId = parsed.providerSessionId || parsed.sessionId;
-
-    let record = sessionStore.getByProviderSessionId({ provider, providerSessionId });
-    if (!record) {
-      const rows = sessionStore.listAllActive();
-      record = rows.find((item) => String(item?.provider_session_id || "") === String(parsed.sessionId || ""));
-    }
-    if (!record) throw new Error("Session not found");
-
-    const sessionFilePath = String(record.session_file_path || "").trim();
-    if (!sessionFilePath || !fs.existsSync(sessionFilePath)) {
-      return {
-        ok: true,
-        title: normalizeSuggestedTitle(record.title || "会话", "会话"),
-        source: "fallback",
-        reason: "session_file_path missing"
-      };
-    }
-    return suggestSessionTitleWithModel({
-      provider: record.provider || provider,
-      sessionFilePath,
-      fallbackTitle: record.title || "会话"
-    });
-  });
-  registerIpc(IPC.SESSION_ARCHIVE, async (_event, payload) => {
-    const parsed = z.object({
-      sessionId: z.string().min(1),
-      provider: z.string().optional().default("claude"),
-      providerSessionId: z.string().optional()
-    }).parse(normalizeArchivePayload(payload));
-    const provider = normalizeProviderId(parsed.provider);
-    const providerSessionId = parsed.providerSessionId || parsed.sessionId;
-    ptyService.destroy(providerSessionId);
-    logInfo("session", "Archiving session", {
-      sessionId: providerSessionId,
-      provider
-    });
-    sessionStore.archiveByProviderSessionId({
-      provider,
-      providerSessionId
-    });
-    return { ok: true };
-  });
-  registerIpc(IPC.SESSION_ARCHIVE_LIST, async (_event, payload = {}) => {
-    const projectIds = Array.isArray(payload.projectIds) ? payload.projectIds : [];
-    return sessionStore.listAllArchived(projectIds).map(toArchivedView);
-  });
-  registerIpc(IPC.SESSION_RESTORE, async (_event, payload) => {
-    const parsed = z.object({
-      archiveId: z.string().optional(),
-      sessionId: z.string().optional(),
-      provider: z.string().optional().default("claude")
-    }).parse(payload || {});
-    const source = parsed.archiveId || parsed.sessionId || "";
-    const archive = parseArchiveId(source, parsed.provider);
-    if (!archive.providerSessionId) throw new Error("Invalid archive identifier");
-    sessionStore.restoreByProviderSessionId({
-      provider: archive.provider,
-      providerSessionId: archive.providerSessionId
-    });
-    return { ok: true };
-  });
-  registerIpc(IPC.FILE_TREE_READ, async (_event, payload) => {
-    const parsed = fileTreeSchema.parse(payload);
-    const root = path.resolve(parsed.cwd);
-    const tree = buildFileTree(root, parsed.depth);
-    return {
-      cwd: root,
-      isGitRepo: tree.isGitRepo,
-      items: tree.items
-    };
-  });
-  registerIpc(IPC.FILE_OPEN_PATH, async (_event, payload) => {
-    const parsed = fileOpenPathSchema.parse(payload);
-    const target = path.resolve(parsed.path);
-    logInfo("files", "Opening path", { target });
-    const errorMessage = await shell.openPath(target);
-    if (errorMessage) {
-      logWarn("files", "Open path failed", { target, errorMessage });
-      throw new Error(errorMessage);
-    }
-    return { ok: true };
-  });
-  registerIpc(IPC.FILE_ATTACHMENT_SAVE, async (_event, payload) => {
-    const parsed = fileAttachmentSaveSchema.parse(payload || {});
-    const root = path.resolve(parsed.cwd);
-
-    // 1) Try Electron's high-level readImage first (works on macOS and some Windows cases).
-    let image = clipboard.readImage();
-    let bytes = null;
-    let mimeType = "image/png";
-    let ext = "png";
-
-    if (image && !image.isEmpty()) {
-      bytes = image.toPNG();
-    }
-
-    // 2) On Windows, readImage often fails for CF_DIB / screenshot tools.
-    // Probe raw clipboard formats and read via readBuffer().
-    if (!bytes || bytes.length === 0) {
-      const formats = clipboard.availableFormats();
-      logInfo("files", "Clipboard formats", { sessionId: parsed.sessionId, formats });
-
-      const formatMap = [
-        { fmt: "PNG", mime: "image/png", ext: "png" },
-        { fmt: "image/png", mime: "image/png", ext: "png" },
-        { fmt: "JFIF", mime: "image/jpeg", ext: "jpg" },
-        { fmt: "image/jpeg", mime: "image/jpeg", ext: "jpg" },
-        { fmt: "GIF", mime: "image/gif", ext: "gif" },
-        { fmt: "image/gif", mime: "image/gif", ext: "gif" },
-        { fmt: "WEBP", mime: "image/webp", ext: "webp" },
-        { fmt: "image/webp", mime: "image/webp", ext: "webp" }
-      ];
-
-      for (const candidate of formatMap) {
-        if (formats.includes(candidate.fmt)) {
-          try {
-            bytes = clipboard.readBuffer(candidate.fmt);
-            if (bytes && bytes.length > 0) {
-              mimeType = candidate.mime;
-              ext = candidate.ext;
-              logInfo("files", "Read clipboard image via readBuffer", {
-                sessionId: parsed.sessionId,
-                format: candidate.fmt,
-                size: bytes.length
-              });
-              break;
-            }
-          } catch (err) {
-            logWarn("files", "readBuffer failed", { format: candidate.fmt, error: err.message });
-          }
-        }
-      }
-
-      // 3) Fallback: try DIB / DeviceIndependentBitmap via nativeImage.
-      if (!bytes || bytes.length === 0) {
-        const dibFormat = formats.find((f) => /dib|bitmap/i.test(f));
-        if (dibFormat) {
-          try {
-            const dib = clipboard.readBuffer(dibFormat);
-            if (dib && dib.length > 0) {
-              image = nativeImage.createFromBuffer(dib, { width: 1, height: 1 });
-              if (image && !image.isEmpty()) {
-                bytes = image.toPNG();
-                mimeType = "image/png";
-                ext = "png";
-                logInfo("files", "Converted DIB to PNG via nativeImage", {
-                  sessionId: parsed.sessionId,
-                  format: dibFormat,
-                  size: bytes.length
-                });
-              }
-            }
-          } catch (err) {
-            logWarn("files", "DIB conversion failed", { format: dibFormat, error: err.message });
-          }
-        }
-      }
-    }
-
-    if (!bytes || bytes.length === 0) {
-      return { ok: false, reason: "no-image" };
-    }
-
-    const dir = path.join(root, ".claude", "attachments");
-    ensureDirSafe(dir);
-    const micros = (BigInt(Date.now()) * 1000n + (process.hrtime.bigint() % 1000n)).toString();
-    const fileName = `${micros}.${ext}`;
-    const absPath = path.join(dir, fileName);
-    fs.writeFileSync(absPath, bytes);
-
-    const relPath = `.claude/attachments/${fileName}`;
-    logInfo("files", "Saved clipboard image attachment", {
-      sessionId: parsed.sessionId,
-      cwd: root,
-      relPath,
-      mimeType,
-      size: bytes.length
-    });
-    return { ok: true, absPath, relPath, mimeType };
-  });
-  registerIpc(IPC.FILE_ATTACHMENT_SAVE_BUFFER, async (_event, payload) => {
-    const parsed = fileAttachmentSaveBufferSchema.parse(payload || {});
-    const root = path.resolve(parsed.cwd);
-    const bytes = Buffer.from(parsed.base64, "base64");
-    if (!bytes || bytes.length === 0) {
-      return { ok: false, reason: "empty-image" };
-    }
-
-    const mimeToExt = {
-      "image/png": "png",
-      "image/jpeg": "jpg",
-      "image/jpg": "jpg",
-      "image/gif": "gif",
-      "image/webp": "webp"
-    };
-    const ext = mimeToExt[parsed.mimeType.toLowerCase()] || "png";
-
-    const dir = path.join(root, ".claude", "attachments");
-    ensureDirSafe(dir);
-    const micros = (BigInt(Date.now()) * 1000n + (process.hrtime.bigint() % 1000n)).toString();
-    const fileName = `${micros}.${ext}`;
-    const absPath = path.join(dir, fileName);
-    fs.writeFileSync(absPath, bytes);
-
-    const relPath = `.claude/attachments/${fileName}`;
-    logInfo("files", "Saved clipboard image attachment (buffer)", {
-      sessionId: parsed.sessionId,
-      cwd: root,
-      relPath,
-      mimeType: parsed.mimeType,
-      size: bytes.length
-    });
-    return { ok: true, absPath, relPath, mimeType: parsed.mimeType };
-  });
-  const skillgenHandler = async (_event, payload = {}) => {
-    const parsed = skillgenRunSchema.parse(payload || {});
-    return skillgenRunner.runForProject(parsed);
-  };
-  registerIpc(IPC.SKILLGEN_RUN, skillgenHandler);
-  // Keep a literal fallback channel for compatibility with stale/older constants.
-  // If the same channel is already registered, Electron throws a duplicate error.
-  if (IPC.SKILLGEN_RUN !== "skillgen:run") {
-    try {
-      registerIpc("skillgen:run", skillgenHandler);
-    } catch (error) {
-      logWarn("ipc", "Skip duplicate fallback IPC registration", {
-        channel: "skillgen:run",
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
   registerIpc(IPC.WINDOW_SET_TRAFFIC_LIGHT, async (_event, payload) => {
     if (process.platform !== "darwin" || !mainWindow || mainWindow.isDestroyed()) {
       return { ok: true };
@@ -3236,121 +2730,71 @@ function registerAppIpc() {
     return { ok: updated };
   });
 
-  registerIpc(IPC.SETTINGS_CLAUDE_GET, async () => appSettingsStore.getProviderStartupSettings());
-  registerIpc(IPC.SETTINGS_CLAUDE_SAVE, async (_event, payload) => {
-    const parsed = providerSettingsSchema.parse(payload);
-    const sanitized = stripPresetValuesFromProviderSettings(parsed);
-    return appSettingsStore.setProviderStartupSettings(sanitized);
+  registerPageMain({
+    registerIpc,
+    IPC,
+    z,
+    fs,
+    path,
+    Buffer,
+    dialog,
+    shell,
+    clipboard,
+    nativeImage,
+    mainWindow,
+    projectStore,
+    sessionStore,
+    appSettingsStore,
+    ptyService,
+    providerSettingsSchema,
+    providerTestSchema,
+    providerOAuthLoginSchema,
+    providerOAuthProbeSchema,
+    providerOAuthLinksSchema,
+    providerProxyTestSchema,
+    sessionCreateSchema,
+    sessionStartSchema,
+    sessionSuggestTitleSchema,
+    sessionReorderSchema,
+    sessionStatsSchema,
+    fileTreeSchema,
+    fileOpenPathSchema,
+    fileAttachmentSaveSchema,
+    fileAttachmentSaveBufferSchema,
+    skillgenRunSchema,
+    skillgenRunner,
+    providerConnectionService,
+    oauthProbeService,
+    proxyConnectivityService,
+    oauthLoginTracker,
+    cleanRuntimeData,
+    dbPath,
+    ensureDirSafe,
+    buildFileTree,
+    readSessionStats,
+    getStartupCommandForProvider,
+    getStartupEnvForProvider,
+    getResumeCommandForProvider,
+    waitForShellBootstrap,
+    runWithSessionStartLock,
+    normalizeProviderId,
+    isLocalGeneratedSessionId,
+    syncDiscoveredSessionsForProjects,
+    sessionBelongsToProjectRoot,
+    normalizeArchivePayload,
+    parseArchiveId,
+    toSessionView,
+    toArchivedView,
+    maskEnvForLog,
+    normalizeSuggestedTitle,
+    suggestSessionTitleWithModel,
+    stripPresetValuesFromProviderSettings,
+    syncCliConfigAfterSuccessfulProviderTest,
+    startProviderOAuthLogin,
+    logInfo,
+    logWarn,
+    logError
   });
-  registerIpc(IPC.SETTINGS_PROVIDER_TEST, async (_event, payload) => {
-    const parsed = providerTestSchema.parse(payload);
-    try {
-      const result = await providerConnectionService.testProviderConnection(parsed);
-      if (result?.ok) {
-        syncCliConfigAfterSuccessfulProviderTest(parsed, "provider-test");
-      }
-      return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logError("provider-test", "Unhandled provider connection test error", error, {
-        provider: parsed?.provider || ""
-      });
-      return { ok: false, message: `连接测试异常: ${message}` };
-    }
-  });
-  registerIpc(IPC.SETTINGS_PROVIDER_OAUTH_LOGIN, async (_event, payload) => {
-    const parsed = providerOAuthLoginSchema.parse(payload);
-    try {
-      return await startProviderOAuthLogin(parsed);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logError("oauth-login", "Unhandled OAuth login start error", error, {
-        provider: parsed?.provider || "",
-        profileId: parsed?.profileId || ""
-      });
-      return { ok: false, message: `OAuth 登录启动异常: ${message}` };
-    }
-  });
-  registerIpc(IPC.SETTINGS_PROVIDER_OAUTH_PROBE, async (_event, payload) => {
-    const parsed = providerOAuthProbeSchema.parse(payload);
-    try {
-      const result = await oauthProbeService.probeProviderOAuthConnection(parsed);
-      if (result?.ok) {
-        syncCliConfigAfterSuccessfulProviderTest(parsed, "oauth-probe");
-      }
-      return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logError("oauth-probe", "Unhandled OAuth real probe error", error, {
-        provider: parsed?.provider || "",
-        profileId: parsed?.profileId || ""
-      });
-      return { ok: false, message: `OAuth 探测异常: ${message}` };
-    }
-  });
-  registerIpc(IPC.SETTINGS_PROVIDER_OAUTH_LINKS, async (_event, payload) => {
-    const parsed = providerOAuthLinksSchema.parse(payload || {});
-    try {
-      return oauthLoginTracker.getProviderOAuthLinks(parsed);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logError("oauth-login", "Unhandled OAuth link query error", error, {
-        provider: parsed?.provider || "",
-        profileId: parsed?.profileId || "",
-        sessionId: parsed?.sessionId || ""
-      });
-      return { ok: false, allUrls: [], authUrls: [], autoOpenedUrl: "", message };
-    }
-  });
-  registerIpc(IPC.SETTINGS_PROVIDER_PROXY_TEST, async (_event, payload) => {
-    const parsed = providerProxyTestSchema.parse(payload);
-    try {
-      return await proxyConnectivityService.testProviderProxyConnectivity(parsed);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logError("proxy-test", "Unhandled proxy connectivity test error", error, {
-        provider: parsed?.provider || "",
-        profileId: parsed?.profileId || ""
-      });
-      return { ok: false, message: `代理测试异常: ${message}` };
-    }
-  });
-  const runtimeCleanHandler = async () => {
-    try {
-      const result = cleanRuntimeData();
-      logInfo("settings", "Runtime data cleaned", {
-        runtimeDirs: result.runtimeDirs,
-        dbPath: result.dbPath,
-        cleanedDirectories: result.cleanedDirectories.length,
-        cleanedFiles: result.cleanedFiles.length,
-        warnings: result.warnings.length
-      });
-      return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logError("settings", "Runtime data cleanup failed", error);
-      return {
-        ok: false,
-        message: `运行数据清理失败: ${message}`,
-        runtimeDirs: [],
-        dbPath,
-        cleanedDirectories: [],
-        cleanedFiles: [],
-        warnings: []
-      };
-    }
-  };
-  registerIpc(IPC.SETTINGS_RUNTIME_CLEAN || "settings:runtime:clean", runtimeCleanHandler);
-  if (IPC.SETTINGS_RUNTIME_CLEAN !== "settings:runtime:clean") {
-    try {
-      registerIpc("settings:runtime:clean", runtimeCleanHandler);
-    } catch (error) {
-      logWarn("ipc", "Skip duplicate runtime clean IPC registration", {
-        channel: "settings:runtime:clean",
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
 }
 
 function createWindow() {
@@ -3363,6 +2807,7 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 680,
     title: APP_NAME,
+    show: false,
     autoHideMenuBar: true,
     frame: process.platform === "win32" ? false : undefined,
     titleBarStyle: useHiddenTitleBar ? "hidden" : undefined,
@@ -3382,6 +2827,28 @@ function createWindow() {
   if (process.platform !== "darwin") {
     mainWindow.setMenuBarVisibility(false);
   }
+
+  mainWindow.once("ready-to-show", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    if (process.platform === "win32") {
+      mainWindow.setAlwaysOnTop(true, "screen-saver");
+      mainWindow.focus();
+      setTimeout(() => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        mainWindow.setAlwaysOnTop(false);
+        mainWindow.focus();
+      }, 1000);
+    } else {
+      mainWindow.focus();
+    }
+    logInfo("app", "Main window shown", {
+      visible: mainWindow.isVisible(),
+      focused: mainWindow.isFocused(),
+      bounds: mainWindow.getBounds()
+    });
+  });
 
   if (isDev) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -3425,7 +2892,6 @@ app.whenReady().then(() => {
     return false;
   });
 
-  registerAppIpc();
   // Windows/Linux 只保留 Undo/Redo/SelectAll，去掉 Copy/Paste role。
   // Copy/Paste 快捷键由 xterm.js 的 attachCustomKeyEventHandler 处理，
   // 避免 Edit 菜单 role 拦截系统快捷键导致键盘事件不传递到 renderer。
@@ -3453,6 +2919,7 @@ app.whenReady().then(() => {
     if (dockIconPath) app.dock.setIcon(dockIconPath);
   }
   createWindow();
+  registerAppIpc();
   createMacTray();
 
   app.on("activate", () => {

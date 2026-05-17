@@ -1,177 +1,120 @@
 # CLAUDE.md
-始终以中文简体方式回答、编写文档
 
-# Cli-Switch · 迭代与更新规范
+始终以中文简体方式回答、编写文档。
 
----
+# Cli-Switch 架构与协作规则
 
-## 0. 当前项目目录结构
+Cli-Switch 是 Electron + React 桌面应用，当前架构以 **Page Block Capsule** 为主要修改边界：页面负责布局组合，页面内 UI 区块负责自己的 main/preload/renderer/shared/e2e。AI 修改某个区域时，应优先只读取对应 page/block 目录和必要 store。
 
-Cli-Switch 是一个 Electron + React 的桌面应用，核心形态是”左侧项目/会话管理 + 中间 xterm 终端 + 右侧文件树”。主进程负责 Node 能力、PTY、SQLite、文件系统和 Provider 会话扫描；渲染进程只负责 React UI，通过 bridge 调用 preload 暴露的安全 IPC。
-
-项目同时集成三种 AI CLI 工具：**Claude Code**、**OpenAI Codex**、**Gemini CLI**，通过统一的 Provider 层管理启动、恢复和会话扫描。
+## 当前目录职责
 
 ```text
-.
-├── src/
-│   ├── electron/              # Electron 主进程：窗口、IPC handler、PTY
-│   │   ├── ipc/               # IPC handler 注册层
-│   │   ├── services/          # 业务逻辑（PtyService 等）
-│   │   ├── providers/         # Claude/Codex/Gemini CLI 启动与会话扫描
-│   │   └── utils/             # shell、环境变量等工具
-│   ├── bridge/                # 渲染进程 bridge 层，封装 preload 暴露的安全 IPC
-│   ├── renderer/
-│   │   ├── components/        # React UI 组件
-│   │   ├── store/             # Zustand 状态管理（渲染进程）
-│   │   └── lib/               # 渲染进程工具函数（cn 等）
-│   ├── features/              # 按 UI 区域划分的功能模块（terminal 等）
-│   ├── shared/                # 共享类型、IPC 枚举、常量
-│   ├── main/db/               # SQLite 数据库模块
-│   ├── main/providers/        # 持久化 Provider 会话数据
-│   └── store/                 # 主进程持久化 session store
-├── docs/                      # 产品流程（flow-*.md）、架构约束（constraints.md）
-├── scripts/e2e/               # Playwright Electron 端到端测试
-├── .claude/                   # 项目级 Claude 配置与 skills
-├── package.json               # 脚本、依赖、Electron main 入口
-├── vite.config.mjs            # Vite 渲染进程构建配置
-├── playwright.config.js       # E2E 测试配置
-└── pnpm-workspace.yaml        # pnpm workspace 配置
+src/
+├── app/          # 应用启动和 page/block 聚合，不放业务逻辑
+├── kernel/       # 基础设施：IPC 路由、SQLite、日志、配置、测试模式
+├── pages/        # Page Block Capsule 主体
+├── features/     # 仅放跨页面/跨窗口且复杂的独立能力
+├── ui/           # 通用 UI 组件
+├── shared/       # 极少量全局基础类型/常量，不放业务 bridge
+├── assets/       # 静态资源
+└── tests/        # 全局测试基础设施
 ```
 
-当前 flow 文档：`flow-terminal.md`、`flow-multi-cli-session.md`、`flow-workspace-skillgen.md`
+`Feature Capsule` 是历史方案。现阶段新增或迁移业务优先进入 `pages/{page}/{block}`，只有满足提升条件后才进入 `features/`。
 
----
+## Page Block Capsule
+
+典型结构：
+
+```text
+src/pages/home/terminal/
+├── README.md
+├── block.main.js
+├── block.preload.js
+├── block.renderer.tsx
+├── main/
+├── preload/
+├── renderer/
+├── shared/
+└── e2e/
+```
+
+规则：
+
+- `renderer/` 只放渲染组件、hooks、区块私有 bridge。
+- `main/` 只放该区块主进程实现和 IPC handler。
+- `preload/` 只暴露该区块需要的安全 API。
+- `shared/` 只给当前 block 的 main/preload/renderer 共享协议、channel、类型。
+- `e2e/` 跟随对应 page/block。
+- 区块之间禁止 import 对方内部实现。
+- 区块 bridge 是私有 API，只允许当前 block renderer 使用。
+
+## 两级 Store
+
+### `src/pages/pages.store.ts`
+
+职责：跨页面共享状态，例如 Home 和 Settings 都需要的 Provider 配置、模型配置、全局页面级设置、必要的归档共享状态。
+
+禁止放：
+
+- Home 内部的 `activeSessionId`、`activeCwd`。
+- terminal/file-tree/sidebar/top-toolbar 的具体实现。
+- 任意 block 的 bridge。
+- PTY、OAuth、文件树读取等复杂业务 service。
+
+### `src/pages/home/home.store.ts`
+
+职责：Home 页面内部区块共享状态，例如 sidebar、terminal、file-tree、top-toolbar 之间联动的 `activeProjectId`、`activeSessionId`、`activeCwd`、sessions、sessionStatus。
+
+禁止放：
+
+- `node-pty` 进程实现。
+- terminal/file-tree/sidebar/top-toolbar 的内部实现。
+- 任意 block bridge 调用。
+- Settings 页面状态。
+
+## `block/shared` 与 `src/shared`
+
+`pages/{page}/{block}/shared` 是 block 私有共享层，只能被同一 block 的 main/preload/renderer/e2e 使用。其他 block 不允许 import。
+
+`src/shared` 只放真正全局、无业务归属的基础类型和常量，例如 `APP_NAME`、基础 `Result` 类型、平台常量。不得集中放业务 IPC enum、业务 bridge、业务 hook、业务 store、业务 service。
+
+## features 提升条件
+
+能力只有同时具备明确跨边界复用价值时才提升到 `src/features/`：
+
+- 被多个页面或多个窗口使用。
+- 不再依赖具体 UI 区块。
+- AI 修改它时不需要理解页面布局。
+- IPC channel、renderer、e2e 明显超过当前 block 归属。
+
+不满足以上条件时，能力保留在拥有它的 page/block 内。
+
+## 修改约束
+
+- `app/` 只做启动和聚合，不直接 import block 内部实现。
+- `kernel/` 只做基础设施，不写页面业务编排。
+- renderer 不能 import Node.js 模块、main 文件或 preload 实现。
+- main 不能 import renderer。
+- Home 区块之间通过 `pages/home/home.store.ts` 协调，不互相调用内部 API。
+- Home 与 Settings 之间通过 `pages/pages.store.ts` 协调，不互相 import 页面内部实现。
+- 新增 IPC 时，channel 定义优先放在对应 block 的 `shared/` 中。
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | 启动开发环境（Vite + Electron 并行） |
-| `pnpm build` | Vite 生产构建 |
-| `pnpm start` | 直接启动 Electron（生产模式，无 HMR） |
-| `pnpm test` | 运行单元测试（`src/**/*.test.js`，通过 `electron --test`） |
-| `pnpm test:e2e` | 运行 Playwright E2E 测试（需先 `pnpm build`） |
-| `pnpm prepare:cli-runtime` | 预构建 CLI 运行时依赖 |
-| `pnpm dist:mac:arm64` | 打包 macOS ARM64 安装包 |
-| `pnpm dist:mac:x64` | 打包 macOS x64 安装包 |
-| `pnpm dist:win` | 打包 Windows x64 安装包 |
+| `pnpm dev` | 启动开发环境 |
+| `pnpm build` | 生产构建 |
+| `pnpm start` | 启动 Electron |
+| `pnpm test` | 运行单元测试 |
+| `pnpm test:e2e` | 运行 Playwright E2E |
 
-## Environment
+## 验收重点
 
-- **包管理器**: pnpm（workspace，见 `pnpm-workspace.yaml`）
-- **Node.js**: ≥ 18
-- **构建工具**: Vite（渲染进程）+ electron-builder（打包）
-- **桌面框架**: Electron，main 入口 `src/electron/main.js`
-- **终端**: @xterm/xterm v5 + node-pty
-
-## Testing
-
-- **E2E**: `scripts/e2e/` 目录，Playwright + Electron，运行 `pnpm test:e2e`
-- **单元测试**: `src/**/*.test.js`，通过 `electron --test` 运行
-- E2E 测试前需先 `pnpm build`，因为测试依赖构建产物
-
----
-
-## 1. 需求变更流程
-
-```
-产品想法
-  → 更新对应 flow-*.md（先改文档，不得先改代码）
-  → 如涉及新依赖，更新 docs/constraints.md Section 1
-  → 如涉及新 IPC channel，更新 src/shared/types.ts 的 IPC 枚举
-  → 将变更 diff 作为 context 注入 AI，执行对应 Task
-```
-
-**黄金规则：文档是代码的 source of truth。代码与文档不一致时，以文档为准，修代码。**
-
----
-
-## 2. 向 AI 下达任务的上下文要求
-
-下达任务时需提供：`@docs/constraints.md` 全文 + 对应 `docs/flow-*.md` 完整内容 + 本次 Task 描述。如遇歧义，先列问题待确认后再编码。
-
----
-
-## 3. Task 执行顺序约束
-
-- 同一 flow 内的 Task **必须按编号顺序执行**，后序 Task 依赖前序 Task 的类型定义
-- 特别是：Task 1（types）→ Task 2-4（主进程）→ Task 5（preload）→ Task 6（bridge）→ Task 7（store）→ Task 8+（组件）
-- 跨 flow 的依赖在 flow 文件的 `依赖` 字段中声明，被依赖 flow 必须先完成
-
----
-
-## 4. 代码修改规范
-
-### 修改已有文件时，AI 必须：
-
-1. 复述当前文件的关键逻辑和对外接口
-2. 说明本次修改的影响范围
-3. 输出修改后的完整文件（不得用 `// ...` 省略）
-
-### 禁止的修改模式：
-
-- 禁止直接修改 `src/shared/types.ts` 的 IPC 枚举而不同步更新 preload.ts 和 bridge 层
-- 禁止修改 PtyService 的公共方法签名而不同步更新 pty.handler.ts
-- 禁止在渲染进程新增对 Node.js 模块的 import
-
----
-
-## 5. 版本与分支策略
-
-```
-main          ← 稳定版本，只接受来自 feature/* 的 PR
-feature/*     ← 每个 flow 对应一个 feature 分支，如 feature/terminal
-fix/*         ← bug 修复，从 main 切出，合回 main
-```
-
-### Commit 规范（Conventional Commits）
-
-```
-feat(terminal): add QuickLaunch component
-fix(pty): handle resize when terminal is hidden
-refactor(bridge): extract pty.bridge from session.bridge
-docs(flow): update terminal flow task list
-```
-
-格式：`{type}({scope}): {description}`
-
-scope 对应目录：`terminal`、`sidebar`、`explorer`、`pty`、`bridge`、`store`、`ipc`
-
----
-
-## 6. 变更分类与处理方式
-
-| 变更类型 | 影响范围 | 处理方式 |
-|----------|----------|----------|
-| 新增 UI 组件 | 仅渲染进程 | 更新对应 flow，执行对应 Task |
-| 新增 IPC channel | `src/shared/types.ts` + preload + bridge + handler | 严格按 Task 1→5→6→4 顺序执行 |
-| 修改 PTY 行为 | 主进程 services + ipc | 更新 flow-terminal.md Section 5/6 |
-| 新增 QuickLaunch 预设 | 仅 `src/shared/constants.ts` | 单文件修改，无依赖 |
-| 新增项目功能（文件树等）| 需新建 flow-*.md | 走完整流程 |
-| 性能优化 | 视范围 | 在对应 flow 中新增 Task，注明性能目标 |
-| 依赖升级 | `package.json` + docs/constraints.md | 必须评审，不得 AI 自行升级 |
-
-
-## 7. 参考文档
-
-| CLI 工具 | 文档链接 |
-|----------|----------|
-| Gemini CLI | https://geminicli.org.cn/docs/get-started/configuration/ |
-| Codex CLI | https://developers.openai.com/codex/cli/reference |
-| Claude Code | https://code.claude.com/docs/zh-CN/cli-reference |
-
-
----
-
-## 8. 上线验收清单
-
-每个 feature 分支合并前，逐项检查：
-
-- [ ] 对应 flow 文件的 Section 7 验收条件全部通过
-- [ ] 无 `console.log` 残留（使用 electron-log）
-- [ ] 无 `any` 类型（TypeScript strict 模式下无 error）
-- [ ] 渲染进程无 Node.js 模块 import（检查 `require`、`import fs`、`import pty`）
-- [ ] 所有 IPC channel 使用 `IPC.XXX` 枚举，无字符串字面量
-- [ ] 多 session 切换无内存泄漏（xterm 实例不被重复创建）
-- [ ] 应用退出时 PTY 进程全部被 kill（`destroyAll` 被调用）
-- [ ] CSS 无硬编码颜色值（全部使用 CSS 变量）
+- `pnpm build` 通过。
+- 无 renderer import main/preload/Node 模块。
+- 无跨 block import 私有 bridge 或 `block/shared`。
+- `pages/pages.store.ts` 只做跨页面共享状态。
+- `pages/home/home.store.ts` 只做 Home 内区块共享状态。
+- `features/` 只放跨页面/跨窗口复杂能力。

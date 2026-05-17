@@ -1,6 +1,7 @@
 const path = require("node:path");
 const os = require("node:os");
 const fs = require("node:fs");
+const { DB_FILENAME } = require("../shared/app-config.js");
 
 const IS_E2E = process.env.APP_E2E === "1";
 const IS_DEV = !!process.env.VITE_DEV_SERVER_URL;
@@ -18,4 +19,12 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-module.exports = { IS_E2E, IS_DEV, getAppHomeDir, ensureDir };
+function getDataDir() {
+  return getAppHomeDir();
+}
+
+function getDbPath() {
+  return process.env.ZEELIN_DB_PATH || path.join(getDataDir(), DB_FILENAME);
+}
+
+module.exports = { IS_E2E, IS_DEV, getAppHomeDir, getDataDir, getDbPath, ensureDir };

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "../ui/button";
-import { ProviderSettingsSection } from "../features/providers/renderer/ProviderSettingsSection";
-import { ArchiveSettingsSection } from "../features/archive/renderer/ArchiveSettingsSection";
-import { AboutSettingsSection } from "../features/about/renderer/AboutSettingsSection";
+import { ProviderSettingsSection } from "./settings/providers/renderer/ProviderSettingsSection";
+import { ArchiveSettingsSection } from "./settings/archive/renderer/ArchiveSettingsSection";
+import { AboutSettingsSection } from "./settings/about/renderer/AboutSettingsSection";
 
 type SettingsSection = "providers" | "archive" | "about";
 

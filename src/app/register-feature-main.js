@@ -1,15 +1,3 @@
-const { registerTerminalMain } = require("../features/terminal/feature.main");
-const { registerSidebarMain } = require("../features/sidebar/feature.main");
-const { registerFileTreeMain } = require("../features/file-tree/feature.main");
-const { registerProvidersMain } = require("../features/providers/feature.main");
-const { registerArchiveMain } = require("../features/archive/feature.main");
+const { registerPageMain } = require("./register-page-main");
 
-function registerFeatureMain() {
-  registerTerminalMain();
-  registerSidebarMain();
-  registerFileTreeMain();
-  registerProvidersMain();
-  registerArchiveMain();
-}
-
-module.exports = { registerFeatureMain };
+module.exports = { registerFeatureMain: registerPageMain };
