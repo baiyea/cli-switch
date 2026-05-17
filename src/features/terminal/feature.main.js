@@ -1,7 +1,8 @@
-const { registerTerminalIpc } = require("./main/terminal.ipc");
+const { ipcMain } = require("electron");
+const { registerPtyHandlers } = require("./main/terminal.ipc");
 
-function registerTerminalMain() {
-  registerTerminalIpc();
+function registerTerminalMain(ptyService) {
+  registerPtyHandlers(ipcMain, ptyService);
 }
 
 module.exports = { registerTerminalMain };

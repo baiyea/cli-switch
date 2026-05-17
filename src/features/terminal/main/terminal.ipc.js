@@ -1,62 +1,61 @@
-const { ipcMain } = require("electron");
-const { TERMINAL_CHANNELS } = require("../shared/terminal.channels");
-const { PtyService } = require("./pty.service");
+const { IPC } = require("../../../shared/types.js");
 
-let ptyService = null;
-
-function getPtyService() {
-  if (!ptyService) {
-    const log = require("electron-log");
-    ptyService = new PtyService({
-      onData({ sessionId, data }) {
-        const win = require("electron").BrowserWindow.getAllWindows()[0];
-        if (win) {
-          win.webContents.send(TERMINAL_CHANNELS.DATA, { sessionId, data });
-        }
-      },
-      onExit({ sessionId, exitCode }) {
-        const win = require("electron").BrowserWindow.getAllWindows()[0];
-        if (win) {
-          win.webContents.send(TERMINAL_CHANNELS.EXIT, { sessionId, exitCode });
-        }
-      },
-      logWarn(msg) { log.warn(msg); }
-    });
+function maskPtyInputForLog(data) {
+  const normalized = String(data || "")
+    .replace(/\r/g, "")
+    .replace(/\n/g, "")
+    .trim();
+  if (!normalized) return { length: 0, masked: "" };
+  if (normalized.length <= 12) {
+    return {
+      length: normalized.length,
+      masked: `${normalized.slice(0, 2)}***${normalized.slice(-2)}`
+    };
   }
-  return ptyService;
+  return {
+    length: normalized.length,
+    masked: `${normalized.slice(0, 8)}***${normalized.slice(-6)}`
+  };
 }
 
-function registerTerminalIpc() {
-  ipcMain.handle(TERMINAL_CHANNELS.START, (_event, { cwd, name }) => {
-    const svc = getPtyService();
-    return svc.create({ cwd, name });
+function shouldLogPtyInput(meta) {
+  const provider = String(meta?.provider || "").toLowerCase();
+  const name = String(meta?.name || "");
+  return provider === "gemini" && /oauth login/i.test(name);
+}
+
+function registerPtyHandlers(ipcMain, ptyService, logger = {}) {
+  const logInfo = typeof logger.logInfo === "function" ? logger.logInfo : () => {};
+
+  ipcMain.handle(IPC.PTY_CREATE, async (_event, payload) => {
+    return ptyService.create(payload);
   });
 
-  ipcMain.handle(TERMINAL_CHANNELS.SNAPSHOT, (_event, { sessionId }) => {
-    const svc = getPtyService();
-    return svc.snapshot(sessionId);
+  ipcMain.handle(IPC.PTY_SNAPSHOT, async (_event, payload) => {
+    return ptyService.getSnapshot(payload.sessionId);
   });
 
-  ipcMain.on(TERMINAL_CHANNELS.WRITE, (_event, { sessionId, data }) => {
-    const svc = getPtyService();
-    svc.write(sessionId, data);
+  ipcMain.on(IPC.PTY_INPUT, (_event, payload) => {
+    const meta = ptyService.getSessionMeta?.(payload.sessionId);
+    const wrote = ptyService.write(payload.sessionId, payload.data);
+    if (shouldLogPtyInput(meta)) {
+      logInfo("oauth-login", "Submitted OAuth code to PTY", {
+        provider: meta.provider,
+        sessionId: payload.sessionId,
+        sessionName: meta.name,
+        wrote,
+        input: maskPtyInputForLog(payload.data)
+      });
+    }
   });
 
-  ipcMain.on(TERMINAL_CHANNELS.RESIZE, (_event, { sessionId, cols, rows }) => {
-    const svc = getPtyService();
-    svc.resize(sessionId, cols, rows);
+  ipcMain.on(IPC.PTY_RESIZE, (_event, payload) => {
+    ptyService.resize(payload.sessionId, payload.cols, payload.rows);
   });
 
-  ipcMain.on(TERMINAL_CHANNELS.KILL, (_event, { sessionId }) => {
-    const svc = getPtyService();
-    svc.destroy(sessionId);
+  ipcMain.on(IPC.PTY_DESTROY, (_event, payload) => {
+    ptyService.destroy(payload.sessionId);
   });
 }
 
-function destroyAllTerminals() {
-  if (ptyService) {
-    ptyService.destroyAll();
-  }
-}
-
-module.exports = { registerTerminalIpc, destroyAllTerminals };
+module.exports = { registerPtyHandlers };

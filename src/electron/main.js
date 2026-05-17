@@ -8,8 +8,8 @@ const { z } = require("zod");
 const { IPC } = require("../shared/types.js");
 const { APP_NAME, APP_ID, DB_FILENAME } = require("../shared/app-config.js");
 const providerEnvPresets = require("../renderer/assets/provider-env-presets.json");
-const { registerAllIpc } = require("./ipc");
-const { PtyService } = require("./services/PtyService");
+const { registerTerminalMain } = require("../features/terminal/feature.main");
+const { PtyService } = require("../features/terminal/main/pty.service");
 const {
   applyProviderStartupEnv,
   getLaunchCommandForProvider,
@@ -18,15 +18,15 @@ const {
   getResumeCommandForProvider,
   isLocalGeneratedSessionId,
   normalizeProviderId
-} = require("./providers/cli-launchers");
-const { listProviderSessions, mapSessionsToProjects } = require("./providers/session-sources");
-const { createOAuthLoginTracker } = require("./services/oauth-login-tracker");
-const { createProviderSettingsRuntime } = require("./services/provider-settings-runtime");
-const { createProviderConnectionService } = require("./services/provider-connection-service");
-const { createOAuthProbeService } = require("./services/oauth-probe-service");
-const { createProxyConnectivityService } = require("./services/proxy-connectivity-service");
-const { createCliConfigSyncService } = require("./services/cli-config-sync-service");
-const { createSkillgenRunner } = require("./services/skillgen/runner");
+} = require("../features/providers/main/cli-launchers");
+const { listProviderSessions, mapSessionsToProjects } = require("../features/providers/main/session-sources");
+const { createOAuthLoginTracker } = require("../features/providers/main/oauth-login-tracker");
+const { createProviderSettingsRuntime } = require("../features/providers/main/provider-settings-runtime");
+const { createProviderConnectionService } = require("../features/providers/main/provider-connection-service");
+const { createOAuthProbeService } = require("../features/providers/main/oauth-probe-service");
+const { createProxyConnectivityService } = require("../features/providers/main/proxy-connectivity-service");
+const { createCliConfigSyncService } = require("../features/providers/main/cli-config-sync-service");
+const { createSkillgenRunner } = require("../features/providers/main/skillgen/runner");
 const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../kernel/db/connection");
 
 // LSUIElement=1 in Info.plist hides all instances from the dock.
@@ -2710,7 +2710,7 @@ function registerAppIpc() {
     logByLevel(level, scope, message, meta);
   });
 
-  registerAllIpc(ipcMain, { ptyService, logger: { logInfo } });
+  registerTerminalMain(ptyService);
 
   registerIpc(IPC.PROJECT_LIST, async () => {
     const projects = projectStore.list();

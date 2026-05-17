@@ -1,76 +1,31 @@
-import React, { useEffect, useRef } from "react";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import "@xterm/xterm/css/xterm.css";
+import React, { memo, useCallback, useEffect, useRef } from "react";
+import styles from "./TerminalPane.module.css";
 
-interface TerminalPaneProps {
+type Props = {
   sessionId: string;
-}
+  active: boolean;
+  registerPane: (sessionId: string, el: HTMLDivElement | null) => void;
+};
 
-export function TerminalPane({ sessionId }: TerminalPaneProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const termRef = useRef<Terminal | null>(null);
-  const fitRef = useRef<FitAddon | null>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const term = new Terminal({
-      cursorBlink: true,
-      fontSize: 14,
-      fontFamily: 'Consolas, "Courier New", monospace',
-      theme: {
-        background: "#1e1e1e",
-        foreground: "#d4d4d4",
-      },
-    });
-
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.open(containerRef.current);
-    fit.fit();
-
-    termRef.current = term;
-    fitRef.current = fit;
-
-    const unsubscribe = window.api.terminal.onData(
-      ({ sessionId: sid, data }: { sessionId: string; data: string }) => {
-        if (sid === sessionId) {
-          term.write(data);
-        }
-      }
-    );
-
-    term.onData((data) => {
-      window.api.terminal.write({ sessionId, data });
-    });
-
-    return () => {
-      unsubscribe();
-      term.dispose();
-      termRef.current = null;
-    };
-  }, [sessionId]);
+function TerminalPaneComponent({ sessionId, active, registerPane }: Props) {
+  const registerPaneRef = useRef(registerPane);
 
   useEffect(() => {
-    const onResize = () => {
-      if (fitRef.current) {
-        fitRef.current.fit();
-        if (termRef.current) {
-          const { cols, rows } = termRef.current;
-          window.api.terminal.resize({ sessionId, cols, rows });
-        }
-      }
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [sessionId]);
+    registerPaneRef.current = registerPane;
+  }, [registerPane]);
+
+  const setRef = useCallback(
+    (el: HTMLDivElement | null) => registerPaneRef.current(sessionId, el),
+    [sessionId]
+  );
 
   return (
     <div
-      ref={containerRef}
-      style={{ width: "100%", height: "100%" }}
-      data-testid="terminal-pane"
+      className={`${styles.terminalPane} ${active ? styles.active : styles.inactive}`}
+      ref={setRef}
+      data-session-id={sessionId}
     />
   );
 }
+
+export const TerminalPane = memo(TerminalPaneComponent);
