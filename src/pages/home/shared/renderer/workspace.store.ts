@@ -1,1 +1,1 @@
-export { useHomeWorkspaceStore as useWorkspaceStore } from "../../home.store";
+export { useHomeStore, useHomeWorkspaceStore as useWorkspaceStore } from "../../home.store.ts";

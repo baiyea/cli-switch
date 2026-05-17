@@ -23,17 +23,6 @@ const PROVIDER_LABEL = {
   gemini: "Gemini CLI"
 };
 
-const RUNTIME_STATUS_LABEL = {
-  starting: "启动中",
-  streaming: "输出中",
-  awaiting_input: "等待输入",
-  awaiting_confirmation: "等待确认",
-  error: "异常",
-  exited: "已退出",
-  creating: "启动中",
-  running: "运行中"
-};
-
 const TRAFFIC_LIGHT_Y = 20;
 const TRAFFIC_LIGHT_X_IN_SIDEBAR = 14;
 const APP_VERSION = String(packageJson?.version || "0.1.0");
@@ -173,8 +162,6 @@ function App() {
 
   return (
     <HomePage
-      isMacOS={isMacOS}
-      isWindows={isWindows}
       sidebarCollapsed={sidebarCollapsed}
       setSidebarCollapsed={setSidebarCollapsed}
       explorerVisible={explorerVisible}
@@ -186,12 +173,9 @@ function App() {
       providerCheckPassed={providerCheckPassed}
       appError={appError}
       activeProject={activeProject}
-      activeSession={activeSession}
-      activeSessionId={activeSessionId}
       activeSessionProviderMeta={activeSessionProviderMeta}
       projects={projects}
       providerLabel={PROVIDER_LABEL}
-      runtimeStatusLabel={RUNTIME_STATUS_LABEL}
       enabledProviderIds={enabledProviderIds}
       enabledSessionToolOptions={enabledSessionToolOptions}
       primarySessionTool={primarySessionTool}

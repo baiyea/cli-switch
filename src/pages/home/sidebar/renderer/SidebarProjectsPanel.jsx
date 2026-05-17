@@ -2,14 +2,30 @@ import React from "react";
 import { ArchiveIcon, ChevronDownIcon, ChevronRightIcon, ProviderIcon } from "../../../../ui/icon-registry";
 import { Button } from "../../../../ui/button";
 import { normalizeProviderId } from "../../../../pages/settings/providers/renderer/provider-config";
+import { useSessionStore } from "../../home.store";
+
+const PROVIDER_LABEL = {
+  claude: "Claude Code",
+  codex: "Codex CLI",
+  gemini: "Gemini CLI"
+};
+
+const RUNTIME_STATUS_LABEL = {
+  starting: "启动中",
+  streaming: "输出中",
+  awaiting_input: "等待输入",
+  awaiting_confirmation: "等待确认",
+  error: "异常",
+  exited: "已退出",
+  creating: "启动中",
+  running: "运行中"
+};
 
 export function SidebarProjectsPanel({
   projects,
-  sessions,
   expandedProjects,
   activeProjectId,
   enabledProviderIds,
-  activeSessionId,
   showAllSessionsByProject,
   openCreateMenuProjectId,
   createMenuPlacementByProject,
@@ -17,8 +33,6 @@ export function SidebarProjectsPanel({
   enabledSessionToolOptions,
   draggingSessionId,
   dragOverSessionId,
-  providerLabel,
-  runtimeStatusLabel,
   onAddProject,
   setActiveProjectId,
   setExpandedProjects,
@@ -35,6 +49,8 @@ export function SidebarProjectsPanel({
   destroySession,
   setShowAllSessionsByProject
 }) {
+  const sessions = useSessionStore((state) => state.sessions);
+  const activeSessionId = useSessionStore((state) => state.activeSessionId);
   return (
     <div className="sidebar-sessions">
       <div className="sidebar-nav-label">
@@ -234,8 +250,8 @@ export function SidebarProjectsPanel({
                             size={14}
                             title={
                               hasVisualStatus
-                                ? `${providerLabel[session.provider] || session.provider || "Claude Code"} · ${runtimeStatusLabel[sessionStatus] || sessionStatus}`
-                                : (providerLabel[session.provider] || session.provider || "Claude Code")
+                                ? `${PROVIDER_LABEL[session.provider] || session.provider || "Claude Code"} · ${RUNTIME_STATUS_LABEL[sessionStatus] || sessionStatus}`
+                                : (PROVIDER_LABEL[session.provider] || session.provider || "Claude Code")
                             }
                           />
                           <span

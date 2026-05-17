@@ -1,3 +1,6 @@
+// @deprecated IPC channel 定义已下放到各 block 的 shared/xxx.channels.js
+// 新代码应从对应 block 的 channels 文件导入
+// 此文件保留用于向后兼容，将在后续版本移除
 const IPC = Object.freeze({
   PTY_CREATE: "pty:create",
   PTY_INPUT: "pty:input",

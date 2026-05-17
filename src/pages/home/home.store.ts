@@ -2,6 +2,10 @@ import { create } from "zustand";
 import { ptyBridge } from "./terminal/renderer/terminal.bridge";
 import { sessionBridge, type PersistedSessionItem } from "./terminal/renderer/terminal.bridge";
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 export type SessionStatus = "creating" | "running" | "exited";
 export type SessionRuntimeStatus =
   | "starting"
@@ -29,10 +33,21 @@ export interface TerminalSession {
 
 type ProviderId = "claude" | "codex" | "gemini" | "shell";
 
-interface SessionStoreState {
+// ---------------------------------------------------------------------------
+// Combined store interface
+// ---------------------------------------------------------------------------
+
+interface HomeStoreState {
+  // --- session state ---
   sessions: TerminalSession[];
   activeSessionId: string | null;
   nextIndexByPrefix: Record<string, number>;
+
+  // --- workspace state ---
+  activeProjectId: string | null;
+  activeCwd: string | null;
+
+  // --- session actions ---
   hydrateSessions: (items: PersistedSessionItem[]) => void;
   loadSessionsByProjects: (projectIds: string[]) => Promise<void>;
   createSession: (projectId: string, cwd: string, toolId?: ProviderId | string) => Promise<string>;
@@ -48,17 +63,17 @@ interface SessionStoreState {
   ingestOutput: (sessionId: string, chunk: string) => void;
   refreshRuntimeStatuses: () => void;
   markExited: (sessionId: string, exitCode: number) => void;
-}
 
-interface HomeWorkspaceState {
-  activeProjectId: string | null;
-  activeSessionId: string | null;
-  activeCwd: string | null;
+  // --- workspace actions ---
   selectProject: (projectId: string, cwd?: string) => void;
   selectSession: (sessionId: string, projectId?: string, cwd?: string) => void;
   setActiveCwd: (cwd: string | null) => void;
   clearSelection: () => void;
 }
+
+// ---------------------------------------------------------------------------
+// Constants & helpers
+// ---------------------------------------------------------------------------
 
 const AWAITING_CONFIRMATION_PATTERN =
   /(accept edits|shift\+tab|press enter|press\s+y|approve|approval|run\s+\/login|continue\?|waiting for .*initialize|choose from existing sessions|等待确认|确认|是否继续|按回车|输入 y)/i;
@@ -68,40 +83,6 @@ const IDLE_AFTER_MS = 1600;
 const OUTPUT_STATUS_THROTTLE_MS = 120;
 const startInFlightSessionIds = new Set<string>();
 const startedSessionIds = new Set<string>();
-
-export const useHomeWorkspaceStore = create<HomeWorkspaceState>((set) => ({
-  activeProjectId: null,
-  activeSessionId: null,
-  activeCwd: null,
-
-  selectProject(projectId, cwd) {
-    set({
-      activeProjectId: projectId,
-      activeSessionId: null,
-      activeCwd: cwd ?? null
-    });
-  },
-
-  selectSession(sessionId, projectId, cwd) {
-    set((state) => ({
-      activeSessionId: sessionId,
-      activeProjectId: projectId ?? state.activeProjectId,
-      activeCwd: cwd ?? state.activeCwd
-    }));
-  },
-
-  setActiveCwd(cwd) {
-    set({ activeCwd: cwd });
-  },
-
-  clearSelection() {
-    set({
-      activeProjectId: null,
-      activeSessionId: null,
-      activeCwd: null
-    });
-  }
-}));
 
 function getPrefix(toolId?: string): string {
   if (!toolId || toolId === "shell") return "shell";
@@ -163,10 +144,19 @@ function deriveCounters(items: TerminalSession[]): Record<string, number> {
   return next;
 }
 
-export const useSessionStore = create<SessionStoreState>((set, get) => ({
+// ---------------------------------------------------------------------------
+// Single combined store
+// ---------------------------------------------------------------------------
+
+export const useHomeStore = create<HomeStoreState>((set, get) => ({
+  // -- state --
   sessions: [],
   activeSessionId: null,
   nextIndexByPrefix: {},
+  activeProjectId: null,
+  activeCwd: null,
+
+  // -- session actions --
 
   hydrateSessions(items) {
     const sessions = dedupeSessions(items.map(toTerminalSession));
@@ -453,5 +443,42 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
           : s
       )
     }));
+  },
+
+  // -- workspace actions --
+
+  selectProject(projectId, cwd) {
+    set({
+      activeProjectId: projectId,
+      activeSessionId: null,
+      activeCwd: cwd ?? null
+    });
+  },
+
+  selectSession(sessionId, projectId, cwd) {
+    set((state) => ({
+      activeSessionId: sessionId,
+      activeProjectId: projectId ?? state.activeProjectId,
+      activeCwd: cwd ?? state.activeCwd
+    }));
+  },
+
+  setActiveCwd(cwd) {
+    set({ activeCwd: cwd });
+  },
+
+  clearSelection() {
+    set({
+      activeProjectId: null,
+      activeSessionId: null,
+      activeCwd: null
+    });
   }
 }));
+
+// ---------------------------------------------------------------------------
+// Backward-compatible store aliases
+// ---------------------------------------------------------------------------
+
+export const useHomeWorkspaceStore = useHomeStore;
+export const useSessionStore = useHomeStore;

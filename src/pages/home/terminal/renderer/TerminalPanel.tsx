@@ -1,21 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { usePty } from "./usePty";
-import { useSessionStore } from "../../home.store";
+import { useSessionStore, useHomeWorkspaceStore } from "../../home.store";
 import { terminalSessionBridge, type SessionStats } from "./terminal.bridge";
 import { TerminalPane } from "./TerminalPane";
 import styles from "./TerminalPanel.module.css";
 
-type Props = {
-  projectId?: string;
-  cwd?: string;
-};
-
-export function TerminalPanel({ projectId, cwd }: Props) {
+export function TerminalPanel() {
   const sessions = useSessionStore((state) => state.sessions);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
+  const activeProjectId = useHomeWorkspaceStore((state) => state.activeProjectId);
+  const activeCwd = useHomeWorkspaceStore((state) => state.activeCwd);
   const { setPaneRef } = usePty();
-  void projectId;
-  void cwd;
+  void activeProjectId;
+  void activeCwd;
   const activeSession = sessions.find((session) => session.sessionId === activeSessionId) || null;
   const sessionIds = useMemo(() => new Set(sessions.map((session) => session.sessionId)), [sessions]);
   const [mountedSessionIds, setMountedSessionIds] = useState<string[]>([]);

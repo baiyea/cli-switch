@@ -170,10 +170,8 @@ export function useAppWorkspace({
     onAddProject,
     sidebarProjectsPanelProps: {
       projects,
-      sessions,
       expandedProjects,
       activeProjectId,
-      activeSessionId,
       showAllSessionsByProject,
       openCreateMenuProjectId,
       createMenuPlacementByProject,

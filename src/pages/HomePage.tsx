@@ -8,10 +8,9 @@ import { WelcomeView } from "./WelcomeView";
 import { SettingsModal } from "./settings/providers/renderer/SettingsModal";
 import { RenameSessionDialog } from "./home/terminal/renderer/RenameSessionDialog";
 import { SkillgenResultDialog } from "./home/top-toolbar/renderer/SkillgenResultDialog";
+import { useSessionStore } from "./home/home.store";
 
 export interface HomePageProps {
-  isMacOS: boolean;
-  isWindows: boolean;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (updater: boolean | ((prev: boolean) => boolean)) => void;
   explorerVisible: boolean;
@@ -23,12 +22,9 @@ export interface HomePageProps {
   providerCheckPassed: boolean;
   appError: string;
   activeProject: any;
-  activeSession: any;
-  activeSessionId: string | null;
   activeSessionProviderMeta: string;
   projects: any[];
   providerLabel: Record<string, string>;
-  runtimeStatusLabel: Record<string, string>;
   enabledProviderIds: string[];
   enabledSessionToolOptions: Array<{ id: string; label: string }>;
   primarySessionTool: { id: string; label: string } | null;
@@ -56,8 +52,6 @@ export interface HomePageProps {
 }
 
 export function HomePage({
-  isMacOS,
-  isWindows,
   sidebarCollapsed,
   setSidebarCollapsed,
   explorerVisible,
@@ -69,12 +63,9 @@ export function HomePage({
   providerCheckPassed,
   appError,
   activeProject,
-  activeSession,
-  activeSessionId,
   activeSessionProviderMeta,
   projects,
   providerLabel,
-  runtimeStatusLabel,
   enabledProviderIds,
   enabledSessionToolOptions,
   primarySessionTool,
@@ -100,6 +91,11 @@ export function HomePage({
   onWindowClose,
   onLearnMore
 }: HomePageProps) {
+  const isMacOS = typeof navigator !== "undefined"
+    && /mac/i.test(String(navigator.platform || navigator.userAgent || ""));
+  const isWindows = typeof navigator !== "undefined"
+    && /win/i.test(String(navigator.platform || navigator.userAgent || ""));
+  const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const hasProjects = projects.length > 0;
 
   return (
@@ -129,8 +125,6 @@ export function HomePage({
           enabledProviderIds={enabledProviderIds}
           primarySessionTool={primarySessionTool}
           enabledSessionToolOptions={enabledSessionToolOptions}
-          providerLabel={providerLabel}
-          runtimeStatusLabel={runtimeStatusLabel}
           setSettingsOpen={setSettingsOpen}
           createSessionForProject={createSessionForProject}
           openRenameModal={openRenameModal}
@@ -156,22 +150,20 @@ export function HomePage({
       <main className="main">
         <TopToolbar
           sidebarCollapsed={sidebarCollapsed}
-          activeSession={activeSession}
           activeSessionProviderMeta={activeSessionProviderMeta}
-          runtimeStatusLabel={runtimeStatusLabel}
           onExpandSidebar={() => setSidebarCollapsed(false)}
           onRenameActiveSession={() => {
-            if (!activeSession?.sessionId) return;
-            openRenameModal(activeSession.sessionId);
+            if (!activeSessionId) return;
+            openRenameModal(activeSessionId);
           }}
           skillgenRunning={skillgenRunning}
           onRunSkillgen={() => void onRunSkillgen()}
           canRunSkillgen={Boolean(activeProject?.id)}
-          onArchiveActiveSession={() => activeSessionId && destroySession(activeSessionId)}
-          canArchiveActiveSession={Boolean(activeSessionId)}
+          onArchiveActiveSession={() => {
+            if (activeSessionId) destroySession(activeSessionId);
+          }}
           explorerVisible={explorerVisible}
           onToggleExplorer={() => setExplorerVisible((prev) => !prev)}
-          isWindows={isWindows}
           onWindowMinimize={onWindowMinimize}
           onWindowToggleMaximize={onWindowToggleMaximize}
           onWindowClose={onWindowClose}
@@ -188,7 +180,7 @@ export function HomePage({
                 onLearnMore={onLearnMore}
               />
             ) : activeProject ? (
-              <TerminalPanel projectId={activeProject.id} cwd={activeProject.path} />
+              <TerminalPanel />
             ) : (
               <div className="settings-wrap" style={{ display: "block" }}>
                 Select a project from the sidebar to begin your architectural session.

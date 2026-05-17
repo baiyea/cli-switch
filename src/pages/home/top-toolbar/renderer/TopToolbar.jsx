@@ -2,26 +2,43 @@ import React from "react";
 import { Minus, Square, X } from "lucide-react";
 import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SmartAiIcon } from "../../../../ui/icon-registry";
 import { Button } from "../../../../ui/button";
+import { useSessionStore } from "../../home.store";
+
+const RUNTIME_STATUS_LABEL = {
+  starting: "启动中",
+  streaming: "输出中",
+  awaiting_input: "等待输入",
+  awaiting_confirmation: "等待确认",
+  error: "异常",
+  exited: "已退出",
+  creating: "启动中",
+  running: "运行中"
+};
 
 export function TopToolbar({
   sidebarCollapsed,
-  activeSession,
   activeSessionProviderMeta,
-  runtimeStatusLabel,
   onExpandSidebar,
   onRenameActiveSession,
   skillgenRunning,
   onRunSkillgen,
   canRunSkillgen,
   onArchiveActiveSession,
-  canArchiveActiveSession,
   explorerVisible,
   onToggleExplorer,
-  isWindows,
   onWindowMinimize,
   onWindowToggleMaximize,
   onWindowClose
 }) {
+  const isWindows = typeof navigator !== "undefined"
+    && /win/i.test(String(navigator.platform || navigator.userAgent || ""));
+  const sessions = useSessionStore((state) => state.sessions);
+  const activeSessionId = useSessionStore((state) => state.activeSessionId);
+  const activeSession = React.useMemo(
+    () => sessions.find((s) => s.sessionId === activeSessionId) || null,
+    [sessions, activeSessionId]
+  );
+  const canArchiveActiveSession = Boolean(activeSessionId);
   const sessionStatus = activeSession?.runtimeStatus || activeSession?.status || "";
   const sessionProvider = activeSession?.provider || "claude";
 
@@ -63,7 +80,7 @@ export function TopToolbar({
           )}
         </div>
         <div className="toolbar-drag-spacer" />
-        {activeSession && <span className="toolbar-session-status" title={runtimeStatusLabel[sessionStatus] || sessionStatus}>{runtimeStatusLabel[sessionStatus] || sessionStatus}</span>}
+        {activeSession && <span className="toolbar-session-status" title={RUNTIME_STATUS_LABEL[sessionStatus] || sessionStatus}>{RUNTIME_STATUS_LABEL[sessionStatus] || sessionStatus}</span>}
       </div>
 
       <div className="toolbar-actions">
