@@ -27,7 +27,7 @@ const { createOAuthProbeService } = require("./services/oauth-probe-service");
 const { createProxyConnectivityService } = require("./services/proxy-connectivity-service");
 const { createCliConfigSyncService } = require("./services/cli-config-sync-service");
 const { createSkillgenRunner } = require("./services/skillgen/runner");
-const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../main/db/database");
+const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../kernel/db/connection");
 
 // LSUIElement=1 in Info.plist hides all instances from the dock.
 // The main process explicitly requests activation to show its dock icon,
