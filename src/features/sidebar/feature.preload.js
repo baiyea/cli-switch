@@ -1,11 +1,7 @@
-// Phase 3: Will expose sidebar preload API
-// Currently handled by src/electron/preload.js
+const { createSidebarApi } = require("./preload/sidebar.api");
+
 function createSidebarPreloadApi() {
-  return {
-    sidebar: {
-      // Will be populated when existing preload is migrated
-    },
-  };
+  return createSidebarApi();
 }
 
 module.exports = { createSidebarPreloadApi };

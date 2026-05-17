@@ -1,3 +1,7 @@
+import { AboutSettingsSection } from "./renderer/AboutSettingsSection";
+
 export const aboutRenderer = {
-  panels: {},
+  panels: {
+    settings: AboutSettingsSection,
+  },
 };

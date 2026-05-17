@@ -1,7 +1,7 @@
+const { createProvidersApi } = require("./preload/providers.api");
+
 function createProvidersPreloadApi() {
-  return {
-    providers: {},
-  };
+  return createProvidersApi();
 }
 
 module.exports = { createProvidersPreloadApi };

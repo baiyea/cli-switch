@@ -1,7 +1,7 @@
+const { createFileTreeApi } = require("./preload/file-tree.api");
+
 function createFileTreePreloadApi() {
-  return {
-    fileTree: {},
-  };
+  return createFileTreeApi();
 }
 
 module.exports = { createFileTreePreloadApi };
