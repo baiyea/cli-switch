@@ -1,19 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { fileBridge, logBridge, projectBridge, ptyBridge, sessionBridge, settingsBridge, skillgenBridge, windowBridge } from "../bridge";
-import { TerminalPanel } from "../features/terminal/components/TerminalPanel";
+import { TerminalPanel } from "../features/terminal/renderer/TerminalPanel";
 import {
   ExplorerToggleIcon,
   SettingsIcon
-} from "./icons/icon-registry";
-import { SettingsModal } from "./components/settings/SettingsModal";
-import { Button } from "./components/ui/button";
-import { TopToolbar } from "./components/TopToolbar";
-import { ExplorerPane } from "./components/ExplorerPane";
-import { WelcomeView } from "./components/WelcomeView";
-import { SidebarProjectsPanel } from "./components/SidebarProjectsPanel";
-import { RenameSessionDialog } from "./components/modals/RenameSessionDialog";
-import { SkillgenResultDialog } from "./components/modals/SkillgenResultDialog";
-import { useSessionStore } from "../store/session.store";
+} from "../ui/icon-registry";
+import { SettingsModal } from "../features/providers/renderer/SettingsModal";
+import { Button } from "../ui/button";
+import { TopToolbar } from "../features/terminal/renderer/TopToolbar";
+import { ExplorerPane } from "../features/file-tree/renderer/ExplorerPane";
+import { WelcomeView } from "../pages/WelcomeView";
+import { SidebarProjectsPanel } from "../features/sidebar/renderer/SidebarProjectsPanel";
+import { RenameSessionDialog } from "../features/terminal/renderer/RenameSessionDialog";
+import { SkillgenResultDialog } from "../features/terminal/renderer/SkillgenResultDialog";
+import { useSessionStore } from "../features/workspace/renderer/session.store";
 import packageJson from "../../package.json";
 import appLogo from "./assets/brand/app-logo.png";
 import {
@@ -35,7 +35,7 @@ import {
   parseBooleanText,
   oauthProviderHint,
   resolveOAuthDisplayUrl
-} from "./utils/provider-config";
+} from "../features/providers/renderer/provider-config";
 
 const DEFAULT_PROVIDER_SETTINGS = {
   defaultProfileId: "",
