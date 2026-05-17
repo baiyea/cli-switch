@@ -7,7 +7,7 @@ const log = require("electron-log");
 const { z } = require("zod");
 const { IPC } = require("../shared/types.js");
 const { APP_NAME, APP_ID, DB_FILENAME } = require("../shared/app-config.js");
-const providerEnvPresets = require("../renderer/assets/provider-env-presets.json");
+const providerEnvPresets = require("../assets/provider-env-presets.json");
 const { registerTerminalMain } = require("../features/terminal/feature.main");
 const { PtyService } = require("../features/terminal/main/pty.service");
 const {
