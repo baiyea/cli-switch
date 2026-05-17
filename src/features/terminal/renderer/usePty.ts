@@ -2,9 +2,9 @@ import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { ptyBridge } from "../../../bridge/pty.bridge";
-import { logBridge } from "../../../bridge/log.bridge";
-import { fileBridge } from "../../../bridge/file.bridge";
+import { ptyBridge } from "../../../shared/bridge/pty.bridge";
+import { logBridge } from "../../../shared/bridge/log.bridge";
+import { fileBridge } from "../../../shared/bridge/file.bridge";
 import { useSessionStore } from "../../workspace/renderer/session.store";
 
 type TermEntry = {

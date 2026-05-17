@@ -41,7 +41,7 @@
     "target": [
       "dmg"
     ],
-    "icon": "src/electron/assets/icons/mac/app.icns",
+    "icon": "src/assets/app-icons/mac/app.icns",
     "category": "public.app-category.developer-tools",
     "hardenedRuntime": true,
     "gatekeeperAssess": false,
@@ -60,7 +60,7 @@
     "target": [
       "nsis"
     ],
-    "icon": "src/electron/assets/icons/win/app.ico",
+    "icon": "src/assets/app-icons/win/app.ico",
     "requestedExecutionLevel": "asInvoker"
   },
   "nsis": {

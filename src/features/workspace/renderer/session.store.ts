@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { ptyBridge } from "../../../bridge/pty.bridge";
-import { sessionBridge, type PersistedSessionItem } from "../../../bridge/session.bridge";
+import { ptyBridge } from "../../../shared/bridge/pty.bridge";
+import { sessionBridge, type PersistedSessionItem } from "../../../shared/bridge/session.bridge";
 
 export type SessionStatus = "creating" | "running" | "exited";
 export type SessionRuntimeStatus =

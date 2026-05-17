@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "../styles.css";
 import "@xterm/xterm/css/xterm.css";
-import { logBridge } from "../bridge";
+import { logBridge } from "../shared/bridge";
 
 window.addEventListener("error", (event) => {
   logBridge.write({

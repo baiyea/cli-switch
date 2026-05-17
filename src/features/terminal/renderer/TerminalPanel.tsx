@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { usePty } from "./usePty";
 import { useSessionStore } from "../../workspace/renderer/session.store";
-import { sessionBridge, type SessionStats } from "../../../bridge/session.bridge";
+import { sessionBridge, type SessionStats } from "../../../shared/bridge/session.bridge";
 import { TerminalPane } from "./TerminalPane";
 import styles from "./TerminalPanel.module.css";
 

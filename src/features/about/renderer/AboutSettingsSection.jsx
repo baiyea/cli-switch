@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { settingsBridge } from "../../../bridge";
+import { settingsBridge } from "../../../shared/bridge";
 import { Button } from "../../../ui/button";
 import {
   AlertDialog,
