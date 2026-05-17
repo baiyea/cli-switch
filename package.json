@@ -3,7 +3,7 @@
   "version": "0.1.2",
   "private": true,
   "description": "Electron + React terminal-style AI workspace",
-  "main": "src/electron/main.js",
+  "main": "src/app/main.js",
   "packageManager": "pnpm@10.29.2",
   "engines": {
     "node": ">=22.12.0 <23",
