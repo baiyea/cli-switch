@@ -15,7 +15,7 @@ import { RenameSessionDialog } from "../features/terminal/renderer/RenameSession
 import { SkillgenResultDialog } from "../features/terminal/renderer/SkillgenResultDialog";
 import { useSessionStore } from "../features/workspace/renderer/session.store";
 import packageJson from "../../package.json";
-import appLogo from "./assets/brand/app-logo.png";
+import appLogo from "../assets/brand/app-logo.png";
 import {
   OAUTH_COMMAND_HINT,
   PROVIDER_IDS,

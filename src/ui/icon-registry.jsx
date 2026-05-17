@@ -1,7 +1,7 @@
 import React from "react";
-import claudeIcon from "../renderer/assets/provider-icons/claude.svg";
-import codexIcon from "../renderer/assets/provider-icons/codex.svg";
-import geminiIcon from "../renderer/assets/provider-icons/gemini.svg";
+import claudeIcon from "../assets/provider-icons/claude.svg";
+import codexIcon from "../assets/provider-icons/codex.svg";
+import geminiIcon from "../assets/provider-icons/gemini.svg";
 
 function mergeClassName(...classes) {
   return classes.filter(Boolean).join(" ");
