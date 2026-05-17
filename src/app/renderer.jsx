@@ -1,21 +1,42 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { TerminalPanel } from "../features/terminal/renderer/TerminalPanel";
+import App from "../renderer/App";
+import "../renderer/styles.css";
+import "@xterm/xterm/css/xterm.css";
+import { logBridge } from "../bridge";
 
-function App() {
-  return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        background: "#1e1e1e",
-        color: "#d4d4d4",
-      }}
-    >
-      <TerminalPanel projectId="test" cwd="/test/project" />
-    </div>
-  );
-}
+window.addEventListener("error", (event) => {
+  logBridge.write({
+    level: "error",
+    scope: "renderer",
+    message: "Unhandled window error",
+    meta: {
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+      stack: event.error?.stack || ""
+    }
+  });
+});
 
-const root = createRoot(document.getElementById("root"));
-root.render(<App />);
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason;
+  logBridge.write({
+    level: "error",
+    scope: "renderer",
+    message: "Unhandled promise rejection",
+    meta: {
+      reason: typeof reason === "object" && reason ? {
+        message: reason.message,
+        stack: reason.stack
+      } : String(reason)
+    }
+  });
+});
+
+createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

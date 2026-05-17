@@ -5,7 +5,7 @@ import path from "node:path";
 export default defineConfig({
   base: "./",
   plugins: [react()],
-  root: path.resolve("src/renderer"),
+  root: path.resolve("src"),
   server: {
     port: 5073,
     strictPort: true
