@@ -320,6 +320,7 @@ export function ProviderSettingsSection({
 
         <div className="flex items-center justify-end gap-1.5">
           {settingsSavedAt > 0 && <span className="text-xs font-medium text-[var(--success)]">✓ 已保存</span>}
+          <Button type="button" className={linearBtnClass} onClick={() => window.close()}>退出应用</Button>
           <Button type="button" className={linearBtnClass} onClick={onSaveSettings}>保存</Button>
         </div>
       </div>
