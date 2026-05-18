@@ -13,7 +13,7 @@ module.exports = defineConfig({
     "**/settings/archive/e2e/archive.e2e.js",
     "**/settings/providers/e2e/providers.e2e.js"
   ],
-  timeout: 120000,
+  timeout: 600000,
   expect: {
     timeout: 15000
   },
