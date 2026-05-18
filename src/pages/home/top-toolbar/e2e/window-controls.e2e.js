@@ -4,6 +4,7 @@ const path = require("node:path");
 const os = require("node:os");
 const fs = require("node:fs");
 const { DatabaseSync } = require("node:sqlite");
+const { buildProviderSettings } = require(path.resolve(__dirname, "../../../../tests/e2e/provider-fixture"));
 
 function setupDb(dbPath, projectDir) {
   const db = new DatabaseSync(dbPath);
@@ -23,31 +24,7 @@ function setupDb(dbPath, projectDir) {
     );
   `);
   const now = new Date().toISOString();
-  const providerSettings = {
-    providers: {
-      claude: {
-        defaultProfileId: "deepseek-api",
-        enabledProfileId: "deepseek-api",
-        profiles: [
-          {
-            id: "deepseek-api",
-            name: "DeepSeek API",
-            envVars: [{ key: "ANTHROPIC_AUTH_TOKEN", value: "e2e-dummy-token" }]
-          }
-        ]
-      },
-      codex: {
-        defaultProfileId: "oauth-login",
-        enabledProfileId: "",
-        profiles: [{ id: "oauth-login", name: "OAuth 登录", envVars: [] }]
-      },
-      gemini: {
-        defaultProfileId: "oauth-login",
-        enabledProfileId: "",
-        profiles: [{ id: "oauth-login", name: "OAuth 登录", envVars: [] }]
-      }
-    }
-  };
+  const providerSettings = buildProviderSettings();
   db.prepare(
     `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
      VALUES (?, ?, ?, 'claude', ?, ?)`

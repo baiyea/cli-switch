@@ -5,7 +5,7 @@ const os = require("node:os");
 const fs = require("node:fs");
 const dotenv = require("dotenv");
 const { DatabaseSync } = require("node:sqlite");
-const providerEnvPresets = require("../../../../assets/provider-env-presets.json");
+const providerEnvPresets = require(path.resolve(__dirname, "../../../../pages/settings/providers/shared/provider-env-presets.json"));
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });

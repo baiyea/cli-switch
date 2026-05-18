@@ -5,6 +5,7 @@ const os = require("node:os");
 const fs = require("node:fs");
 const http = require("node:http");
 const { DatabaseSync } = require("node:sqlite");
+const { buildProviderSettings } = require("../../../tests/e2e/provider-fixture");
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -43,12 +44,11 @@ function setupDb(dbPath, projectDir, providerSettings) {
      VALUES (?, ?, ?, 'claude', ?, ?)`
   ).run("p1", "DemoProject", projectDir, now, now);
 
-  if (providerSettings) {
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at)
-       VALUES (?, ?, ?)`
-    ).run("provider_startup_settings", JSON.stringify(providerSettings), now);
-  }
+  const finalSettings = providerSettings || buildProviderSettings();
+  db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES (?, ?, ?)`
+  ).run("provider_startup_settings", JSON.stringify(finalSettings), now);
 
   db.close();
 }

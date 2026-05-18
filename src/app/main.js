@@ -6,7 +6,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, cli
 const log = require("electron-log");
 const { z } = require("zod");
 const { APP_NAME, APP_ID } = require("../shared/app-config.js");
-const providerEnvPresets = require("../assets/provider-env-presets.json");
+const providerEnvPresets = require("../pages/settings/providers/shared/provider-env-presets.json");
 const { IS_DEV, getDataDir, getDbPath } = require("../kernel/test-mode.js");
 const { registerPageMain } = require("./register-page-main");
 const { PtyService, createSkillgenRunner, TERMINAL_CHANNELS, TOP_TOOLBAR_CHANNELS } = require("../pages/home/home.main");

@@ -5,7 +5,8 @@ const os = require("node:os");
 const fs = require("node:fs");
 const dotenv = require("dotenv");
 const { DatabaseSync } = require("node:sqlite");
-const { buildSchemaSql } = require("../../../../kernel/db/models");
+const { buildSchemaSql } = require(path.resolve(__dirname, "../../../../kernel/db/models"));
+const { buildProviderSettings } = require(path.resolve(__dirname, "../../../../tests/e2e/provider-fixture"));
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -25,6 +26,10 @@ function setupDb(dbPath, projectDir) {
     `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
      VALUES (?, ?, ?, 'claude', ?, ?)`
   ).run("p1", "DeepSeekSettingsLiveProject", projectDir, now, now);
+
+  const providerSettings = buildProviderSettings();
+  db.prepare(`INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`)
+    .run("provider_startup_settings", JSON.stringify(providerSettings), now);
 
   db.close();
 }

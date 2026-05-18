@@ -1,5 +1,5 @@
 const path = require("node:path");
-const { test, expect, launchApp, closeApp } = require("../../../../tests/e2e");
+const { test, expect, launchApp, closeApp } = require(path.resolve(__dirname, "../../../../tests/e2e"));
 
 test.describe("@terminal E2E", () => {
   /** @type {import('playwright').ElectronApplication} */
