@@ -1,8 +1,9 @@
 import React from "react";
-import { Minus, Square, X } from "lucide-react";
 import { ArchiveIcon, ExplorerToggleIcon, ProviderIcon, SmartAiIcon } from "../../../../ui/icon-registry";
+import { WindowControls } from "./WindowControls";
 import { Button } from "../../../../ui/button";
 import { useSessionStore } from "../../home.store";
+import { topToolbarBridge } from "./top-toolbar.bridge";
 
 const RUNTIME_STATUS_LABEL = {
   starting: "启动中",
@@ -14,6 +15,8 @@ const RUNTIME_STATUS_LABEL = {
   creating: "启动中",
   running: "运行中"
 };
+const TRAFFIC_LIGHT_Y = 20;
+const TRAFFIC_LIGHT_X_IN_SIDEBAR = 14;
 
 export function TopToolbar({
   sidebarCollapsed,
@@ -25,13 +28,12 @@ export function TopToolbar({
   canRunSkillgen,
   onArchiveActiveSession,
   explorerVisible,
-  onToggleExplorer,
-  onWindowMinimize,
-  onWindowToggleMaximize,
-  onWindowClose
+  onToggleExplorer
 }) {
   const isWindows = typeof navigator !== "undefined"
     && /win/i.test(String(navigator.platform || navigator.userAgent || ""));
+  const isMacOS = typeof navigator !== "undefined"
+    && /mac/i.test(String(navigator.platform || navigator.userAgent || ""));
   const sessions = useSessionStore((state) => state.sessions);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const activeSession = React.useMemo(
@@ -41,6 +43,14 @@ export function TopToolbar({
   const canArchiveActiveSession = Boolean(activeSessionId);
   const sessionStatus = activeSession?.runtimeStatus || activeSession?.status || "";
   const sessionProvider = activeSession?.provider || "claude";
+
+  React.useEffect(() => {
+    if (!isMacOS) return;
+    void topToolbarBridge.window.setTrafficLightPosition({
+      x: TRAFFIC_LIGHT_X_IN_SIDEBAR,
+      y: TRAFFIC_LIGHT_Y
+    }).catch(() => {});
+  }, [isMacOS, sidebarCollapsed]);
 
   return (
     <header className="toolbar">
@@ -121,37 +131,7 @@ export function TopToolbar({
         </Button>
       </div>
 
-      {isWindows && (
-        <div className="window-controls" aria-label="窗口控制">
-          <button
-            type="button"
-            className="window-control-btn"
-            aria-label="最小化"
-            title="最小化"
-            onClick={onWindowMinimize}
-          >
-            <Minus size={14} strokeWidth={1.8} />
-          </button>
-          <button
-            type="button"
-            className="window-control-btn"
-            aria-label="最大化"
-            title="最大化"
-            onClick={onWindowToggleMaximize}
-          >
-            <Square size={12} strokeWidth={1.8} />
-          </button>
-          <button
-            type="button"
-            className="window-control-btn close"
-            aria-label="关闭"
-            title="关闭"
-            onClick={onWindowClose}
-          >
-            <X size={15} strokeWidth={1.8} />
-          </button>
-        </div>
-      )}
+      {isWindows && <WindowControls />}
     </header>
   );
 }

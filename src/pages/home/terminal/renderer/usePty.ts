@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { logBridge } from "../../../../shared/bridge/log.bridge";
+import { logBridge } from "../../../../shared/bridge";
 import { fileAttachmentBridge, ptyBridge } from "./terminal.bridge";
 import { useSessionStore } from "../../home.store";
 

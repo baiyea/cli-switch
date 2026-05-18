@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { logBridge } from "../../../../shared/bridge/log.bridge";
+import { logBridge } from "../../../../shared/bridge";
 import { fileTreeBridge } from "./file-tree.bridge";
 
 export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible, setAppError }) {

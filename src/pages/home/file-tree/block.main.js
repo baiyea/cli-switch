@@ -1,7 +1,8 @@
+const { FILE_TREE_CHANNELS } = require("./shared/file-tree.channels");
+
 function registerFileTreeMain(context = {}) {
   const {
     registerIpc,
-    IPC,
     path,
     fs,
     Buffer,
@@ -18,16 +19,16 @@ function registerFileTreeMain(context = {}) {
     logWarn = () => {}
   } = context;
 
-  if (!registerIpc || !IPC) return;
+  if (!registerIpc) return;
 
-  registerIpc(IPC.FILE_TREE_READ, async (_event, payload) => {
+  registerIpc(FILE_TREE_CHANNELS.READ, async (_event, payload) => {
     const parsed = fileTreeSchema.parse(payload);
     const root = path.resolve(parsed.cwd);
     const tree = buildFileTree(root, parsed.depth);
     return { cwd: root, isGitRepo: tree.isGitRepo, items: tree.items };
   });
 
-  registerIpc(IPC.FILE_OPEN_PATH, async (_event, payload) => {
+  registerIpc(FILE_TREE_CHANNELS.OPEN_PATH, async (_event, payload) => {
     const parsed = fileOpenPathSchema.parse(payload);
     const target = path.resolve(parsed.path);
     logInfo("files", "Opening path", { target });
@@ -39,7 +40,7 @@ function registerFileTreeMain(context = {}) {
     return { ok: true };
   });
 
-  registerIpc(IPC.FILE_ATTACHMENT_SAVE, async (_event, payload) => {
+  registerIpc(FILE_TREE_CHANNELS.ATTACHMENT_SAVE, async (_event, payload) => {
     const parsed = fileAttachmentSaveSchema.parse(payload || {});
     const root = path.resolve(parsed.cwd);
 
@@ -129,7 +130,7 @@ function registerFileTreeMain(context = {}) {
     return { ok: true, absPath, relPath, mimeType };
   });
 
-  registerIpc(IPC.FILE_ATTACHMENT_SAVE_BUFFER, async (_event, payload) => {
+  registerIpc(FILE_TREE_CHANNELS.ATTACHMENT_SAVE_BUFFER, async (_event, payload) => {
     const parsed = fileAttachmentSaveBufferSchema.parse(payload || {});
     const root = path.resolve(parsed.cwd);
     const bytes = Buffer.from(parsed.base64, "base64");

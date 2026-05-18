@@ -1,11 +1,11 @@
 const { ipcMain } = require("electron");
 const { registerPtyHandlers } = require("./main/terminal.ipc");
+const { TERMINAL_CHANNELS } = require("./shared/terminal.channels");
 
 function registerTerminalMain(context = {}) {
   const ptyService = context.ptyService || context;
   const {
     registerIpc,
-    IPC,
     z,
     fs,
     projectStore,
@@ -33,9 +33,9 @@ function registerTerminalMain(context = {}) {
 
   registerPtyHandlers(ipcMain, ptyService);
 
-  if (!registerIpc || !IPC) return;
+  if (!registerIpc) return;
 
-  registerIpc(IPC.SESSION_STATS, async (_event, payload) => {
+  registerIpc(TERMINAL_CHANNELS.SESSION_STATS, async (_event, payload) => {
     const parsed = sessionStatsSchema.parse(payload || {});
     const provider = normalizeProviderId(parsed.provider || "claude");
     const providerSessionId = String(parsed.providerSessionId || parsed.sessionId || "").trim();
@@ -50,7 +50,7 @@ function registerTerminalMain(context = {}) {
     }
   });
 
-  registerIpc(IPC.SESSION_CREATE, async (_event, payload) => {
+  registerIpc(TERMINAL_CHANNELS.SESSION_CREATE, async (_event, payload) => {
     const parsed = sessionCreateSchema.parse(payload);
     const provider = normalizeProviderId(parsed.provider);
     const localSessionId = `${provider}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -108,7 +108,7 @@ function registerTerminalMain(context = {}) {
     });
   });
 
-  registerIpc(IPC.SESSION_START, async (_event, payload) => {
+  registerIpc(TERMINAL_CHANNELS.SESSION_START, async (_event, payload) => {
     const parsed = sessionStartSchema.parse(payload);
     const lockKey = parsed.providerSessionId || parsed.sessionId;
     return runWithSessionStartLock(lockKey, async () => {
@@ -187,7 +187,7 @@ function registerTerminalMain(context = {}) {
     });
   });
 
-  registerIpc(IPC.SESSION_RENAME, async (_event, payload) => {
+  registerIpc(TERMINAL_CHANNELS.SESSION_RENAME, async (_event, payload) => {
     const parsed = z.object({
       sessionId: z.string().min(1),
       title: z.string().min(1),
@@ -204,7 +204,7 @@ function registerTerminalMain(context = {}) {
     return { ok: true };
   });
 
-  registerIpc(IPC.SESSION_SUGGEST_TITLE, async (_event, payload) => {
+  registerIpc(TERMINAL_CHANNELS.SESSION_SUGGEST_TITLE, async (_event, payload) => {
     const parsed = sessionSuggestTitleSchema.parse(payload || {});
     const provider = normalizeProviderId(parsed.provider);
     const providerSessionId = parsed.providerSessionId || parsed.sessionId;

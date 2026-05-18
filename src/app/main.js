@@ -5,12 +5,11 @@ const { spawnSync } = require("node:child_process");
 const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, clipboard } = require("electron");
 const log = require("electron-log");
 const { z } = require("zod");
-const { IPC } = require("../shared/types.js");
 const { APP_NAME, APP_ID } = require("../shared/app-config.js");
 const providerEnvPresets = require("../assets/provider-env-presets.json");
 const { IS_DEV, getDataDir, getDbPath } = require("../kernel/test-mode.js");
 const { registerPageMain } = require("./register-page-main");
-const { PtyService } = require("../pages/home/terminal/main/pty.service");
+const { PtyService, createSkillgenRunner, TERMINAL_CHANNELS, TOP_TOOLBAR_CHANNELS } = require("../pages/home/home.main");
 const {
   applyProviderStartupEnv,
   getLaunchCommandForProvider,
@@ -18,17 +17,18 @@ const {
   getOAuthProbeCommandForProvider,
   getResumeCommandForProvider,
   isLocalGeneratedSessionId,
-  normalizeProviderId
-} = require("../pages/settings/providers/main/cli-launchers");
-const { listProviderSessions, mapSessionsToProjects } = require("../pages/settings/providers/main/session-sources");
-const { createOAuthLoginTracker } = require("../pages/settings/providers/main/oauth-login-tracker");
-const { createProviderSettingsRuntime } = require("../pages/settings/providers/main/provider-settings-runtime");
-const { createProviderConnectionService } = require("../pages/settings/providers/main/provider-connection-service");
-const { createOAuthProbeService } = require("../pages/settings/providers/main/oauth-probe-service");
-const { createProxyConnectivityService } = require("../pages/settings/providers/main/proxy-connectivity-service");
-const { createCliConfigSyncService } = require("../pages/settings/providers/main/cli-config-sync-service");
-const { createSkillgenRunner } = require("../pages/settings/providers/main/skillgen/runner");
+  normalizeProviderId,
+  listProviderSessions,
+  mapSessionsToProjects,
+  createOAuthLoginTracker,
+  createProviderSettingsRuntime,
+  createProviderConnectionService,
+  createOAuthProbeService,
+  createProxyConnectivityService,
+  createCliConfigSyncService
+} = require("../pages/settings/settings.main");
 const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../kernel/db/connection");
+const { resolveAssetPathFrom, pickExistingPath } = require("./asset-paths");
 
 // LSUIElement=1 in Info.plist hides all instances from the dock.
 // The main process explicitly requests activation to show its dock icon,
@@ -274,28 +274,6 @@ function logByLevel(level, scope, message, meta) {
   log.info(formatLogLine(scope, message, meta));
 }
 
-function setTrafficLightPositionSafe(win, position) {
-  if (!win || win.isDestroyed?.()) return false;
-  const target = {
-    x: Math.max(0, Math.floor(position?.x || 0)),
-    y: Math.max(0, Math.floor(position?.y || 0))
-  };
-
-  if (typeof win.setTrafficLightPosition === "function") {
-    win.setTrafficLightPosition(target);
-    return true;
-  }
-
-  // Compatibility fallback for Electron versions exposing macOS button API
-  // under setWindowButtonPosition instead.
-  if (typeof win.setWindowButtonPosition === "function") {
-    win.setWindowButtonPosition(target);
-    return true;
-  }
-
-  return false;
-}
-
 function sendToRenderer(channel, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const wc = mainWindow.webContents;
@@ -304,21 +282,14 @@ function sendToRenderer(channel, payload) {
 }
 
 function resolveAssetPath(...parts) {
-  return path.join(__dirname, "assets", ...parts);
-}
-
-function pickExistingPath(candidates) {
-  for (const candidate of candidates) {
-    if (candidate && fs.existsSync(candidate)) return candidate;
-  }
-  return "";
+  return resolveAssetPathFrom(__dirname, ...parts);
 }
 
 function getWindowIconPath() {
   return pickExistingPath([
-    process.platform === "win32" ? resolveAssetPath("icons", "win", "app.ico") : "",
-    resolveAssetPath("icons", "png", "icon_512x512.png"),
-    resolveAssetPath("icons", "png", "icon_256x256.png")
+    process.platform === "win32" ? resolveAssetPath("app-icons", "win", "app.ico") : "",
+    resolveAssetPath("app-icons", "png", "icon_512x512.png"),
+    resolveAssetPath("app-icons", "png", "icon_256x256.png")
   ]);
 }
 
@@ -326,11 +297,11 @@ function createMacTray() {
   if (process.platform !== "darwin" || tray) return;
 
   const trayPath = pickExistingPath([
-    resolveAssetPath("icons", "png", "icon_16x16@2x.png"),
-    resolveAssetPath("icons", "png", "icon_16x16.png"),
-    resolveAssetPath("icons", "tray", "macos-trayTemplate@2x.png"),
-    resolveAssetPath("icons", "tray", "macos-trayTemplate.png"),
-    resolveAssetPath("icons", "png", "icon_16x16.png")
+    resolveAssetPath("app-icons", "png", "icon_16x16@2x.png"),
+    resolveAssetPath("app-icons", "png", "icon_16x16.png"),
+    resolveAssetPath("app-icons", "tray", "macos-trayTemplate@2x.png"),
+    resolveAssetPath("app-icons", "tray", "macos-trayTemplate.png"),
+    resolveAssetPath("app-icons", "png", "icon_16x16.png")
   ]);
   if (!trayPath) return;
 
@@ -2587,12 +2558,12 @@ const ptyService = new PtyService({
   logWarn,
   onData: ({ sessionId, data }) => {
     oauthLoginTracker.handleOutput(sessionId, data);
-    sendToRenderer(IPC.PTY_DATA, { sessionId, data });
+    sendToRenderer(TERMINAL_CHANNELS.DATA, { sessionId, data });
   },
   onExit: ({ sessionId, exitCode }) => {
     oauthLoginTracker.unregisterSession(sessionId);
     logInfo("pty", "Session exited", { sessionId, exitCode });
-    sendToRenderer(IPC.PTY_EXIT, { sessionId, exitCode });
+    sendToRenderer(TERMINAL_CHANNELS.EXIT, { sessionId, exitCode });
   }
 });
 const sessionStartInFlight = new Map();
@@ -2673,75 +2644,36 @@ function registerAppIpc() {
     return true;
   };
 
-  registerIpc(IPC.WINDOW_OPEN_EXTERNAL, async (_event, { url }) => {
-    if (!url || typeof url !== "string") return;
-    await shell.openExternal(url);
-  });
-
-  registerIpc(IPC.WINDOW_MINIMIZE, async (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || win.isDestroyed()) return { ok: false };
-    win.minimize();
-    return { ok: true };
-  });
-
-  registerIpc(IPC.WINDOW_TOGGLE_MAXIMIZE, async (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || win.isDestroyed()) return { ok: false, isMaximized: false };
-    if (win.isMaximized()) {
-      win.unmaximize();
-    } else {
-      win.maximize();
+  const registerIpcOn = (channel, handler) => {
+    if (typeof channel !== "string" || !channel.trim()) {
+      logWarn("ipc", "Skip IPC on-registration because channel is invalid", { channel });
+      return false;
     }
-    return { ok: true, isMaximized: win.isMaximized() };
-  });
-
-  registerIpc(IPC.WINDOW_CLOSE, async (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || win.isDestroyed()) return { ok: false };
-    win.close();
-    return { ok: true };
-  });
-
-  ipcMain.on(IPC.APP_LOG, (_event, payload = {}) => {
-    const level = payload.level || "info";
-    const scope = payload.scope || "renderer";
-    const message = payload.message || "renderer log";
-    const meta = payload.meta || {};
-    logByLevel(level, scope, message, meta);
-  });
-
-  registerIpc(IPC.WINDOW_SET_TRAFFIC_LIGHT, async (_event, payload) => {
-    if (process.platform !== "darwin" || !mainWindow || mainWindow.isDestroyed()) {
-      return { ok: true };
-    }
-    const parsed = z.object({
-      x: z.number().int().min(0).max(5000),
-      y: z.number().int().min(0).max(5000)
-    }).parse(payload || {});
-    const updated = setTrafficLightPositionSafe(mainWindow, { x: parsed.x, y: parsed.y });
-    if (!updated) {
-      logWarn("window", "Skip traffic light update: API not supported", {
-        x: parsed.x,
-        y: parsed.y,
-        electron: process.versions.electron
-      });
-    }
-    return { ok: updated };
-  });
+    ipcMain.on(channel, (event, payload) => {
+      try {
+        handler(event, payload);
+      } catch (error) {
+        logError("ipc", `On-handler failed: ${channel}`, error, { payload });
+      }
+    });
+    logInfo("ipc", "Registered event handler", { channel });
+    return true;
+  };
 
   registerPageMain({
     registerIpc,
-    IPC,
+    registerIpcOn,
     z,
     fs,
     path,
     Buffer,
     dialog,
     shell,
+    BrowserWindow,
     clipboard,
     nativeImage,
     mainWindow,
+    getMainWindow: () => mainWindow,
     projectStore,
     sessionStore,
     appSettingsStore,
@@ -2791,6 +2723,7 @@ function registerAppIpc() {
     stripPresetValuesFromProviderSettings,
     syncCliConfigAfterSuccessfulProviderTest,
     startProviderOAuthLogin,
+    logByLevel,
     logInfo,
     logWarn,
     logError
@@ -2800,6 +2733,7 @@ function registerAppIpc() {
 function createWindow() {
   logInfo("app", "Creating main window", { isDev });
   const iconPath = getWindowIconPath();
+  logInfo("app", "Resolved window icon path", { iconPath: iconPath || "" });
   const useHiddenTitleBar = process.platform === "darwin" || process.platform === "win32";
   mainWindow = new BrowserWindow({
     width: 1360,
@@ -2912,11 +2846,12 @@ app.whenReady().then(() => {
   }
   if (process.platform === "darwin" && app.dock) {
     const dockIconPath = pickExistingPath([
-      resolveAssetPath("icons", "mac", "dock-icon.png"),
-      resolveAssetPath("icons", "png", "icon_512x512.png"),
-      resolveAssetPath("icons", "png", "icon_256x256.png")
+      resolveAssetPath("app-icons", "mac", "dock-icon.png"),
+      resolveAssetPath("app-icons", "png", "icon_512x512.png"),
+      resolveAssetPath("app-icons", "png", "icon_256x256.png")
     ]);
     if (dockIconPath) app.dock.setIcon(dockIconPath);
+    logInfo("app", "Resolved dock icon path", { dockIconPath: dockIconPath || "" });
   }
   createWindow();
   registerAppIpc();

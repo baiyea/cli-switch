@@ -100,6 +100,74 @@ src/pages/home/terminal/
 - Home 与 Settings 之间通过 `pages/pages.store.ts` 协调，不互相 import 页面内部实现。
 - 新增 IPC 时，channel 定义优先放在对应 block 的 `shared/` 中。
 
+## 开发规范
+
+### 文件命名规则
+
+| 文件角色 | 命名格式 | 示例 |
+|---------|---------|------|
+| Block 主进程入口 | `block.main.js` | `terminal/block.main.js` |
+| Block 预加载入口 | `block.preload.js` | `terminal/block.preload.js` |
+| Block 渲染入口 | `block.renderer.tsx` | `terminal/block.renderer.tsx` |
+| IPC 处理器 | `{block}.ipc.js`，放在 `main/` | `main/terminal.ipc.js` |
+| Preload API | `{block}.api.js`，放在 `preload/` | `preload/terminal.api.js` |
+| IPC Channel 定义 | `{block}.channels.js`，放在 `shared/` | `shared/terminal.channels.js` |
+| Bridge（渲染端） | `{block}.bridge.ts`，放在 `renderer/` | `renderer/terminal.bridge.ts` |
+| 类型定义 | `{block}.types.ts`，放在 `shared/` | `shared/terminal.types.ts` |
+| E2E 测试 | `{name}.e2e.js`，放在 `e2e/` | `e2e/terminal.e2e.js` |
+| Store | `{scope}.store.ts` | `pages.store.ts`、`home.store.ts` |
+| 页面组件 | `{PageName}Page.tsx` | `HomePage.tsx` |
+| Manifest | `{block}.manifest.ts` | `terminal.manifest.ts` |
+| README | `README.md` | 每个 block 根目录必备 |
+
+- **目录和文件一律使用 kebab-case**（如 `top-toolbar`、`file-tree`）。
+- **组件文件使用 PascalCase**（如 `TopToolbar.jsx`、`TerminalPanel.tsx`）。
+- **Hook 文件使用 camelCase**，以 `use-` 前缀（如 `usePty.ts`、`use-file-tree.js`）。
+
+### 目录创建规则
+
+1. **新增业务一律进入 `pages/{page}/{block}/`**，不直接放入 `features/` 或 `src/shared/`。
+2. **按需创建子目录**——block 只需要实际用到的运行端子目录：
+   - 需要主进程逻辑 → 创建 `main/`
+   - 需要预加载桥接 → 创建 `preload/`
+   - 有渲染组件 → 创建 `renderer/`
+   - 有 IPC 通信 → 创建 `shared/`（放 channels 和 types）
+   - 需要端到端测试 → 创建 `e2e/`
+3. **纯渲染区块**（如 `appearance`、`about`）不强行创建 `main/`、`preload/`、`shared/`。
+4. **`features/` 不主动新建目录**，只在满足提升条件后从 block 迁移过来。
+5. **`kernel/db/` 子目录约束**：`migrations/` 放迁移脚本，`repositories/` 放数据访问。不在 `kernel/db/` 中写业务编排。
+6. **禁止创建集中堆放目录**，如 `pages/shared/utils.ts`、`pages/shared/common.ts`、`pages/shared/helpers.ts`。
+
+### 导入规则
+
+1. **Block 之间禁止互相 import 内部实现**。Home 区块间通过 `pages/home/home.store.ts` 协调。
+2. **Home 与 Settings 之间**只通过 `pages/pages.store.ts` 协调，不互相 import 页面内部实现。
+3. **`block/shared` 是私有层**，只允许同一 block 的 `main/`、`preload/`、`renderer/`、`e2e/` 使用。其他 block 禁止 import。
+4. **renderer 禁止 import**：Node.js 内置模块（`fs`、`path`、`child_process` 等）、`main/` 目录文件、`preload/` 目录文件。
+5. **main 禁止 import `renderer/`** 目录文件。
+6. **`app/` 聚合层**只 import page/block 的入口文件（`block.main.js`、`block.preload.js`、`block.renderer.tsx`），不 import block 内部实现。
+7. **`kernel/` 不 import** 页面业务逻辑或 block 内部实现。
+8. **禁止跨区块 import bridge**：每个 block 的 bridge 是私有 API，只允许当前 block 的 renderer 使用。
+9. **`src/shared/` 只放全局基础类型/常量**，不放业务 bridge、IPC enum、业务 hook、业务 store、业务 service。`shared/types.ts` 不集中定义 IPC enum。
+10. **新增 IPC channel 时**，定义在对应 block 的 `shared/{block}.channels.js`，不往全局文件集中堆放。
+
+### 测试用例创建规则
+
+1. **Block E2E 跟随区块目录**：`pages/{page}/{block}/e2e/{name}.e2e.js`
+2. **全局测试基础设施**放在 `tests/e2e/`，仅保留：
+   - `app-runner.js`：应用启动器
+   - `index.js`：统一导出 `test`/`expect`
+   - fixture、global setup/teardown、mock
+3. **真实外部服务测试**（需要真实 API key 的测试）放 `docs/manual-tests/`，不纳入 CI。
+4. **UI 基础组件测试**放在 `ui/` 对应组件旁，不强制 E2E。
+5. E2E 测试必须满足：
+   - 使用临时 userData 目录，不污染真实用户配置
+   - 使用临时数据库路径
+   - 可通过 `APP_E2E=1` 环境变量启动
+6. 测试文件命名：
+   - E2E：`{功能名}.e2e.js`（如 `terminal.e2e.js`、`clipboard-paste.e2e.js`）
+   - 单元测试：`{模块名}.test.ts` 或 `{模块名}.test.js`
+
 ## Commands
 
 | Command | Description |

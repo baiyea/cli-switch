@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
+import { AppShell } from "./AppShell";
 import "../styles.css";
 import "@xterm/xterm/css/xterm.css";
 import { logBridge } from "../shared/bridge";
@@ -37,6 +37,6 @@ window.addEventListener("unhandledrejection", (event) => {
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <AppShell />
   </React.StrictMode>
 );

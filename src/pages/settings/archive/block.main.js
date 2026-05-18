@@ -1,7 +1,8 @@
+const { ARCHIVE_CHANNELS } = require("./shared/archive.channels");
+
 function registerArchiveMain(context = {}) {
   const {
     registerIpc,
-    IPC,
     z,
     ptyService,
     sessionStore,
@@ -12,9 +13,9 @@ function registerArchiveMain(context = {}) {
     logInfo = () => {}
   } = context;
 
-  if (!registerIpc || !IPC) return;
+  if (!registerIpc) return;
 
-  registerIpc(IPC.SESSION_ARCHIVE, async (_event, payload) => {
+  registerIpc(ARCHIVE_CHANNELS.SESSION_ARCHIVE, async (_event, payload) => {
     const parsed = z.object({
       sessionId: z.string().min(1),
       provider: z.string().optional().default("claude"),
@@ -28,12 +29,12 @@ function registerArchiveMain(context = {}) {
     return { ok: true };
   });
 
-  registerIpc(IPC.SESSION_ARCHIVE_LIST, async (_event, payload = {}) => {
+  registerIpc(ARCHIVE_CHANNELS.SESSION_ARCHIVE_LIST, async (_event, payload = {}) => {
     const projectIds = Array.isArray(payload.projectIds) ? payload.projectIds : [];
     return sessionStore.listAllArchived(projectIds).map(toArchivedView);
   });
 
-  registerIpc(IPC.SESSION_RESTORE, async (_event, payload) => {
+  registerIpc(ARCHIVE_CHANNELS.SESSION_RESTORE, async (_event, payload) => {
     const parsed = z.object({
       archiveId: z.string().optional(),
       sessionId: z.string().optional(),

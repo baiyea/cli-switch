@@ -1,7 +1,8 @@
+const { SIDEBAR_CHANNELS } = require("./shared/sidebar.channels");
+
 function registerSidebarMain(context = {}) {
   const {
     registerIpc,
-    IPC,
     z,
     fs,
     path,
@@ -17,9 +18,9 @@ function registerSidebarMain(context = {}) {
     logInfo = () => {}
   } = context;
 
-  if (!registerIpc || !IPC) return;
+  if (!registerIpc) return;
 
-  registerIpc(IPC.PROJECT_LIST, async () => {
+  registerIpc(SIDEBAR_CHANNELS.PROJECT_LIST, async () => {
     const projects = projectStore.list();
     return projects.filter((p) => {
       try {
@@ -30,7 +31,7 @@ function registerSidebarMain(context = {}) {
     });
   });
 
-  registerIpc(IPC.PROJECT_ADD, async () => {
+  registerIpc(SIDEBAR_CHANNELS.PROJECT_ADD, async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: "Select Project Folder",
       properties: ["openDirectory"]
@@ -51,9 +52,9 @@ function registerSidebarMain(context = {}) {
     return created;
   });
 
-  registerIpc(IPC.PROJECT_REMOVE, async (_event, { id }) => projectStore.remove(id));
+  registerIpc(SIDEBAR_CHANNELS.PROJECT_REMOVE, async (_event, { id }) => projectStore.remove(id));
 
-  registerIpc(IPC.SESSION_LIST, async (_event, payload = {}) => {
+  registerIpc(SIDEBAR_CHANNELS.SESSION_LIST, async (_event, payload = {}) => {
     const projectIds = Array.isArray(payload.projectIds) ? payload.projectIds : [];
     const providers = Array.isArray(payload.providers) ? payload.providers.map(normalizeProviderId) : [];
     const allProjects = projectStore.list();
@@ -67,7 +68,7 @@ function registerSidebarMain(context = {}) {
       .filter((session) => providers.length === 0 || providers.includes(normalizeProviderId(session.provider)));
   });
 
-  registerIpc(IPC.SESSION_SYNC_PROJECT, async (_event, payload) => {
+  registerIpc(SIDEBAR_CHANNELS.SESSION_SYNC_PROJECT, async (_event, payload) => {
     const parsed = z.object({ projectId: z.string().min(1) }).parse(payload);
     const project = projectStore.getById(parsed.projectId);
     if (!project) throw new Error("Project not found");
@@ -80,7 +81,7 @@ function registerSidebarMain(context = {}) {
     return { ok: true, count };
   });
 
-  registerIpc(IPC.SESSION_REORDER, async (_event, payload) => {
+  registerIpc(SIDEBAR_CHANNELS.SESSION_REORDER, async (_event, payload) => {
     const parsed = sessionReorderSchema.parse(payload || {});
     sessionStore.reorderActiveByProject({
       projectId: parsed.projectId,

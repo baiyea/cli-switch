@@ -138,10 +138,12 @@ function buildNodeRunnerCommand(entrypoint, args = [], nodeExecutable = process.
   const quote = isWin ? quotePowerShell : quotePosix;
   const joinedArgs = [entrypoint, ...args].map((item) => quote(item)).join(" ");
   const eol = isWin ? "\r" : "\n";
-  if (isWin) {
-    return `& ${quote(nodeExecutable)} ${joinedArgs}${eol}`;
-  }
-  return `${quote(nodeExecutable)} ${joinedArgs}${eol}`;
+  const base = isWin
+    ? `& ${quote(nodeExecutable)} ${joinedArgs}${eol}`
+    : `${quote(nodeExecutable)} ${joinedArgs}${eol}`;
+  // When nodeExecutable is Electron (dev runtime fallback), force Node mode
+  // so provider CLIs do not appear as extra Electron GUI apps in the dock.
+  return prependEnvForCommand(base, { ELECTRON_RUN_AS_NODE: "1" });
 }
 
 function buildExecutableCommand(executable, args = [], envMap = {}) {

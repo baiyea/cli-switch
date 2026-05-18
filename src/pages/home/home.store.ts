@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import { ptyBridge } from "./terminal/renderer/terminal.bridge";
-import { sessionBridge, type PersistedSessionItem } from "./terminal/renderer/terminal.bridge";
+import { homeRuntime, type PersistedSessionItem } from "./renderer/home-session-runtime";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -178,7 +177,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
   },
 
   async loadSessionsByProjects(projectIds: string[]) {
-    const items = await sessionBridge.list({ projectIds });
+    const items = await homeRuntime.sessions.list({ projectIds });
     get().hydrateSessions(items);
   },
 
@@ -194,7 +193,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
       }
     }));
 
-    const created = await sessionBridge.create({
+    const created = await homeRuntime.sessions.create({
       projectId,
       cwd,
       title: name,
@@ -235,7 +234,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
         )
       }));
 
-      const started = await sessionBridge.start({
+      const started = await homeRuntime.sessions.start({
         sessionId,
         provider: session.provider,
         providerSessionId: session.providerSessionId,
@@ -288,7 +287,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     const target = get().sessions.find((s) => s.sessionId === sessionId);
     if (!target) return;
 
-    await sessionBridge.rename({
+    await homeRuntime.sessions.rename({
       sessionId: target.sessionId,
       title: trimmed,
       provider: target.provider,
@@ -330,7 +329,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     }));
 
     try {
-      await sessionBridge.reorder({
+      await homeRuntime.sessions.reorder({
         projectId,
         orderedSessions: normalized
       });
@@ -351,7 +350,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
   async destroySession(sessionId: string) {
     const target = get().sessions.find((s) => s.sessionId === sessionId);
     if (!target) return;
-    await sessionBridge.archive({
+    await homeRuntime.sessions.archive({
       sessionId: target.sessionId,
       provider: target.provider,
       providerSessionId: target.providerSessionId || target.sessionId
@@ -371,7 +370,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
   destroyAll() {
     const sessions = get().sessions;
     for (const s of sessions) {
-      ptyBridge.destroy(s.sessionId);
+      homeRuntime.pty.destroy(s.sessionId);
     }
     startedSessionIds.clear();
     startInFlightSessionIds.clear();

@@ -1,21 +1,23 @@
+const { TOP_TOOLBAR_CHANNELS } = require("./shared/top-toolbar.channels");
+const { registerTopToolbarIpc } = require("./main/top-toolbar.ipc");
+
 function registerTopToolbarMain(context = {}) {
   const {
     registerIpc,
-    IPC,
     skillgenRunSchema,
     skillgenRunner,
     logWarn = () => {}
   } = context;
 
-  if (!registerIpc || !IPC) return;
+  if (!registerIpc) return;
 
   const skillgenHandler = async (_event, payload = {}) => {
     const parsed = skillgenRunSchema.parse(payload || {});
     return skillgenRunner.runForProject(parsed);
   };
 
-  registerIpc(IPC.SKILLGEN_RUN, skillgenHandler);
-  if (IPC.SKILLGEN_RUN !== "skillgen:run") {
+  registerIpc(TOP_TOOLBAR_CHANNELS.SKILLGEN_RUN, skillgenHandler);
+  if (TOP_TOOLBAR_CHANNELS.SKILLGEN_RUN !== "skillgen:run") {
     try {
       registerIpc("skillgen:run", skillgenHandler);
     } catch (error) {
@@ -25,6 +27,9 @@ function registerTopToolbarMain(context = {}) {
       });
     }
   }
+
+  // top-toolbar 相关 IPC（窗口控制、渲染端日志）统一在区块 main 层注册。
+  registerTopToolbarIpc(context);
 }
 
 module.exports = { registerTopToolbarMain };

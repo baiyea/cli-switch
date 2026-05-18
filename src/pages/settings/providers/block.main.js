@@ -1,7 +1,8 @@
+const { PROVIDERS_CHANNELS } = require("./shared/providers.channels");
+
 function registerProvidersMain(context = {}) {
   const {
     registerIpc,
-    IPC,
     appSettingsStore,
     providerSettingsSchema,
     stripPresetValuesFromProviderSettings,
@@ -23,15 +24,15 @@ function registerProvidersMain(context = {}) {
     logError = () => {}
   } = context;
 
-  if (!registerIpc || !IPC) return;
+  if (!registerIpc) return;
 
-  registerIpc(IPC.SETTINGS_CLAUDE_GET, async () => appSettingsStore.getProviderStartupSettings());
-  registerIpc(IPC.SETTINGS_CLAUDE_SAVE, async (_event, payload) => {
+  registerIpc(PROVIDERS_CHANNELS.SETTINGS_CLAUDE_GET, async () => appSettingsStore.getProviderStartupSettings());
+  registerIpc(PROVIDERS_CHANNELS.SETTINGS_CLAUDE_SAVE, async (_event, payload) => {
     const parsed = providerSettingsSchema.parse(payload);
     const sanitized = stripPresetValuesFromProviderSettings(parsed);
     return appSettingsStore.setProviderStartupSettings(sanitized);
   });
-  registerIpc(IPC.SETTINGS_PROVIDER_TEST, async (_event, payload) => {
+  registerIpc(PROVIDERS_CHANNELS.SETTINGS_PROVIDER_TEST, async (_event, payload) => {
     const parsed = providerTestSchema.parse(payload);
     try {
       const result = await providerConnectionService.testProviderConnection(parsed);
@@ -45,7 +46,7 @@ function registerProvidersMain(context = {}) {
       return { ok: false, message: `连接测试异常: ${message}` };
     }
   });
-  registerIpc(IPC.SETTINGS_PROVIDER_OAUTH_LOGIN, async (_event, payload) => {
+  registerIpc(PROVIDERS_CHANNELS.SETTINGS_PROVIDER_OAUTH_LOGIN, async (_event, payload) => {
     const parsed = providerOAuthLoginSchema.parse(payload);
     try {
       return await startProviderOAuthLogin(parsed);
@@ -58,7 +59,7 @@ function registerProvidersMain(context = {}) {
       return { ok: false, message: `OAuth 登录启动异常: ${message}` };
     }
   });
-  registerIpc(IPC.SETTINGS_PROVIDER_OAUTH_PROBE, async (_event, payload) => {
+  registerIpc(PROVIDERS_CHANNELS.SETTINGS_PROVIDER_OAUTH_PROBE, async (_event, payload) => {
     const parsed = providerOAuthProbeSchema.parse(payload);
     try {
       const result = await oauthProbeService.probeProviderOAuthConnection(parsed);
@@ -73,7 +74,7 @@ function registerProvidersMain(context = {}) {
       return { ok: false, message: `OAuth 探测异常: ${message}` };
     }
   });
-  registerIpc(IPC.SETTINGS_PROVIDER_OAUTH_LINKS, async (_event, payload) => {
+  registerIpc(PROVIDERS_CHANNELS.SETTINGS_PROVIDER_OAUTH_LINKS, async (_event, payload) => {
     const parsed = providerOAuthLinksSchema.parse(payload || {});
     try {
       return oauthLoginTracker.getProviderOAuthLinks(parsed);
@@ -87,7 +88,7 @@ function registerProvidersMain(context = {}) {
       return { ok: false, allUrls: [], authUrls: [], autoOpenedUrl: "", message };
     }
   });
-  registerIpc(IPC.SETTINGS_PROVIDER_PROXY_TEST, async (_event, payload) => {
+  registerIpc(PROVIDERS_CHANNELS.SETTINGS_PROVIDER_PROXY_TEST, async (_event, payload) => {
     const parsed = providerProxyTestSchema.parse(payload);
     try {
       return await proxyConnectivityService.testProviderProxyConnectivity(parsed);
@@ -126,8 +127,8 @@ function registerProvidersMain(context = {}) {
       };
     }
   };
-  registerIpc(IPC.SETTINGS_RUNTIME_CLEAN || "settings:runtime:clean", runtimeCleanHandler);
-  if (IPC.SETTINGS_RUNTIME_CLEAN !== "settings:runtime:clean") {
+  registerIpc(PROVIDERS_CHANNELS.SETTINGS_RUNTIME_CLEAN || "settings:runtime:clean", runtimeCleanHandler);
+  if (PROVIDERS_CHANNELS.SETTINGS_RUNTIME_CLEAN !== "settings:runtime:clean") {
     try {
       registerIpc("settings:runtime:clean", runtimeCleanHandler);
     } catch (error) {
