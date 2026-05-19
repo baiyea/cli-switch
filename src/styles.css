@@ -139,17 +139,10 @@ select {
 
 .layout.macos:not(.sidebar-collapsed) .brand {
   padding-left: 90px;
-  padding-top: 20px;
-  padding-bottom: 16px;
 }
 
 .layout.macos:not(.sidebar-collapsed) .sidebar-logo {
   padding-top: 0;
-}
-
-.layout.macos:not(.sidebar-collapsed) .brand-title-wrap,
-.layout.macos:not(.sidebar-collapsed) .sidebar-trigger {
-  transform: translateY(0);
 }
 
 .brand-title-wrap {
