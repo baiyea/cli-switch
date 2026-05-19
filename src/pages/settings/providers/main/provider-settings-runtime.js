@@ -1,3 +1,5 @@
+const defaultProviderEnvPresets = require('../shared/provider-env-presets.json');
+
 const INTERNAL_ENV_KEY_AUTH_MODE = 'ZEELIN_AUTH_MODE';
 const AUTH_MODE_OAUTH = 'oauth';
 const INTERNAL_PROXY_ENABLED_KEY = 'ZEELIN_PROXY_ENABLED';
@@ -12,7 +14,7 @@ function parseBooleanText(value) {
 }
 
 function createProviderSettingsRuntime({
-  providerEnvPresets,
+  providerEnvPresets = defaultProviderEnvPresets,
   normalizeProviderId,
   applyProviderStartupEnv,
   getProviderStartupSettings,

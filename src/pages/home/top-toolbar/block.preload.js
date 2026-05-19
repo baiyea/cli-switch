@@ -1,5 +1,7 @@
+const { createTopToolbarApi } = require('./preload/top-toolbar.api');
+
 function createTopToolbarPreloadApi() {
-  return {};
+  return createTopToolbarApi();
 }
 
 module.exports = { createTopToolbarPreloadApi };

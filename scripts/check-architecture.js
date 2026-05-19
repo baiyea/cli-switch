@@ -90,12 +90,13 @@ if (fs.existsSync(appMainPath)) {
     'home/home.main',
     'settings/settings.main',
   ]);
+  const allowedPageImportPatterns = [/(?:shared|renderer)\/provider-env-presets\.json$/];
   for (const imported of pageImports) {
-    if (!allowedPageImports.has(imported)) {
-      violations.push(
-        `src/app/main.js: page import ../pages/${imported} is not allowed; keep app startup aggregated by page entry files only`,
-      );
-    }
+    if (allowedPageImports.has(imported)) continue;
+    if (allowedPageImportPatterns.some((pattern) => pattern.test(imported))) continue;
+    violations.push(
+      `src/app/main.js: page import ../pages/${imported} is not allowed; keep app startup aggregated by page entry files only`,
+    );
   }
 }
 

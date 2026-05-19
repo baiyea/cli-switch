@@ -9,11 +9,24 @@ const {
 } = require('./providers/main/cli-launchers');
 const { listProviderSessions, mapSessionsToProjects } = require('./providers/main/session-sources');
 const { createOAuthLoginTracker } = require('./providers/main/oauth-login-tracker');
+const { createOAuthLoginService } = require('./providers/main/oauth-login-service');
 const { createProviderSettingsRuntime } = require('./providers/main/provider-settings-runtime');
 const { createProviderConnectionService } = require('./providers/main/provider-connection-service');
 const { createOAuthProbeService } = require('./providers/main/oauth-probe-service');
 const { createProxyConnectivityService } = require('./providers/main/proxy-connectivity-service');
 const { createCliConfigSyncService } = require('./providers/main/cli-config-sync-service');
+const { createProviderTestSyncService } = require('./providers/main/provider-test-sync.service');
+const { createClaudeRuntimeSyncService } = require('./providers/main/claude-runtime-sync');
+const {
+  fetchWithTimeout,
+  shortBody,
+  shortBodyLong,
+  isDeepSeekAnthropicBase,
+  buildAnthropicCompatHeaders,
+  maskSecret,
+  maskEnvForLog,
+  createRunCommandWithEnv,
+} = require('./providers/main/provider-runtime-utils');
 
 module.exports = {
   applyProviderStartupEnv,
@@ -26,9 +39,20 @@ module.exports = {
   listProviderSessions,
   mapSessionsToProjects,
   createOAuthLoginTracker,
+  createOAuthLoginService,
   createProviderSettingsRuntime,
   createProviderConnectionService,
   createOAuthProbeService,
   createProxyConnectivityService,
   createCliConfigSyncService,
+  createProviderTestSyncService,
+  createClaudeRuntimeSyncService,
+  fetchWithTimeout,
+  shortBody,
+  shortBodyLong,
+  isDeepSeekAnthropicBase,
+  buildAnthropicCompatHeaders,
+  maskSecret,
+  maskEnvForLog,
+  createRunCommandWithEnv,
 };
