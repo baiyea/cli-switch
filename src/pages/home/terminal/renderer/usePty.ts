@@ -74,103 +74,6 @@ function installCodexScrollbackGuard(sessionId: string, term: Terminal) {
   }
 }
 
-async function handleClipboardPasteAsync(sessionId: string, cwd: string, term: Terminal) {
-  logBridge.write({
-    level: 'info',
-    scope: 'terminal',
-    message: '[paste] async handler started',
-    meta: { sessionId },
-  });
-
-  try {
-    if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
-      const clipboardItems = await navigator.clipboard.read();
-      logBridge.write({
-        level: 'info',
-        scope: 'terminal',
-        message: '[paste] clipboard.read() success',
-        meta: {
-          sessionId,
-          count: clipboardItems.length,
-          types: clipboardItems.flatMap((i) => i.types),
-        },
-      });
-
-      for (const item of clipboardItems) {
-        const imageType = item.types.find((t) => t.toLowerCase().startsWith('image/'));
-        if (imageType) {
-          logBridge.write({
-            level: 'info',
-            scope: 'terminal',
-            message: '[paste] image found via read()',
-            meta: { sessionId, mimeType: imageType },
-          });
-          const blob = await item.getType(imageType);
-          const arrayBuffer = await blob.arrayBuffer();
-          const bytes = new Uint8Array(arrayBuffer);
-          let binary = '';
-          const chunk = 8192;
-          for (let i = 0; i < bytes.length; i += chunk) {
-            binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-          }
-          const base64 = btoa(binary);
-
-          const result = await fileAttachmentBridge.saveAttachmentImageBuffer({
-            cwd,
-            sessionId,
-            base64,
-            mimeType: imageType,
-          });
-
-          if (result?.ok && result.relPath) {
-            logBridge.write({
-              level: 'info',
-              scope: 'terminal',
-              message: '[paste] image saved',
-              meta: { sessionId, relPath: result.relPath },
-            });
-            ptyBridge.input(sessionId, `@${result.relPath}`);
-            return;
-          }
-        }
-      }
-    }
-
-    // 没有图片或 read() 不可用，回退到文本粘贴
-    const text = await navigator.clipboard.readText();
-    if (text) {
-      logBridge.write({
-        level: 'info',
-        scope: 'terminal',
-        message: '[paste] falling back to text paste',
-        meta: { sessionId, textLength: text.length },
-      });
-      term.paste(text);
-    } else {
-      logBridge.write({
-        level: 'info',
-        scope: 'terminal',
-        message: '[paste] clipboard empty',
-        meta: { sessionId },
-      });
-    }
-  } catch (error) {
-    logBridge.write({
-      level: 'warn',
-      scope: 'terminal',
-      message: '[paste] async handler error',
-      meta: { sessionId, error: error instanceof Error ? error.message : String(error) },
-    });
-    // 最后尝试文本粘贴
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) term.paste(text);
-    } catch {
-      // 完全失败
-    }
-  }
-}
-
 export function usePty() {
   const terminalRef = useRef<Map<string, TermEntry>>(new Map());
   const containerRef = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -915,29 +818,37 @@ export function usePty() {
       refreshRuntimeStatuses();
     }, 1000);
 
+    const resizeObservers = resizeObserverRef.current;
+    const pasteCleanups = pasteCleanupRef.current;
+    const fitRafs = fitRafRef.current;
+    const terminals = terminalRef.current;
+    const containers = containerRef.current;
+    const replayMuted = replayMutedRef.current;
+
     return () => {
       offData();
       offExit();
       window.clearInterval(idleTimer);
-      for (const observer of resizeObserverRef.current.values()) {
+      for (const observer of resizeObservers.values()) {
         observer.disconnect();
       }
-      for (const cleanup of pasteCleanupRef.current.values()) {
+      for (const cleanup of pasteCleanups.values()) {
         cleanup();
       }
-      for (const raf of fitRafRef.current.values()) {
+      for (const raf of fitRafs.values()) {
         window.cancelAnimationFrame(raf);
       }
-      resizeObserverRef.current.clear();
-      pasteCleanupRef.current.clear();
-      fitRafRef.current.clear();
-      for (const { term } of terminalRef.current.values()) {
+      resizeObservers.clear();
+      pasteCleanups.clear();
+      fitRafs.clear();
+      for (const { term } of terminals.values()) {
         term.dispose();
       }
-      terminalRef.current.clear();
-      containerRef.current.clear();
-      replayMutedRef.current.clear();
+      terminals.clear();
+      containers.clear();
+      replayMuted.clear();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ingestOutput, markExited, refreshRuntimeStatuses]);
 
   useEffect(() => {
@@ -955,6 +866,7 @@ export function usePty() {
       window.cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSessionId]);
 
   useEffect(() => {
@@ -1026,6 +938,7 @@ export function usePty() {
       // @ts-expect-error test hook
       delete window.__ZEELIN_TEST__;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {

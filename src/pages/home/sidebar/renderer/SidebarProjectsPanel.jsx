@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { normalizeProviderId } from '../../../../pages/settings/providers/renderer/provider-config';
 import { Button } from '../../../../ui/button';
 import {

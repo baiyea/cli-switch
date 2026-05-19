@@ -128,14 +128,13 @@ test('配置 DeepSeek 作为默认 Provider', async () => {
 
   // 3. 替换 ANTHROPIC_AUTH_TOKEN 为真实 key
   // 找到 ANTHROPIC_AUTH_TOKEN 的输入框并填入真实 token
-  const envRows = win.locator('.provider-settings-section .space-y-2 > div');
   // 遍历所有输入框，找到 AUTH_TOKEN 旁边的 value 输入
   const allTextInputs = win.locator('.provider-settings-section input[type="text"]');
   const inputCount = await allTextInputs.count();
   let filled = false;
   for (let i = 0; i < inputCount; i++) {
     const input = allTextInputs.nth(i);
-    const placeholder = await input.getAttribute('placeholder');
+    await input.getAttribute('placeholder');
     // ANTHROPIC_AUTH_TOKEN 的 placeholder 通常包含 "token" 或 "key" 或为空
     const val = await input.inputValue();
     if (val === 'e2e-placeholder') {

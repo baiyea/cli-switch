@@ -74,6 +74,7 @@ export function TerminalPanel() {
       disposed = true;
       if (timer != null) window.clearInterval(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeSession?.provider,
     activeSession?.providerSessionId,

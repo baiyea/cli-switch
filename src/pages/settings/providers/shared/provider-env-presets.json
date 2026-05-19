@@ -6,8 +6,10 @@
         "name": "Kimi Code Plan",
         "envVars": [
           { "key": "ANTHROPIC_API_KEY", "value": null },
+          { "key": "ANTHROPIC_BASE_URL", "value": "https://api.kimi.com/coding/" },
           { "key": "ANTHROPIC_MODEL", "value": "kimi-for-coding" },
-          { "key": "ANTHROPIC_BASE_URL", "value": "https://api.kimi.com/coding/" }
+          { "key": "CLAUDE_CODE_ENABLE_TELEMETRY", "value": 0 },
+          { "key": "CLAUDE_CODE_ATTRIBUTION_HEADER", "value": 0 }
         ]
       },
       {
@@ -16,7 +18,9 @@
         "envVars": [
           { "key": "ANTHROPIC_AUTH_TOKEN", "value": null },
           { "key": "ANTHROPIC_BASE_URL", "value": "https://api.minimaxi.com/anthropic" },
-          { "key": "ANTHROPIC_MODEL", "value": "MiniMax-M2.5" }
+          { "key": "ANTHROPIC_MODEL", "value": "MiniMax-M2.5" },
+          { "key": "CLAUDE_CODE_ENABLE_TELEMETRY", "value": 0 },
+          { "key": "CLAUDE_CODE_ATTRIBUTION_HEADER", "value": 0 }
         ]
       },
       {
@@ -30,7 +34,9 @@
           { "key": "ANTHROPIC_DEFAULT_SONNET_MODEL", "value": "deepseek-v4-pro[1m]" },
           { "key": "ANTHROPIC_DEFAULT_HAIKU_MODEL", "value": "deepseek-v4-flash" },
           { "key": "CLAUDE_CODE_SUBAGENT_MODEL", "value": "deepseek-v4-flash" },
-          { "key": "CLAUDE_CODE_EFFORT_LEVEL", "value": "max" }
+          { "key": "CLAUDE_CODE_EFFORT_LEVEL", "value": "max" },
+          { "key": "CLAUDE_CODE_ENABLE_TELEMETRY", "value": 0 },
+          { "key": "CLAUDE_CODE_ATTRIBUTION_HEADER", "value": 0 }
         ]
       },
       {

@@ -1,7 +1,6 @@
 'use strict';
 
 const fs = require('node:fs');
-const path = require('node:path');
 
 function getExistingSkillSlugs(skillsRoot) {
   if (!fs.existsSync(skillsRoot)) return new Set();

@@ -1,5 +1,4 @@
 import { Minus, Square, X } from 'lucide-react';
-import React from 'react';
 
 import { topToolbarBridge } from './top-toolbar.bridge';
 

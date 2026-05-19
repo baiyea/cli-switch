@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { Button } from '../../ui/button';
 import { DownloadIcon, ExternalLinkIcon, FolderCodeIcon, PlusIcon } from '../../ui/icon-registry';
 

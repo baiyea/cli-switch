@@ -310,7 +310,7 @@ test('supportsImagePaste allows all providers on Windows but limits on macOS', a
   const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
 
   // 检测当前的 platform 和 supportsImagePaste 逻辑
-  const platformCheck = await win.evaluate((sid) => {
+  const platformCheck = await win.evaluate(() => {
     const isWindows = /Win32|Win64/.test(navigator.platform);
     const isMac = /Mac/.test(navigator.platform);
 
@@ -390,7 +390,7 @@ test('selection is not cleared after copy on macOS', async () => {
 });
 
 test('FILE_ATTACHMENT_SAVE_BUFFER IPC channel is registered', async () => {
-  const { app, win, projectDir } = await launchApp();
+  const { app, win } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);

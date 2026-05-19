@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { TabsList, TabsTrigger } from '../../../../ui/tabs';
 
 function CpuIcon({ size = 14 }) {

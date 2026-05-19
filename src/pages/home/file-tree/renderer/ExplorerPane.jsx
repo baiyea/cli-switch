@@ -1,4 +1,3 @@
-import React from 'react';
 import { Tree } from 'react-arborist';
 import { FileIcon, FolderIcon, OpenFolderIcon } from 'react-files-icons';
 
@@ -9,7 +8,6 @@ export function ExplorerPane({
   explorerVisible,
   activeProject,
   activeWorkspaceCwd,
-  explorerCwd,
   explorerTreeWrapRef,
   explorerLoading,
   explorerTree,

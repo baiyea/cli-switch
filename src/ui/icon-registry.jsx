@@ -1,5 +1,3 @@
-import React from 'react';
-
 import claudeIcon from '../assets/provider-icons/claude.svg';
 import codexIcon from '../assets/provider-icons/codex.svg';
 import geminiIcon from '../assets/provider-icons/gemini.svg';

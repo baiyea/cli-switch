@@ -28,7 +28,7 @@ async function run() {
       await page.goto('http://localhost:5073');
       ready = true;
       break;
-    } catch (e) {
+    } catch {
       await new Promise((r) => setTimeout(r, 1000));
     }
   }

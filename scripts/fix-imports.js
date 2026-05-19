@@ -22,7 +22,7 @@ walk(DIR, (filePath) => {
 
   // Calculate depth of this file relative to src/pages/
   const rel = path.relative(DIR, filePath);
-  const depth = rel.split(path.sep).length;
+  const _depth = rel.split(path.sep).length;
 
   // Replace imports to shared/bridge (need depth-dependent levels)
   // From features/terminal/renderer/X → ../../../shared → was 3 levels

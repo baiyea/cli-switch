@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { Badge } from '../../../../ui/badge';
 import { Button } from '../../../../ui/button';
 import { ProviderIcon } from '../../../../ui/icon-registry';
@@ -22,7 +20,6 @@ export function ProviderSettingsSection({
   currentProviderTestState,
   isEditingOAuthProfile,
   oauthProviderHint,
-  oauthCommandHint,
   onStartOAuthLogin,
   hasCurrentOauthDisplayUrl,
   currentOauthDisplayUrl,

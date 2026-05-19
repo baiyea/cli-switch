@@ -103,7 +103,7 @@ test('window minimize button reduces window to taskbar', async () => {
   await expect(minimizeBtn).toBeVisible();
 
   // 获取窗口当前状态
-  const beforeState = await win.evaluate(() => ({
+  await win.evaluate(() => ({
     isMinimized: false,
     isMaximized: false,
     width: window.innerWidth,
@@ -140,7 +140,7 @@ test('window maximize button toggles window size', async () => {
   await expect(maximizeBtn).toBeVisible();
 
   // 获取初始状态
-  const beforeState = await app.evaluate(({ BrowserWindow }) => {
+  await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
     return w ? { isMaximized: w.isMaximized(), isNormal: w.isNormal() } : null;
   });

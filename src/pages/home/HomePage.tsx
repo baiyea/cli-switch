@@ -143,11 +143,13 @@ export function HomePage() {
         setSettingsOpen(true);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!settingsOpen || settingsSection !== 'archive') return;
     loadArchivedSessions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsOpen, settingsSection]);
 
   const hasProjects = projects.length > 0;
