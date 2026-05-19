@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 /**
  * 跨页面共享状态：Home ↔ Settings
@@ -18,9 +18,9 @@ interface PagesStore {
 
 export const usePagesStore = create<PagesStore>((set) => ({
   settingsOpen: false,
-  settingsSection: "providers",
+  settingsSection: 'providers',
 
-  openSettings(section = "providers") {
+  openSettings(section = 'providers') {
     set({ settingsOpen: true, settingsSection: section });
   },
 

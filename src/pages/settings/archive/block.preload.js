@@ -1,4 +1,4 @@
-const { createArchiveApi } = require("./preload/archive.api");
+const { createArchiveApi } = require('./preload/archive.api');
 
 function createArchivePreloadApi() {
   return createArchiveApi();

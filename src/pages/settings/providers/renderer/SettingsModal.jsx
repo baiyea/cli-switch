@@ -1,10 +1,17 @@
-import React from "react";
-import { AboutSettingsSection } from "../../about/renderer/AboutSettingsSection";
-import { ArchiveSettingsSection } from "../../archive/renderer/ArchiveSettingsSection";
-import { ProviderSettingsSection } from "./ProviderSettingsSection";
-import { SettingsSideNav } from "./SettingsSideNav";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../../../ui/dialog";
-import { Tabs, TabsContent } from "../../../../ui/tabs";
+import React from 'react';
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../../../../ui/dialog';
+import { Tabs, TabsContent } from '../../../../ui/tabs';
+import { AboutSettingsSection } from '../../about/renderer/AboutSettingsSection';
+import { ArchiveSettingsSection } from '../../archive/renderer/ArchiveSettingsSection';
+import { ProviderSettingsSection } from './ProviderSettingsSection';
+import { SettingsSideNav } from './SettingsSideNav';
 
 export function SettingsModal({
   forceLock,
@@ -19,43 +26,43 @@ export function SettingsModal({
   providerLabel,
   onRestoreArchivedSession,
   appVersion,
-  appLogo
+  appLogo,
 }) {
   const headerMeta = (() => {
-    if (settingsSection === "about") {
+    if (settingsSection === 'about') {
       return {
-        title: "About",
-        subtitle: "Application details and system information."
+        title: 'About',
+        subtitle: 'Application details and system information.',
       };
     }
-    if (settingsSection === "providers") {
+    if (settingsSection === 'providers') {
       return {
-        title: "Providers",
+        title: 'Providers',
         subtitle: providerSectionProps?.isEditingOAuthProfile
-          ? "Configure OAuth authentication for AI providers."
-          : "Configure your AI provider API keys and settings."
+          ? 'Configure OAuth authentication for AI providers.'
+          : 'Configure your AI provider API keys and settings.',
       };
     }
-    if (settingsSection === "archive") {
+    if (settingsSection === 'archive') {
       return {
-        title: "Archive",
-        subtitle: "Manage archived sessions and restore history."
+        title: 'Archive',
+        subtitle: 'Manage archived sessions and restore history.',
       };
     }
     return {
-      title: "Providers",
+      title: 'Providers',
       subtitle: providerSectionProps?.isEditingOAuthProfile
-        ? "Configure OAuth authentication for AI providers."
-        : "Configure your AI provider API keys and settings."
+        ? 'Configure OAuth authentication for AI providers.'
+        : 'Configure your AI provider API keys and settings.',
     };
   })();
 
   const onSectionChange = async (value) => {
-    if (value === "archive") {
+    if (value === 'archive') {
       await onSelectArchive();
       return;
     }
-    if (value === "about") {
+    if (value === 'about') {
       onSelectAbout();
       return;
     }
@@ -65,8 +72,17 @@ export function SettingsModal({
   if (!settingsOpen) return null;
 
   return (
-    <Dialog open={settingsOpen} onOpenChange={(open) => { if (!open && forceLock) return; if (!open) onClose(); }}>
-      <DialogContent showClose={false} className="settings-modal flex flex-col h-[min(763px,calc(100vh-32px))] max-h-[calc(100vh-32px)] p-0 gap-0">
+    <Dialog
+      open={settingsOpen}
+      onOpenChange={(open) => {
+        if (!open && forceLock) return;
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
+        showClose={false}
+        className="settings-modal flex flex-col h-[min(763px,calc(100vh-32px))] max-h-[calc(100vh-32px)] p-0 gap-0"
+      >
         <div className="settings-modal-header relative border-b border-white/[0.08] px-5 pt-2.5 pb-4">
           {!forceLock && (
             <button
@@ -92,7 +108,11 @@ export function SettingsModal({
           </div>
         )}
 
-        <Tabs value={settingsSection} onValueChange={onSectionChange} className="grid grid-cols-[240px_minmax(0,1fr)] gap-0 flex-1 min-h-0">
+        <Tabs
+          value={settingsSection}
+          onValueChange={onSectionChange}
+          className="grid grid-cols-[240px_minmax(0,1fr)] gap-0 flex-1 min-h-0"
+        >
           <SettingsSideNav />
 
           <div className="settings-panel flex-1 overflow-auto">

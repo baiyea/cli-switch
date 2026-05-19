@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import { logBridge } from "../../../../shared/bridge";
-import { fileTreeBridge } from "./file-tree.bridge";
+import { useEffect, useRef, useState } from 'react';
+
+import { logBridge } from '../../../../shared/bridge';
+import { fileTreeBridge } from './file-tree.bridge';
 
 export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible, setAppError }) {
   const [explorerTree, setExplorerTree] = useState([]);
-  const [explorerCwd, setExplorerCwd] = useState("");
+  const [explorerCwd, setExplorerCwd] = useState('');
   const [explorerLoading, setExplorerLoading] = useState(false);
   const [explorerIsGitRepo, setExplorerIsGitRepo] = useState(false);
   const [explorerTreeHeight, setExplorerTreeHeight] = useState(300);
@@ -13,7 +14,7 @@ export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible
   async function loadExplorerTree(cwd) {
     if (!cwd) {
       setExplorerTree([]);
-      setExplorerCwd("");
+      setExplorerCwd('');
       setExplorerIsGitRepo(false);
       return;
     }
@@ -33,12 +34,12 @@ export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible
   }
 
   async function onOpenWorkspaceInFileManager() {
-    const target = activeWorkspaceCwd || activeProject?.path || "";
+    const target = activeWorkspaceCwd || activeProject?.path || '';
     if (!target) return;
     try {
       await fileTreeBridge.openPath({ path: target });
     } catch (e) {
-      setAppError?.(`打开目录失败：${e?.message || "未知错误"}`);
+      setAppError?.(`打开目录失败：${e?.message || '未知错误'}`);
     }
   }
 
@@ -47,16 +48,16 @@ export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible
     try {
       await fileTreeBridge.openPath({ path });
     } catch (e) {
-      setAppError?.(`打开文件失败：${e?.message || "未知错误"}`);
+      setAppError?.(`打开文件失败：${e?.message || '未知错误'}`);
     }
   }
 
   useEffect(() => {
     logBridge.write({
-      level: "debug",
-      scope: "app",
-      message: "Loading explorer tree",
-      meta: { cwd: activeWorkspaceCwd || "" }
+      level: 'debug',
+      scope: 'app',
+      message: 'Loading explorer tree',
+      meta: { cwd: activeWorkspaceCwd || '' },
     });
     loadExplorerTree(activeWorkspaceCwd);
   }, [activeWorkspaceCwd]);
@@ -74,10 +75,10 @@ export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible
     const scheduleUpdate = () => window.requestAnimationFrame(updateHeight);
     const raf1 = window.requestAnimationFrame(updateHeight);
     const raf2 = window.requestAnimationFrame(scheduleUpdate);
-    window.addEventListener("resize", scheduleUpdate);
+    window.addEventListener('resize', scheduleUpdate);
 
     let observer = null;
-    if (typeof ResizeObserver !== "undefined") {
+    if (typeof ResizeObserver !== 'undefined') {
       observer = new ResizeObserver(scheduleUpdate);
       const container = explorerTreeWrapRef.current;
       if (container) observer.observe(container);
@@ -86,7 +87,7 @@ export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible
     return () => {
       window.cancelAnimationFrame(raf1);
       window.cancelAnimationFrame(raf2);
-      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
       if (observer) observer.disconnect();
     };
   }, [activeProject, explorerVisible, explorerCwd]);
@@ -111,7 +112,7 @@ export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible
       explorerTreeHeight,
       explorerIsGitRepo,
       onOpenWorkspaceInFileManager,
-      onOpenExplorerFile
-    }
+      onOpenExplorerFile,
+    },
   };
 }

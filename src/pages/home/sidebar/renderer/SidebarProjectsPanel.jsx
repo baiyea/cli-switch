@@ -1,24 +1,30 @@
-import React from "react";
-import { ArchiveIcon, ChevronDownIcon, ChevronRightIcon, ProviderIcon } from "../../../../ui/icon-registry";
-import { Button } from "../../../../ui/button";
-import { normalizeProviderId } from "../../../../pages/settings/providers/renderer/provider-config";
-import { useSessionStore } from "../../home.store";
+import React from 'react';
+
+import { normalizeProviderId } from '../../../../pages/settings/providers/renderer/provider-config';
+import { Button } from '../../../../ui/button';
+import {
+  ArchiveIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ProviderIcon,
+} from '../../../../ui/icon-registry';
+import { useSessionStore } from '../../home.store';
 
 const PROVIDER_LABEL = {
-  claude: "Claude Code",
-  codex: "Codex CLI",
-  gemini: "Gemini CLI"
+  claude: 'Claude Code',
+  codex: 'Codex CLI',
+  gemini: 'Gemini CLI',
 };
 
 const RUNTIME_STATUS_LABEL = {
-  starting: "启动中",
-  streaming: "输出中",
-  awaiting_input: "等待输入",
-  awaiting_confirmation: "等待确认",
-  error: "异常",
-  exited: "已退出",
-  creating: "启动中",
-  running: "运行中"
+  starting: '启动中',
+  streaming: '输出中',
+  awaiting_input: '等待输入',
+  awaiting_confirmation: '等待确认',
+  error: '异常',
+  exited: '已退出',
+  creating: '启动中',
+  running: '运行中',
 };
 
 export function SidebarProjectsPanel({
@@ -47,7 +53,7 @@ export function SidebarProjectsPanel({
   setActiveSession,
   openRenameModal,
   destroySession,
-  setShowAllSessionsByProject
+  setShowAllSessionsByProject,
 }) {
   const sessions = useSessionStore((state) => state.sessions);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
@@ -72,38 +78,42 @@ export function SidebarProjectsPanel({
           const expanded = expandedProjects[p.id] !== false;
           const projectSessions = sessions.filter(
             (s) =>
-              (s.projectId === p.id
-                || s.cwd === p.path
-                || s.cwd.startsWith(`${p.path}${p.path.endsWith("/") ? "" : "/"}`))
-              && enabledProviderIds.includes(normalizeProviderId(s.provider))
+              (s.projectId === p.id ||
+                s.cwd === p.path ||
+                s.cwd.startsWith(`${p.path}${p.path.endsWith('/') ? '' : '/'}`)) &&
+              enabledProviderIds.includes(normalizeProviderId(s.provider)),
           );
           const orderedProjectSessions = [...projectSessions].sort(
-            (a, b) => Number(b.sortOrder || 0) - Number(a.sortOrder || 0)
+            (a, b) => Number(b.sortOrder || 0) - Number(a.sortOrder || 0),
           );
           const hiddenSessionCount = Math.max(0, orderedProjectSessions.length - 5);
-          const activeSessionInHidden = hiddenSessionCount > 0
-            && orderedProjectSessions.slice(5).some((item) => item.sessionId === activeSessionId);
+          const activeSessionInHidden =
+            hiddenSessionCount > 0 &&
+            orderedProjectSessions.slice(5).some((item) => item.sessionId === activeSessionId);
           const manualShowAll = showAllSessionsByProject[p.id];
-          const showAllSessions = typeof manualShowAll === "boolean"
-            ? manualShowAll
-            : activeSessionInHidden;
+          const showAllSessions =
+            typeof manualShowAll === 'boolean' ? manualShowAll : activeSessionInHidden;
           const visibleProjectSessions = showAllSessions
             ? orderedProjectSessions
             : orderedProjectSessions.slice(0, 5);
           return (
             <div key={p.id} className="project-node" data-testid={`project-${p.id}`}>
               <div
-                className={`project-head ${activeProjectId === p.id ? "active" : ""}`}
+                className={`project-head ${activeProjectId === p.id ? 'active' : ''}`}
                 onClick={() => {
                   setActiveProjectId(p.id);
                   setExpandedProjects((prev) => ({ ...prev, [p.id]: !expanded }));
                   setSettingsOpen(false);
                 }}
               >
-                <span className="project-caret">{expanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}</span>
+                <span className="project-caret">
+                  {expanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+                </span>
                 <span className="project-name">{p.name}</span>
                 {primarySessionTool && (
-                  <div className={`project-create-wrap ${openCreateMenuProjectId === p.id ? "open" : ""}`}>
+                  <div
+                    className={`project-create-wrap ${openCreateMenuProjectId === p.id ? 'open' : ''}`}
+                  >
                     <Button
                       className="project-create-main"
                       variant="ghost"
@@ -117,7 +127,10 @@ export function SidebarProjectsPanel({
                         await createSessionForProject(p, primarySessionTool.id);
                       }}
                     >
-                      <ProviderIcon provider={primarySessionTool.id} className="project-tool-icon" />
+                      <ProviderIcon
+                        provider={primarySessionTool.id}
+                        className="project-tool-icon"
+                      />
                     </Button>
                     <Button
                       className="project-create-toggle"
@@ -128,16 +141,16 @@ export function SidebarProjectsPanel({
                       onClick={(e) => {
                         e.stopPropagation();
                         const button = e.currentTarget;
-                        const sessionsEl = button.closest(".sidebar-sessions");
+                        const sessionsEl = button.closest('.sidebar-sessions');
                         const menuEstimatedHeight = 230;
-                        let placement = "down";
+                        let placement = 'down';
                         if (sessionsEl instanceof HTMLElement && button instanceof HTMLElement) {
                           const blockRect = sessionsEl.getBoundingClientRect();
                           const buttonRect = button.getBoundingClientRect();
                           const spaceBelow = blockRect.bottom - buttonRect.bottom;
                           const spaceAbove = buttonRect.top - blockRect.top;
                           if (spaceBelow < menuEstimatedHeight && spaceAbove > spaceBelow) {
-                            placement = "up";
+                            placement = 'up';
                           }
                         }
                         setCreateMenuPlacementByProject((prev) => ({ ...prev, [p.id]: placement }));
@@ -148,7 +161,7 @@ export function SidebarProjectsPanel({
                     </Button>
                     {openCreateMenuProjectId === p.id && (
                       <div
-                        className={`project-create-menu ${createMenuPlacementByProject[p.id] === "up" ? "upward" : ""}`}
+                        className={`project-create-menu ${createMenuPlacementByProject[p.id] === 'up' ? 'upward' : ''}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         {enabledSessionToolOptions.map((option) => (
@@ -157,7 +170,7 @@ export function SidebarProjectsPanel({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className={`project-create-item ${primarySessionTool.id === option.id ? "active" : ""}`}
+                            className={`project-create-item ${primarySessionTool.id === option.id ? 'active' : ''}`}
                             onClick={async () => {
                               setOpenCreateMenuProjectId(null);
                               setActiveProjectId(p.id);
@@ -180,7 +193,9 @@ export function SidebarProjectsPanel({
                             await onSyncProjectHistory(p);
                           }}
                         >
-                          <span className="project-create-history-icon" aria-hidden="true">↻</span>
+                          <span className="project-create-history-icon" aria-hidden="true">
+                            ↻
+                          </span>
                           <span>读取历史会话</span>
                         </Button>
                       </div>
@@ -195,31 +210,33 @@ export function SidebarProjectsPanel({
                     <div className="session-empty">暂无会话</div>
                   ) : (
                     visibleProjectSessions.map((session) => {
-                      const sessionStatus = session.runtimeStatus || session.status || "";
-                      const hasVisualStatus = Boolean(sessionStatus) && sessionStatus !== "idle";
+                      const sessionStatus = session.runtimeStatus || session.status || '';
+                      const hasVisualStatus = Boolean(sessionStatus) && sessionStatus !== 'idle';
                       return (
                         <div
                           key={session.sessionId}
-                          className={`session-item ${session.sessionId === activeSessionId ? "active" : ""} ${dragOverSessionId === session.sessionId ? "drag-over" : ""}`}
+                          className={`session-item ${session.sessionId === activeSessionId ? 'active' : ''} ${dragOverSessionId === session.sessionId ? 'drag-over' : ''}`}
                           data-testid={`session-item-${session.sessionId}`}
                           draggable
                           onDragStart={(e) => {
                             setDraggingSessionId(session.sessionId);
-                            setDragOverSessionId("");
-                            e.dataTransfer.effectAllowed = "move";
-                            e.dataTransfer.setData("text/plain", session.sessionId);
+                            setDragOverSessionId('');
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', session.sessionId);
                           }}
                           onDragEnd={() => {
-                            setDraggingSessionId("");
-                            setDragOverSessionId("");
+                            setDraggingSessionId('');
+                            setDragOverSessionId('');
                           }}
                           onDragOver={(e) => {
-                            if (!draggingSessionId || draggingSessionId === session.sessionId) return;
+                            if (!draggingSessionId || draggingSessionId === session.sessionId)
+                              return;
                             e.preventDefault();
                             setDragOverSessionId(session.sessionId);
                           }}
                           onDragEnter={(e) => {
-                            if (!draggingSessionId || draggingSessionId === session.sessionId) return;
+                            if (!draggingSessionId || draggingSessionId === session.sessionId)
+                              return;
                             e.preventDefault();
                             setDragOverSessionId(session.sessionId);
                           }}
@@ -236,7 +253,7 @@ export function SidebarProjectsPanel({
                           role="button"
                           tabIndex={0}
                           onKeyDown={(e) => {
-                            if (e.key !== "Enter" && e.key !== " ") return;
+                            if (e.key !== 'Enter' && e.key !== ' ') return;
                             e.preventDefault();
                             setSettingsOpen(false);
                             setActiveProjectId(p.id);
@@ -244,14 +261,16 @@ export function SidebarProjectsPanel({
                           }}
                         >
                           <ProviderIcon
-                            provider={session.provider || "claude"}
-                            className={`session-provider-icon ${sessionStatus} ${hasVisualStatus ? "" : "no-status"}`}
+                            provider={session.provider || 'claude'}
+                            className={`session-provider-icon ${sessionStatus} ${hasVisualStatus ? '' : 'no-status'}`}
                             variant="default"
                             size={14}
                             title={
                               hasVisualStatus
-                                ? `${PROVIDER_LABEL[session.provider] || session.provider || "Claude Code"} · ${RUNTIME_STATUS_LABEL[sessionStatus] || sessionStatus}`
-                                : (PROVIDER_LABEL[session.provider] || session.provider || "Claude Code")
+                                ? `${PROVIDER_LABEL[session.provider] || session.provider || 'Claude Code'} · ${RUNTIME_STATUS_LABEL[sessionStatus] || sessionStatus}`
+                                : PROVIDER_LABEL[session.provider] ||
+                                  session.provider ||
+                                  'Claude Code'
                             }
                           />
                           <span
@@ -293,11 +312,11 @@ export function SidebarProjectsPanel({
                       onClick={() => {
                         setShowAllSessionsByProject((prev) => ({
                           ...prev,
-                          [p.id]: !showAllSessions
+                          [p.id]: !showAllSessions,
                         }));
                       }}
                     >
-                      {showAllSessions ? "收起" : `展开显示（+${hiddenSessionCount}）`}
+                      {showAllSessions ? '收起' : `展开显示（+${hiddenSessionCount}）`}
                     </Button>
                   )}
                 </div>

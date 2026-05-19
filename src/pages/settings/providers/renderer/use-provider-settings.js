@@ -1,38 +1,39 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ptyBridge, settingsBridge } from "./providers.bridge";
+import { useEffect, useMemo, useRef, useState } from 'react';
+
 import {
-  OAUTH_COMMAND_HINT,
-  PROVIDER_IDS,
-  INTERNAL_PROXY_URL_KEY,
-  INTERNAL_PROXY_ENABLED_KEY,
-  normalizeProviderId,
-  getProviderPresetConfig,
-  normalizeProviderSettings,
   getMissingRequiredKeys,
+  getProviderPresetConfig,
+  INTERNAL_PROXY_ENABLED_KEY,
+  INTERNAL_PROXY_URL_KEY,
+  isInternalEnvKey,
+  isOAuthProfile,
+  isProxyEnvKey,
+  normalizeProviderEntry,
+  normalizeProviderId,
+  normalizeProviderSettings,
+  OAUTH_COMMAND_HINT,
+  oauthProviderHint,
+  parseBooleanText,
+  presetEnvVars,
+  PROVIDER_IDS,
+  resolveOAuthDisplayUrl,
   resolveProviderModel,
   stripPresetFixedEnvVarsForPersist,
-  normalizeProviderEntry,
-  isOAuthProfile,
-  isInternalEnvKey,
-  isProxyEnvKey,
-  parseBooleanText,
-  oauthProviderHint,
-  resolveOAuthDisplayUrl,
-  presetEnvVars
-} from "./provider-config";
+} from './provider-config';
+import { ptyBridge, settingsBridge } from './providers.bridge';
 
 export const DEFAULT_PROVIDER_SETTINGS = {
-  defaultProfileId: "",
-  enabledProfileId: "",
-  profiles: []
+  defaultProfileId: '',
+  enabledProfileId: '',
+  profiles: [],
 };
 
 export const DEFAULT_SETTINGS = {
   providers: {
     claude: { ...DEFAULT_PROVIDER_SETTINGS },
     codex: { ...DEFAULT_PROVIDER_SETTINGS },
-    gemini: { ...DEFAULT_PROVIDER_SETTINGS }
-  }
+    gemini: { ...DEFAULT_PROVIDER_SETTINGS },
+  },
 };
 
 export function isProviderConfigured(settingsModel) {
@@ -43,9 +44,21 @@ export function isProviderConfigured(settingsModel) {
 
 function getInitialEditingProfiles(providers) {
   return {
-    claude: providers.claude.enabledProfileId || providers.claude.defaultProfileId || providers.claude.profiles?.[0]?.id || "",
-    codex: providers.codex.enabledProfileId || providers.codex.defaultProfileId || providers.codex.profiles?.[0]?.id || "",
-    gemini: providers.gemini.enabledProfileId || providers.gemini.defaultProfileId || providers.gemini.profiles?.[0]?.id || ""
+    claude:
+      providers.claude.enabledProfileId ||
+      providers.claude.defaultProfileId ||
+      providers.claude.profiles?.[0]?.id ||
+      '',
+    codex:
+      providers.codex.enabledProfileId ||
+      providers.codex.defaultProfileId ||
+      providers.codex.profiles?.[0]?.id ||
+      '',
+    gemini:
+      providers.gemini.enabledProfileId ||
+      providers.gemini.defaultProfileId ||
+      providers.gemini.profiles?.[0]?.id ||
+      '',
   };
 }
 
@@ -59,96 +72,111 @@ export function useProviderSettings({
   setActiveProjectId,
   onFirstProviderConfigured,
   activeSession,
-  providerLabel = {}
+  providerLabel = {},
 } = {}) {
   const [providerCheckPassed, setProviderCheckPassed] = useState(false);
-  const [providerTab, setProviderTab] = useState("claude");
+  const [providerTab, setProviderTab] = useState('claude');
   const [editingProfileByProvider, setEditingProfileByProvider] = useState({
-    claude: "",
-    codex: "",
-    gemini: ""
+    claude: '',
+    codex: '',
+    gemini: '',
   });
   const [settingsModel, setSettingsModel] = useState(DEFAULT_SETTINGS);
-  const [settingsError, setSettingsError] = useState("");
+  const [settingsError, setSettingsError] = useState('');
   const [settingsSavedAt, setSettingsSavedAt] = useState(0);
   const [providerTestStateByKey, setProviderTestStateByKey] = useState({});
   const [oauthLinksByKey, setOauthLinksByKey] = useState({});
   const [oauthCodeByKey, setOauthCodeByKey] = useState({});
   const oauthLinkPollTimerRef = useRef({});
 
-  const currentProviderSettings = settingsModel.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
-  const editingProfileId = editingProfileByProvider[providerTab]
-    || currentProviderSettings.enabledProfileId
-    || currentProviderSettings.defaultProfileId
-    || "";
-  const currentProviderPresetConfig = getProviderPresetConfig(providerTab) || { type: "keyList", keys: [] };
-  const isFixedProfileProvider = currentProviderPresetConfig.type === "fixedProfiles";
+  const currentProviderSettings =
+    settingsModel.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
+  const editingProfileId =
+    editingProfileByProvider[providerTab] ||
+    currentProviderSettings.enabledProfileId ||
+    currentProviderSettings.defaultProfileId ||
+    '';
+  const currentProviderPresetConfig = getProviderPresetConfig(providerTab) || {
+    type: 'keyList',
+    keys: [],
+  };
+  const isFixedProfileProvider = currentProviderPresetConfig.type === 'fixedProfiles';
   const currentProviderTestKey = `${providerTab}:${editingProfileId}`;
-  const currentProviderTestState = providerTestStateByKey[currentProviderTestKey] || { status: "idle", message: "" };
+  const currentProviderTestState = providerTestStateByKey[currentProviderTestKey] || {
+    status: 'idle',
+    message: '',
+  };
   const currentOauthLinksState = oauthLinksByKey[currentProviderTestKey] || {
-    sessionId: "",
+    sessionId: '',
     allUrls: [],
     authUrls: [],
-    autoOpenedUrl: ""
+    autoOpenedUrl: '',
   };
   const currentOauthDisplayUrl = resolveOAuthDisplayUrl(providerTab, currentOauthLinksState);
-  const hasCurrentOauthDisplayUrl = !!String(currentOauthDisplayUrl || "").trim();
-  const currentOauthCode = oauthCodeByKey[currentProviderTestKey] || "";
+  const hasCurrentOauthDisplayUrl = !!String(currentOauthDisplayUrl || '').trim();
+  const currentOauthCode = oauthCodeByKey[currentProviderTestKey] || '';
   const currentProxyTestKey = `${providerTab}:${editingProfileId}:proxy`;
-  const currentProxyTestState = providerTestStateByKey[currentProxyTestKey] || { status: "idle", message: "" };
+  const currentProxyTestState = providerTestStateByKey[currentProxyTestKey] || {
+    status: 'idle',
+    message: '',
+  };
   const enabledProviderIds = useMemo(
-    () => PROVIDER_IDS.filter((id) => {
-      const providerSettings = settingsModel.providers?.[id];
-      if (!providerSettings) return false;
-      const enabledProfileId = providerSettings.enabledProfileId;
-      if (!enabledProfileId) return false;
-      return (providerSettings.profiles || []).some((profile) => profile.id === enabledProfileId);
-    }),
-    [settingsModel]
+    () =>
+      PROVIDER_IDS.filter((id) => {
+        const providerSettings = settingsModel.providers?.[id];
+        if (!providerSettings) return false;
+        const enabledProfileId = providerSettings.enabledProfileId;
+        if (!enabledProfileId) return false;
+        return (providerSettings.profiles || []).some((profile) => profile.id === enabledProfileId);
+      }),
+    [settingsModel],
   );
   const activeSessionProviderMeta = useMemo(() => {
-    if (!activeSession) return "";
+    if (!activeSession) return '';
     const providerId = normalizeProviderId(activeSession.provider);
     const label = providerLabel[providerId] || String(activeSession.provider || providerId);
     const providerSettings = settingsModel.providers?.[providerId] || DEFAULT_PROVIDER_SETTINGS;
     const activeProfileId = providerSettings.enabledProfileId || providerSettings.defaultProfileId;
-    const activeProfile = (providerSettings.profiles || []).find((profile) => profile.id === activeProfileId)
-      || providerSettings.profiles?.[0]
-      || null;
+    const activeProfile =
+      (providerSettings.profiles || []).find((profile) => profile.id === activeProfileId) ||
+      providerSettings.profiles?.[0] ||
+      null;
     const model = resolveProviderModel(providerId, activeProfile?.envVars || []);
     return `${label} · ${model}`;
   }, [activeSession, providerLabel, settingsModel]);
 
   const editingProfile = useMemo(
-    () => (currentProviderSettings.profiles || []).find((profile) => profile.id === editingProfileId)
-      || currentProviderSettings.profiles?.[0]
-      || null,
-    [currentProviderSettings, editingProfileId]
+    () =>
+      (currentProviderSettings.profiles || []).find((profile) => profile.id === editingProfileId) ||
+      currentProviderSettings.profiles?.[0] ||
+      null,
+    [currentProviderSettings, editingProfileId],
   );
-  const isEditingOAuthProfile = useMemo(
-    () => isOAuthProfile(editingProfile),
-    [editingProfile]
-  );
+  const isEditingOAuthProfile = useMemo(() => isOAuthProfile(editingProfile), [editingProfile]);
   const visibleEnvVars = useMemo(
-    () => (editingProfile?.envVars || [])
-      .map((pair, index) => ({ pair, index }))
-      .filter((item) => !isInternalEnvKey(item.pair?.key)),
-    [editingProfile]
+    () =>
+      (editingProfile?.envVars || [])
+        .map((pair, index) => ({ pair, index }))
+        .filter((item) => !isInternalEnvKey(item.pair?.key)),
+    [editingProfile],
   );
   const regularEnvVars = useMemo(
     () => visibleEnvVars.filter((item) => !isProxyEnvKey(item.pair?.key)),
-    [visibleEnvVars]
+    [visibleEnvVars],
   );
   const proxyState = useMemo(() => {
     const envVars = editingProfile?.envVars || [];
     const getValue = (targetKey) => {
-      const pair = envVars.find((item) => String(item?.key || "").trim().toUpperCase() === targetKey);
-      return String(pair?.value || "").trim();
+      const pair = envVars.find(
+        (item) =>
+          String(item?.key || '')
+            .trim()
+            .toUpperCase() === targetKey,
+      );
+      return String(pair?.value || '').trim();
     };
-    const proxyUrl = getValue(INTERNAL_PROXY_URL_KEY)
-      || getValue("HTTPS_PROXY")
-      || getValue("HTTP_PROXY")
-      || "";
+    const proxyUrl =
+      getValue(INTERNAL_PROXY_URL_KEY) || getValue('HTTPS_PROXY') || getValue('HTTP_PROXY') || '';
     const enabledRaw = getValue(INTERNAL_PROXY_ENABLED_KEY);
     const enabled = enabledRaw ? parseBooleanText(enabledRaw) : !!proxyUrl;
     return { enabled, url: proxyUrl };
@@ -165,20 +193,20 @@ export function useProviderSettings({
   function markProviderDirty(profileId = editingProfileId) {
     setProviderTestStateByKey((prev) => ({
       ...prev,
-      [`${providerTab}:${profileId}`]: { status: "idle", message: "配置已变更，请重新测试连接" }
+      [`${providerTab}:${profileId}`]: { status: 'idle', message: '配置已变更，请重新测试连接' },
     }));
   }
 
   function updateEnvVar(index, key, value) {
-    setSettingsError("");
+    setSettingsError('');
     setSettingsSavedAt(0);
     setSettingsModel((prev) => {
       const nextProfiles = (prev.providers?.[providerTab]?.profiles || []).map((profile) => {
         if (profile.id !== editingProfileId) return profile;
         const nextEnv = [...(profile.envVars || [])];
         if (!nextEnv[index]) return profile;
-        if (key === "key" && nextEnv[index].keyEditable === false) return profile;
-        if (key === "value" && nextEnv[index].editable === false) return profile;
+        if (key === 'key' && nextEnv[index].keyEditable === false) return profile;
+        if (key === 'value' && nextEnv[index].editable === false) return profile;
         nextEnv[index] = { ...nextEnv[index], [key]: value };
         return { ...profile, envVars: nextEnv };
       });
@@ -188,9 +216,9 @@ export function useProviderSettings({
           ...(prev.providers || {}),
           [providerTab]: {
             ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
-            profiles: nextProfiles
-          }
-        }
+            profiles: nextProfiles,
+          },
+        },
       };
     });
     markProviderDirty();
@@ -198,7 +226,7 @@ export function useProviderSettings({
 
   function addEnvVar() {
     if (!editingProfileId) return;
-    setSettingsError("");
+    setSettingsError('');
     setSettingsSavedAt(0);
     setSettingsModel((prev) => {
       const currentProvider = prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
@@ -208,8 +236,15 @@ export function useProviderSettings({
           ...profile,
           envVars: [
             ...(profile.envVars || []),
-            { key: "", value: "", editable: true, required: false, keyEditable: true, removable: true }
-          ]
+            {
+              key: '',
+              value: '',
+              editable: true,
+              required: false,
+              keyEditable: true,
+              removable: true,
+            },
+          ],
         };
       });
       return {
@@ -218,9 +253,9 @@ export function useProviderSettings({
           ...(prev.providers || {}),
           [providerTab]: {
             ...currentProvider,
-            profiles: nextProfiles
-          }
-        }
+            profiles: nextProfiles,
+          },
+        },
       };
     });
     markProviderDirty();
@@ -228,7 +263,7 @@ export function useProviderSettings({
 
   function removeEnvVar(index) {
     if (!editingProfileId) return;
-    setSettingsError("");
+    setSettingsError('');
     setSettingsSavedAt(0);
     setSettingsModel((prev) => {
       const currentProvider = prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
@@ -245,9 +280,9 @@ export function useProviderSettings({
           ...(prev.providers || {}),
           [providerTab]: {
             ...currentProvider,
-            profiles: nextProfiles
-          }
-        }
+            profiles: nextProfiles,
+          },
+        },
       };
     });
     markProviderDirty();
@@ -255,33 +290,40 @@ export function useProviderSettings({
 
   function setProxyConfig({ enabled, url }) {
     if (!editingProfileId) return;
-    const normalizedUrl = String(url || "").trim();
+    const normalizedUrl = String(url || '').trim();
     const normalizedEnabled = !!enabled;
-    setSettingsError("");
+    setSettingsError('');
     setSettingsSavedAt(0);
     setSettingsModel((prev) => {
       const currentProvider = prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
       const nextProfiles = (currentProvider.profiles || []).map((profile) => {
         if (profile.id !== editingProfileId) return profile;
         const nextEnv = [...(profile.envVars || [])].filter((pair) => {
-          const key = String(pair?.key || "").trim().toUpperCase();
-          return key !== "HTTP_PROXY" && key !== "HTTPS_PROXY";
+          const key = String(pair?.key || '')
+            .trim()
+            .toUpperCase();
+          return key !== 'HTTP_PROXY' && key !== 'HTTPS_PROXY';
         });
         const upsert = (key, value) => {
-          const targetKey = String(key || "").trim();
-          const index = nextEnv.findIndex((pair) => String(pair?.key || "").trim().toUpperCase() === targetKey);
+          const targetKey = String(key || '').trim();
+          const index = nextEnv.findIndex(
+            (pair) =>
+              String(pair?.key || '')
+                .trim()
+                .toUpperCase() === targetKey,
+          );
           const payload = {
             key: targetKey,
-            value: String(value || ""),
+            value: String(value || ''),
             editable: true,
             required: false,
             keyEditable: false,
-            removable: false
+            removable: false,
           };
           if (index >= 0) nextEnv[index] = { ...nextEnv[index], ...payload };
           else nextEnv.push(payload);
         };
-        upsert(INTERNAL_PROXY_ENABLED_KEY, normalizedEnabled ? "true" : "false");
+        upsert(INTERNAL_PROXY_ENABLED_KEY, normalizedEnabled ? 'true' : 'false');
         upsert(INTERNAL_PROXY_URL_KEY, normalizedUrl);
         return { ...profile, envVars: nextEnv };
       });
@@ -291,9 +333,9 @@ export function useProviderSettings({
           ...(prev.providers || {}),
           [providerTab]: {
             ...currentProvider,
-            profiles: nextProfiles
-          }
-        }
+            profiles: nextProfiles,
+          },
+        },
       };
     });
     markProviderDirty();
@@ -301,7 +343,7 @@ export function useProviderSettings({
 
   function addProviderProfile() {
     const id = `provider-${Date.now()}`;
-    setSettingsError("");
+    setSettingsError('');
     setSettingsSavedAt(0);
     setSettingsModel((prev) => ({
       ...prev,
@@ -314,17 +356,17 @@ export function useProviderSettings({
             {
               id,
               name: `Provider ${(prev.providers?.[providerTab]?.profiles || []).length + 1}`,
-              envVars: presetEnvVars(providerTab, [], id)
-            }
-          ]
-        }
-      }
+              envVars: presetEnvVars(providerTab, [], id),
+            },
+          ],
+        },
+      },
     }));
     setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: id }));
   }
 
   function renameProviderProfile(profileId, name) {
-    setSettingsError("");
+    setSettingsError('');
     setSettingsSavedAt(0);
     setSettingsModel((prev) => ({
       ...prev,
@@ -333,16 +375,16 @@ export function useProviderSettings({
         [providerTab]: {
           ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
           profiles: (prev.providers?.[providerTab]?.profiles || []).map((profile) =>
-            profile.id === profileId ? { ...profile, name } : profile
-          )
-        }
-      }
+            profile.id === profileId ? { ...profile, name } : profile,
+          ),
+        },
+      },
     }));
     markProviderDirty(profileId);
   }
 
   function setDefaultProviderProfile(profileId) {
-    setSettingsError("");
+    setSettingsError('');
     setSettingsSavedAt(0);
     setSettingsModel((prev) => ({
       ...prev,
@@ -350,22 +392,28 @@ export function useProviderSettings({
         ...(prev.providers || {}),
         [providerTab]: {
           ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
-          defaultProfileId: profileId
-        }
-      }
+          defaultProfileId: profileId,
+        },
+      },
     }));
     setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: profileId }));
   }
 
   function removeProviderProfile(profileId) {
-    setSettingsError("");
+    setSettingsError('');
     setSettingsSavedAt(0);
     setSettingsModel((prev) => {
       const currentProvider = prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
       const next = (currentProvider.profiles || []).filter((profile) => profile.id !== profileId);
       if (next.length === 0) return prev;
-      const defaultProfileId = currentProvider.defaultProfileId === profileId ? next[0].id : currentProvider.defaultProfileId;
-      const enabledProfileId = currentProvider.enabledProfileId === profileId ? defaultProfileId : currentProvider.enabledProfileId;
+      const defaultProfileId =
+        currentProvider.defaultProfileId === profileId
+          ? next[0].id
+          : currentProvider.defaultProfileId;
+      const enabledProfileId =
+        currentProvider.enabledProfileId === profileId
+          ? defaultProfileId
+          : currentProvider.enabledProfileId;
       if (editingProfileId === profileId) {
         setEditingProfileByProvider((p) => ({ ...p, [providerTab]: defaultProfileId }));
       }
@@ -377,9 +425,9 @@ export function useProviderSettings({
             ...currentProvider,
             defaultProfileId,
             enabledProfileId,
-            profiles: next
-          }
-        }
+            profiles: next,
+          },
+        },
       };
     });
   }
@@ -396,17 +444,17 @@ export function useProviderSettings({
     const result = await settingsBridge.getProviderOAuthLinks({
       provider: providerId,
       profileId,
-      sessionId: sessionId || undefined
+      sessionId: sessionId || undefined,
     });
     const stateKey = `${providerId}:${profileId}`;
     setOauthLinksByKey((prev) => ({
       ...prev,
       [stateKey]: {
-        sessionId: result.sessionId || "",
+        sessionId: result.sessionId || '',
         allUrls: Array.isArray(result.allUrls) ? result.allUrls : [],
         authUrls: Array.isArray(result.authUrls) ? result.authUrls : [],
-        autoOpenedUrl: result.autoOpenedUrl || ""
-      }
+        autoOpenedUrl: result.autoOpenedUrl || '',
+      },
     }));
     return result;
   }
@@ -421,17 +469,16 @@ export function useProviderSettings({
         const result = await refreshOAuthLinks(providerId, profileId, sessionId);
         const displayUrl = resolveOAuthDisplayUrl(providerId, result);
         if (displayUrl || tick >= 90) stopOAuthLinkPolling(stateKey);
-      } catch {
-      }
+      } catch {}
     };
     void run();
     oauthLinkPollTimerRef.current[stateKey] = window.setInterval(run, 1000);
   }
 
   function openOAuthLink(url) {
-    const target = String(url || "").trim();
+    const target = String(url || '').trim();
     if (!target) return;
-    window.open(target, "_blank", "noopener,noreferrer");
+    window.open(target, '_blank', 'noopener,noreferrer');
   }
 
   function resolveOAuthSessionId(providerId, profileId) {
@@ -439,66 +486,78 @@ export function useProviderSettings({
     const stored = oauthLinksByKey[stateKey]?.sessionId;
     if (stored) return stored;
     const candidate = sessions
-      .filter((session) => normalizeProviderId(session.provider) === normalizeProviderId(providerId))
-      .filter((session) => /oauth login/i.test(String(session.name || "")))
+      .filter(
+        (session) => normalizeProviderId(session.provider) === normalizeProviderId(providerId),
+      )
+      .filter((session) => /oauth login/i.test(String(session.name || '')))
       .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))[0];
-    return candidate?.sessionId || "";
+    return candidate?.sessionId || '';
   }
 
   async function submitOAuthCode(providerId, profileId, code) {
     const sessionId = resolveOAuthSessionId(providerId, profileId);
-    const normalized = String(code || "").trim();
+    const normalized = String(code || '').trim();
     const stateKey = `${providerId}:${profileId}`;
     if (!sessionId) {
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "failed", message: "未找到 OAuth 登录终端会话，请先点击获取OAuth登陆链接" }
+        [stateKey]: {
+          status: 'failed',
+          message: '未找到 OAuth 登录终端会话，请先点击获取OAuth登陆链接',
+        },
       }));
       return;
     }
     if (!normalized) {
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "failed", message: "验证码为空，请先复制验证码" }
+        [stateKey]: { status: 'failed', message: '验证码为空，请先复制验证码' },
       }));
       return;
     }
     ptyBridge.input(sessionId, `${normalized}\r`);
-    if (normalizeProviderId(providerId) === "gemini") {
+    if (normalizeProviderId(providerId) === 'gemini') {
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "testing", message: "验证码已回填，正在进行 Gemini OAuth 真实探测..." }
+        [stateKey]: {
+          status: 'testing',
+          message: '验证码已回填，正在进行 Gemini OAuth 真实探测...',
+        },
       }));
       try {
         await new Promise((resolve) => window.setTimeout(resolve, 1200));
-        const profileFromModel = (settingsModel.providers?.[providerId]?.profiles || []).find((item) => item.id === profileId);
+        const profileFromModel = (settingsModel.providers?.[providerId]?.profiles || []).find(
+          (item) => item.id === profileId,
+        );
         const envVars = profileFromModel?.envVars || editingProfile?.envVars || [];
         const result = await settingsBridge.probeProviderOAuth({
           provider: providerId,
           profileId,
-          envVars
+          envVars,
         });
         setProviderTestStateByKey((prev) => ({
           ...prev,
           [stateKey]: {
-            status: result.ok ? "success" : "failed",
-            message: result.message || (result.ok ? "Gemini OAuth 探测成功，可继续启用" : "Gemini OAuth 探测失败，请重试")
-          }
+            status: result.ok ? 'success' : 'failed',
+            message:
+              result.message ||
+              (result.ok ? 'Gemini OAuth 探测成功，可继续启用' : 'Gemini OAuth 探测失败，请重试'),
+          },
         }));
       } catch (e) {
         setProviderTestStateByKey((prev) => ({
           ...prev,
           [stateKey]: {
-            status: "failed",
-            message: e?.message || "Gemini OAuth 探测失败，请重试"
-          }
+            status: 'failed',
+            message: e?.message || 'Gemini OAuth 探测失败，请重试',
+          },
         }));
       }
       return;
     }
     setProviderTestStateByKey((prev) => ({
       ...prev,
-      [stateKey]: { status: "success", message: "验证码已回填到终端，请等待登录结果" }
+      [stateKey]: { status: 'success', message: '验证码已回填到终端，请等待登录结果' },
     }));
   }
 
@@ -507,34 +566,35 @@ export function useProviderSettings({
     const stateKey = `${providerTab}:${profileId}`;
     setProviderTestStateByKey((prev) => ({
       ...prev,
-      [stateKey]: { status: "testing", message: "正在打开终端并启动 OAuth 登录..." }
+      [stateKey]: { status: 'testing', message: '正在打开终端并启动 OAuth 登录...' },
     }));
     try {
       const result = await settingsBridge.startProviderOAuthLogin({
         provider: providerTab,
         profileId,
         projectId: activeProjectId || undefined,
-        cwd: activeWorkspaceCwd || activeProject?.path || undefined
+        cwd: activeWorkspaceCwd || activeProject?.path || undefined,
       });
       setProviderTestStateByKey((prev) => ({
         ...prev,
         [stateKey]: {
-          status: result.ok ? "success" : "failed",
-          message: result.message || (result.ok ? "OAuth 登录会话已启动" : "OAuth 登录启动失败")
-        }
+          status: result.ok ? 'success' : 'failed',
+          message: result.message || (result.ok ? 'OAuth 登录会话已启动' : 'OAuth 登录启动失败'),
+        },
       }));
       if (!result.ok) return;
       await refreshSessions?.();
       if (result.session?.sessionId) setActiveSession?.(result.session.sessionId);
       if (result.session?.projectId) setActiveProjectId?.(result.session.projectId);
-      if (result.session?.sessionId) startOAuthLinkPolling(providerTab, profileId, result.session.sessionId);
+      if (result.session?.sessionId)
+        startOAuthLinkPolling(providerTab, profileId, result.session.sessionId);
     } catch (e) {
       setProviderTestStateByKey((prev) => ({
         ...prev,
         [stateKey]: {
-          status: "failed",
-          message: e?.message || "OAuth 登录启动失败"
-        }
+          status: 'failed',
+          message: e?.message || 'OAuth 登录启动失败',
+        },
       }));
     }
   }
@@ -545,7 +605,10 @@ export function useProviderSettings({
     if (!nextEnabled) {
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "failed", message: "必须保留一个启用供应商，请先切换并启用其他供应商" }
+        [stateKey]: {
+          status: 'failed',
+          message: '必须保留一个启用供应商，请先切换并启用其他供应商',
+        },
       }));
       return;
     }
@@ -553,23 +616,24 @@ export function useProviderSettings({
     if (isOAuthProfile(editingProfile)) {
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "testing", message: "正在进行 OAuth 真实探测..." }
+        [stateKey]: { status: 'testing', message: '正在进行 OAuth 真实探测...' },
       }));
       try {
         const result = await settingsBridge.probeProviderOAuth({
           provider: providerTab,
           profileId,
-          envVars: editingProfile.envVars || []
+          envVars: editingProfile.envVars || [],
         });
         setProviderTestStateByKey((prev) => ({
           ...prev,
           [stateKey]: {
-            status: result.ok ? "success" : "failed",
-            message: result.message || (result.ok ? "OAuth 探测成功，已启用" : "OAuth 探测失败，保持关闭")
-          }
+            status: result.ok ? 'success' : 'failed',
+            message:
+              result.message || (result.ok ? 'OAuth 探测成功，已启用' : 'OAuth 探测失败，保持关闭'),
+          },
         }));
         if (!result.ok) return;
-        setSettingsError("");
+        setSettingsError('');
         setSettingsSavedAt(0);
         setSettingsModel((prev) => ({
           ...prev,
@@ -578,17 +642,17 @@ export function useProviderSettings({
             [providerTab]: {
               ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
               enabledProfileId: profileId,
-              defaultProfileId: profileId
-            }
-          }
+              defaultProfileId: profileId,
+            },
+          },
         }));
       } catch (e) {
         setProviderTestStateByKey((prev) => ({
           ...prev,
           [stateKey]: {
-            status: "failed",
-            message: e?.message || "OAuth 探测失败，保持关闭"
-          }
+            status: 'failed',
+            message: e?.message || 'OAuth 探测失败，保持关闭',
+          },
         }));
       }
       return;
@@ -599,31 +663,31 @@ export function useProviderSettings({
       setProviderTestStateByKey((prev) => ({
         ...prev,
         [stateKey]: {
-          status: "failed",
-          message: `请先填写：${missingKeys.join(", ")}`
-        }
+          status: 'failed',
+          message: `请先填写：${missingKeys.join(', ')}`,
+        },
       }));
       return;
     }
     setProviderTestStateByKey((prev) => ({
       ...prev,
-      [stateKey]: { status: "testing", message: "启用校验中..." }
+      [stateKey]: { status: 'testing', message: '启用校验中...' },
     }));
     try {
       const result = await settingsBridge.testProvider({
         provider: providerTab,
         profileId,
-        envVars: editingProfile.envVars || []
+        envVars: editingProfile.envVars || [],
       });
       setProviderTestStateByKey((prev) => ({
         ...prev,
         [stateKey]: {
-          status: result.ok ? "success" : "failed",
-          message: result.message || (result.ok ? "连接成功，已启用" : "连接失败，保持关闭")
-        }
+          status: result.ok ? 'success' : 'failed',
+          message: result.message || (result.ok ? '连接成功，已启用' : '连接失败，保持关闭'),
+        },
       }));
       if (result.ok) {
-        setSettingsError("");
+        setSettingsError('');
         setSettingsSavedAt(0);
         setSettingsModel((prev) => ({
           ...prev,
@@ -632,18 +696,18 @@ export function useProviderSettings({
             [providerTab]: {
               ...(prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS),
               enabledProfileId: profileId,
-              defaultProfileId: profileId
-            }
-          }
+              defaultProfileId: profileId,
+            },
+          },
         }));
       }
     } catch (e) {
       setProviderTestStateByKey((prev) => ({
         ...prev,
         [stateKey]: {
-          status: "failed",
-          message: e?.message || "连接测试失败，保持关闭"
-        }
+          status: 'failed',
+          message: e?.message || '连接测试失败，保持关闭',
+        },
       }));
     }
   }
@@ -655,23 +719,26 @@ export function useProviderSettings({
       setProxyConfig({ enabled: false, url: proxyState.url });
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "idle", message: "代理已关闭" }
+        [stateKey]: { status: 'idle', message: '代理已关闭' },
       }));
       return;
     }
 
-    const proxyUrl = String(proxyState.url || "").trim();
+    const proxyUrl = String(proxyState.url || '').trim();
     if (!proxyUrl) {
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "failed", message: "请先填写代理地址" }
+        [stateKey]: { status: 'failed', message: '请先填写代理地址' },
       }));
       return;
     }
 
     setProviderTestStateByKey((prev) => ({
       ...prev,
-      [stateKey]: { status: "testing", message: "代理探测中（x.com / google.com / github.com）..." }
+      [stateKey]: {
+        status: 'testing',
+        message: '代理探测中（x.com / google.com / github.com）...',
+      },
     }));
 
     try {
@@ -679,24 +746,24 @@ export function useProviderSettings({
         provider: providerTab,
         profileId: editingProfile.id,
         envVars: editingProfile.envVars || [],
-        proxyUrl
+        proxyUrl,
       });
       if (!result.ok) {
         setProviderTestStateByKey((prev) => ({
           ...prev,
-          [stateKey]: { status: "failed", message: result.message || "代理测试失败，保持关闭" }
+          [stateKey]: { status: 'failed', message: result.message || '代理测试失败，保持关闭' },
         }));
         return;
       }
       setProxyConfig({ enabled: true, url: proxyUrl });
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "success", message: result.message || "代理测试成功，已启用" }
+        [stateKey]: { status: 'success', message: result.message || '代理测试成功，已启用' },
       }));
     } catch (e) {
       setProviderTestStateByKey((prev) => ({
         ...prev,
-        [stateKey]: { status: "failed", message: e?.message || "代理测试失败，保持关闭" }
+        [stateKey]: { status: 'failed', message: e?.message || '代理测试失败，保持关闭' },
       }));
     }
   }
@@ -709,7 +776,11 @@ export function useProviderSettings({
       const profiles = (normalizedSource.profiles || []).map((profile, idx) => ({
         id: String(profile.id || `provider-${idx + 1}`),
         name: String(profile.name || `Provider ${idx + 1}`).trim() || `Provider ${idx + 1}`,
-        envVars: stripPresetFixedEnvVarsForPersist(providerKey, String(profile.id || ""), profile.envVars || [])
+        envVars: stripPresetFixedEnvVarsForPersist(
+          providerKey,
+          String(profile.id || ''),
+          profile.envVars || [],
+        ),
       }));
 
       if (profiles.length === 0) {
@@ -720,25 +791,32 @@ export function useProviderSettings({
       for (const profile of profiles) {
         for (const pair of profile.envVars) {
           if (!/^[A-Z_][A-Z0-9_]*$/.test(pair.key)) {
-            setSettingsError("变量名格式不正确，仅支持大写字母/数字/下划线，且不能数字开头");
+            setSettingsError('变量名格式不正确，仅支持大写字母/数字/下划线，且不能数字开头');
             return;
           }
         }
         if (!profile.name.trim()) {
-          setSettingsError("供应商名称不能为空");
+          setSettingsError('供应商名称不能为空');
           return;
         }
       }
 
-      const defaultProfileId = profiles.some((profile) => profile.id === normalizedSource.defaultProfileId)
+      const defaultProfileId = profiles.some(
+        (profile) => profile.id === normalizedSource.defaultProfileId,
+      )
         ? normalizedSource.defaultProfileId
-        : (profiles.length > 0 ? profiles[0].id : "");
-      let enabledProfileId = normalizedSource.enabledProfileId === "" ? "" : defaultProfileId;
-      if (enabledProfileId !== "" && profiles.some((profile) => profile.id === normalizedSource.enabledProfileId)) {
+        : profiles.length > 0
+          ? profiles[0].id
+          : '';
+      let enabledProfileId = normalizedSource.enabledProfileId === '' ? '' : defaultProfileId;
+      if (
+        enabledProfileId !== '' &&
+        profiles.some((profile) => profile.id === normalizedSource.enabledProfileId)
+      ) {
         enabledProfileId = normalizedSource.enabledProfileId;
       }
-      if (enabledProfileId !== "" && !profiles.some((profile) => profile.id === enabledProfileId)) {
-        enabledProfileId = "";
+      if (enabledProfileId !== '' && !profiles.some((profile) => profile.id === enabledProfileId)) {
+        enabledProfileId = '';
       }
       providersPayload[providerKey] = { defaultProfileId, enabledProfileId, profiles };
     }
@@ -749,19 +827,19 @@ export function useProviderSettings({
       setSettingsModel({ providers: normalizedProviders });
       setEditingProfileByProvider(getInitialEditingProfiles(normalizedProviders));
       setSettingsSavedAt(Date.now());
-      setSettingsError("");
+      setSettingsError('');
       if (!providerCheckPassed && isProviderConfigured({ providers: normalizedProviders })) {
         setProviderCheckPassed(true);
         onFirstProviderConfigured?.();
       }
     } catch (e) {
-      setSettingsError(e?.message || "保存失败");
+      setSettingsError(e?.message || '保存失败');
     }
   }
 
   const onSelectEditingProfile = (nextProfileId) => {
     setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: nextProfileId }));
-    setSettingsError("");
+    setSettingsError('');
   };
   const onSelectProfileItem = (profileId) => {
     setEditingProfileByProvider((prev) => ({ ...prev, [providerTab]: profileId }));
@@ -769,21 +847,24 @@ export function useProviderSettings({
   const onOauthCodeChange = (value) => {
     setOauthCodeByKey((prev) => ({
       ...prev,
-      [currentProviderTestKey]: value
+      [currentProviderTestKey]: value,
     }));
   };
 
-  useEffect(() => () => {
-    for (const key of Object.keys(oauthLinkPollTimerRef.current)) {
-      window.clearInterval(oauthLinkPollTimerRef.current[key]);
-    }
-    oauthLinkPollTimerRef.current = {};
-  }, []);
+  useEffect(
+    () => () => {
+      for (const key of Object.keys(oauthLinkPollTimerRef.current)) {
+        window.clearInterval(oauthLinkPollTimerRef.current[key]);
+      }
+      oauthLinkPollTimerRef.current = {};
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!editingProfileId) return;
     const key = `${providerTab}:${editingProfileId}`;
-    setOauthCodeByKey((prev) => (prev[key] !== undefined ? prev : { ...prev, [key]: "" }));
+    setOauthCodeByKey((prev) => (prev[key] !== undefined ? prev : { ...prev, [key]: '' }));
   }, [providerTab, editingProfileId]);
 
   useEffect(() => {
@@ -792,7 +873,10 @@ export function useProviderSettings({
     if (!profiles.some((profile) => profile.id === editingProfileId)) {
       setEditingProfileByProvider((prev) => ({
         ...prev,
-        [providerTab]: currentProviderSettings.enabledProfileId || currentProviderSettings.defaultProfileId || profiles[0].id
+        [providerTab]:
+          currentProviderSettings.enabledProfileId ||
+          currentProviderSettings.defaultProfileId ||
+          profiles[0].id,
       }));
     }
   }, [currentProviderSettings, editingProfileId, providerTab]);
@@ -853,7 +937,7 @@ export function useProviderSettings({
       onToggleProxyEnabled,
       settingsSavedAt,
       onSaveSettings,
-      settingsError
-    }
+      settingsError,
+    },
   };
 }

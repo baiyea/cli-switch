@@ -1,13 +1,9 @@
-import React from "react";
-import { Button } from "../../../../ui/button";
-import { Dialog, DialogContent, DialogTitle } from "../../../../ui/dialog";
+import React from 'react';
 
-export function SkillgenResultDialog({
-  open,
-  running,
-  result,
-  onClose
-}) {
+import { Button } from '../../../../ui/button';
+import { Dialog, DialogContent, DialogTitle } from '../../../../ui/dialog';
+
+export function SkillgenResultDialog({ open, running, result, onClose }) {
   return (
     <Dialog
       open={open}
@@ -36,16 +32,22 @@ export function SkillgenResultDialog({
             {result?.ok ? (
               <>
                 <div>已扫描会话文件：{result.scanned}</div>
-                <div>本次增量处理：{result.changed}（跳过 {result.skipped}）</div>
-                <div>模型抽取候选：{result.modelExtracted || 0}（采纳 {result.modelAccepted || 0}）</div>
-                <div>生成 skill：新增 {result.created}，更新 {result.updated}</div>
-                <div>草稿候选：{result.drafted}，丢弃：{result.discarded}</div>
-                {result.created + result.updated === 0 && (
-                  <div>未提取到高价值可复用内容。</div>
-                )}
+                <div>
+                  本次增量处理：{result.changed}（跳过 {result.skipped}）
+                </div>
+                <div>
+                  模型抽取候选：{result.modelExtracted || 0}（采纳 {result.modelAccepted || 0}）
+                </div>
+                <div>
+                  生成 skill：新增 {result.created}，更新 {result.updated}
+                </div>
+                <div>
+                  草稿候选：{result.drafted}，丢弃：{result.discarded}
+                </div>
+                {result.created + result.updated === 0 && <div>未提取到高价值可复用内容。</div>}
               </>
             ) : (
-              <div>{result?.error || "Skill 生成失败"}</div>
+              <div>{result?.error || 'Skill 生成失败'}</div>
             )}
           </div>
         )}

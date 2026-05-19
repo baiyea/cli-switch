@@ -24,7 +24,7 @@ export interface PtySnapshotResult {
 }
 
 export interface SessionStats {
-  provider: "claude" | "codex" | "gemini";
+  provider: 'claude' | 'codex' | 'gemini';
   providerSessionId: string;
   startedAt: number | null;
   endedAt: number | null;
@@ -47,9 +47,9 @@ export interface PersistedSessionItem {
   name: string;
   cwd: string;
   projectId: string;
-  provider: "claude" | "codex" | "gemini";
+  provider: 'claude' | 'codex' | 'gemini';
   providerSessionId: string;
-  status: "creating" | "running" | "exited";
+  status: 'creating' | 'running' | 'exited';
   createdAt: number;
   updatedAt?: number;
   sortOrder?: number;
@@ -76,14 +76,19 @@ export const ptyBridge = {
   },
   onExit(listener: (event: PtyExitEvent) => void): () => void {
     return window.electronAPI.pty.onExit(listener);
-  }
+  },
 };
 
 export const terminalSessionBridge = {
   list(payload?: { projectIds?: string[]; providers?: string[] }): Promise<PersistedSessionItem[]> {
     return window.electronAPI.sessions.list(payload) as Promise<PersistedSessionItem[]>;
   },
-  create(payload: { projectId: string; cwd?: string; title?: string; provider?: string }): Promise<PersistedSessionItem> {
+  create(payload: {
+    projectId: string;
+    cwd?: string;
+    title?: string;
+    provider?: string;
+  }): Promise<PersistedSessionItem> {
     return window.electronAPI.sessions.create(payload) as Promise<PersistedSessionItem>;
   },
   start(payload: {
@@ -95,20 +100,29 @@ export const terminalSessionBridge = {
   }): Promise<PersistedSessionItem> {
     return window.electronAPI.sessions.start(payload) as Promise<PersistedSessionItem>;
   },
-  rename(payload: { sessionId: string; title: string; provider?: string; providerSessionId?: string }): Promise<{ ok: boolean }> {
+  rename(payload: {
+    sessionId: string;
+    title: string;
+    provider?: string;
+    providerSessionId?: string;
+  }): Promise<{ ok: boolean }> {
     return window.electronAPI.sessions.rename(payload);
   },
   reorder(payload: {
     projectId: string;
-    orderedSessions: Array<{ provider: "claude" | "codex" | "gemini"; providerSessionId: string }>;
+    orderedSessions: Array<{ provider: 'claude' | 'codex' | 'gemini'; providerSessionId: string }>;
   }): Promise<{ ok: boolean }> {
     return window.electronAPI.sessions.reorder(payload);
   },
-  archive(payload: { sessionId: string; provider?: string; providerSessionId?: string }): Promise<{ ok: boolean }> {
+  archive(payload: {
+    sessionId: string;
+    provider?: string;
+    providerSessionId?: string;
+  }): Promise<{ ok: boolean }> {
     return window.electronAPI.sessions.archive(payload);
   },
   stats(payload: {
-    provider?: "claude" | "codex" | "gemini";
+    provider?: 'claude' | 'codex' | 'gemini';
     providerSessionId?: string;
     sessionId?: string;
   }): Promise<{ ok: true; stats: SessionStats } | { ok: false; reason: string }> {
@@ -118,9 +132,9 @@ export const terminalSessionBridge = {
     sessionId: string;
     provider?: string;
     providerSessionId?: string;
-  }): Promise<{ ok: boolean; title: string; source: "llm" | "fallback"; reason?: string }> {
+  }): Promise<{ ok: boolean; title: string; source: 'llm' | 'fallback'; reason?: string }> {
     return window.electronAPI.sessions.suggestTitle(payload);
-  }
+  },
 };
 
 export const sessionBridge = terminalSessionBridge;
@@ -136,5 +150,5 @@ export const fileAttachmentBridge = {
     mimeType: string;
   }) {
     return window.electronAPI.files.saveAttachmentImageBuffer(payload);
-  }
+  },
 };

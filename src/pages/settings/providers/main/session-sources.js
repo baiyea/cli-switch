@@ -1,16 +1,16 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const os = require("node:os");
-const { normalizeProviderId, PROVIDERS } = require("./cli-launchers");
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { normalizeProviderId, PROVIDERS } = require('./cli-launchers');
 
 function readHeadLines(filePath, maxBytes = 128 * 1024, maxLines = 300) {
   const stat = fs.statSync(filePath);
   const readSize = Math.min(maxBytes, stat.size);
-  const fd = fs.openSync(filePath, "r");
+  const fd = fs.openSync(filePath, 'r');
   try {
     const buffer = Buffer.alloc(readSize);
     fs.readSync(fd, buffer, 0, readSize, 0);
-    const text = buffer.toString("utf8");
+    const text = buffer.toString('utf8');
     return text.split(/\r?\n/).filter(Boolean).slice(0, maxLines);
   } finally {
     fs.closeSync(fd);
@@ -20,11 +20,11 @@ function readHeadLines(filePath, maxBytes = 128 * 1024, maxLines = 300) {
 function readTailLines(filePath, maxBytes = 256 * 1024, maxLines = 500) {
   const stat = fs.statSync(filePath);
   const readSize = Math.min(maxBytes, stat.size);
-  const fd = fs.openSync(filePath, "r");
+  const fd = fs.openSync(filePath, 'r');
   try {
     const buffer = Buffer.alloc(readSize);
     fs.readSync(fd, buffer, 0, readSize, stat.size - readSize);
-    const text = buffer.toString("utf8");
+    const text = buffer.toString('utf8');
     const lines = text.split(/\r?\n/).filter(Boolean);
     return lines.slice(-maxLines);
   } finally {
@@ -33,27 +33,27 @@ function readTailLines(filePath, maxBytes = 256 * 1024, maxLines = 500) {
 }
 
 function normalizeTitle(text, maxLen = 48) {
-  if (!text) return "";
-  const compact = String(text).replace(/\s+/g, " ").trim();
-  if (!compact) return "";
+  if (!text) return '';
+  const compact = String(text).replace(/\s+/g, ' ').trim();
+  if (!compact) return '';
   if (compact.length <= maxLen) return compact;
   return `${compact.slice(0, maxLen - 1)}…`;
 }
 
 function extractRenameTitle(content) {
-  if (typeof content !== "string") return "";
-  if (!content.includes("<command-name>/rename</command-name>")) return "";
+  if (typeof content !== 'string') return '';
+  if (!content.includes('<command-name>/rename</command-name>')) return '';
   const match = content.match(/<command-args>([\s\S]*?)<\/command-args>/);
-  if (!match) return "";
+  if (!match) return '';
   return normalizeTitle(match[1], 48);
 }
 
 function extractPromptTitle(content) {
-  if (typeof content !== "string") return "";
+  if (typeof content !== 'string') return '';
   const trimmed = content.trim();
-  if (!trimmed) return "";
-  if (trimmed.startsWith("<")) return "";
-  if (trimmed.includes("<local-command-caveat>")) return "";
+  if (!trimmed) return '';
+  if (trimmed.startsWith('<')) return '';
+  if (trimmed.includes('<local-command-caveat>')) return '';
   return normalizeTitle(trimmed, 40);
 }
 
@@ -103,15 +103,15 @@ function findJsonlLinesFirstCwd(filePath) {
       obj?.workdir,
       obj?.workingDirectory,
       obj?.projectPath,
-      obj?.project_path
+      obj?.project_path,
     ];
     for (const candidate of candidates) {
-      if (typeof candidate === "string" && candidate.trim()) {
+      if (typeof candidate === 'string' && candidate.trim()) {
         return candidate.trim();
       }
     }
   }
-  return "";
+  return '';
 }
 
 function findJsonlSessionId(filePath) {
@@ -123,27 +123,31 @@ function findJsonlSessionId(filePath) {
     } catch {
       continue;
     }
-    if (obj?.type === "session_meta" && typeof obj?.payload?.id === "string" && obj.payload.id.trim()) {
+    if (
+      obj?.type === 'session_meta' &&
+      typeof obj?.payload?.id === 'string' &&
+      obj.payload.id.trim()
+    ) {
       return obj.payload.id.trim();
     }
     const candidates = [
       obj?.sessionId,
       obj?.session_id,
       obj?.payload?.sessionId,
-      obj?.payload?.session_id
+      obj?.payload?.session_id,
     ];
     for (const candidate of candidates) {
-      if (typeof candidate === "string" && candidate.trim()) {
+      if (typeof candidate === 'string' && candidate.trim()) {
         return candidate.trim();
       }
     }
   }
-  return "";
+  return '';
 }
 
 function deriveJsonlTitle(filePath, fallbackTitle) {
   const lines = readTailLines(filePath);
-  let promptTitle = "";
+  let promptTitle = '';
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i];
     let parsed;
@@ -155,11 +159,11 @@ function deriveJsonlTitle(filePath, fallbackTitle) {
     const content = parsed?.message?.content;
     const rename = extractRenameTitle(content);
     if (rename) return rename;
-    if (!promptTitle && parsed?.message?.role === "user") {
+    if (!promptTitle && parsed?.message?.role === 'user') {
       const prompt = extractPromptTitle(content);
       if (prompt) promptTitle = prompt;
     }
-    if (!promptTitle && parsed?.role === "user") {
+    if (!promptTitle && parsed?.role === 'user') {
       const prompt = extractPromptTitle(parsed?.content);
       if (prompt) promptTitle = prompt;
     }
@@ -169,7 +173,7 @@ function deriveJsonlTitle(filePath, fallbackTitle) {
 
 function tryReadJson(filePath) {
   try {
-    const text = fs.readFileSync(filePath, "utf8");
+    const text = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(text);
   } catch {
     return null;
@@ -177,18 +181,18 @@ function tryReadJson(filePath) {
 }
 
 function deepFindStringByKeys(root, keysLower, maxDepth = 8, level = 0) {
-  if (level > maxDepth || root == null) return "";
-  if (typeof root === "string") return "";
+  if (level > maxDepth || root == null) return '';
+  if (typeof root === 'string') return '';
   if (Array.isArray(root)) {
     for (const item of root) {
       const value = deepFindStringByKeys(item, keysLower, maxDepth, level + 1);
       if (value) return value;
     }
-    return "";
+    return '';
   }
-  if (typeof root === "object") {
+  if (typeof root === 'object') {
     for (const [key, value] of Object.entries(root)) {
-      if (keysLower.has(String(key).toLowerCase()) && typeof value === "string" && value.trim()) {
+      if (keysLower.has(String(key).toLowerCase()) && typeof value === 'string' && value.trim()) {
         return value.trim();
       }
     }
@@ -197,34 +201,34 @@ function deepFindStringByKeys(root, keysLower, maxDepth = 8, level = 0) {
       if (nested) return nested;
     }
   }
-  return "";
+  return '';
 }
 
 function deepFindFirstUserText(root, maxDepth = 10, level = 0) {
-  if (level > maxDepth || root == null) return "";
+  if (level > maxDepth || root == null) return '';
   if (Array.isArray(root)) {
     for (const item of root) {
       const value = deepFindFirstUserText(item, maxDepth, level + 1);
       if (value) return value;
     }
-    return "";
+    return '';
   }
-  if (typeof root === "object") {
+  if (typeof root === 'object') {
     const role = root.role || root.author || root.sender;
-    if (String(role || "").toLowerCase() === "user") {
+    if (String(role || '').toLowerCase() === 'user') {
       const text = root.text || root.content || root.prompt || root.message;
-      if (typeof text === "string" && text.trim()) return normalizeTitle(text, 40);
+      if (typeof text === 'string' && text.trim()) return normalizeTitle(text, 40);
     }
     for (const value of Object.values(root)) {
       const nested = deepFindFirstUserText(value, maxDepth, level + 1);
       if (nested) return nested;
     }
   }
-  return "";
+  return '';
 }
 
 function parseClaudeSession(filePath) {
-  const sessionId = path.basename(filePath, ".jsonl");
+  const sessionId = path.basename(filePath, '.jsonl');
   const cwd = findJsonlLinesFirstCwd(filePath);
   if (!cwd) return null;
   const fallbackTitle = `session-${sessionId.slice(0, 8)}`;
@@ -237,12 +241,12 @@ function parseClaudeSession(filePath) {
     sessionFilePath: filePath,
     cwd: path.resolve(cwd),
     name: title,
-    createdAt
+    createdAt,
   };
 }
 
 function parseCodexSession(filePath) {
-  const sessionId = findJsonlSessionId(filePath) || path.basename(filePath, ".jsonl");
+  const sessionId = findJsonlSessionId(filePath) || path.basename(filePath, '.jsonl');
   const cwd = findJsonlLinesFirstCwd(filePath);
   if (!cwd) return null;
   const fallbackTitle = `session-${sessionId.slice(0, 8)}`;
@@ -255,7 +259,7 @@ function parseCodexSession(filePath) {
     sessionFilePath: filePath,
     cwd: path.resolve(cwd),
     name: title,
-    createdAt
+    createdAt,
   };
 }
 
@@ -263,34 +267,32 @@ function readNearestProjectRoot(filePath, stopDir) {
   const stop = path.resolve(stopDir);
   let current = path.resolve(path.dirname(filePath));
   while (current.startsWith(stop)) {
-    const marker = path.join(current, ".project_root");
+    const marker = path.join(current, '.project_root');
     if (fs.existsSync(marker)) {
       try {
-        const value = fs.readFileSync(marker, "utf8").trim();
+        const value = fs.readFileSync(marker, 'utf8').trim();
         if (value) return value;
-      } catch {
-      }
+      } catch {}
     }
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
   }
-  return "";
+  return '';
 }
 
 function parseGeminiSession(filePath) {
   const payload = tryReadJson(filePath);
   if (!payload) return null;
-  const sessionId = String(payload.sessionId || payload.session_id || path.basename(filePath, ".json")).trim();
+  const sessionId = String(
+    payload.sessionId || payload.session_id || path.basename(filePath, '.json'),
+  ).trim();
 
-  const cwd = deepFindStringByKeys(payload, new Set([
-    "cwd",
-    "workdir",
-    "workingdirectory",
-    "projectpath",
-    "project_path",
-    "rootdir"
-  ])) || readNearestProjectRoot(filePath, path.join(os.homedir(), ".gemini", "tmp"));
+  const cwd =
+    deepFindStringByKeys(
+      payload,
+      new Set(['cwd', 'workdir', 'workingdirectory', 'projectpath', 'project_path', 'rootdir']),
+    ) || readNearestProjectRoot(filePath, path.join(os.homedir(), '.gemini', 'tmp'));
   if (!cwd) return null;
 
   const prompt = deepFindFirstUserText(payload);
@@ -304,39 +306,33 @@ function parseGeminiSession(filePath) {
     sessionFilePath: filePath,
     cwd: path.resolve(cwd),
     name: title,
-    createdAt
+    createdAt,
   };
 }
 
 function listProviderSessions(homeDir = os.homedir()) {
   const roots = {
-    [PROVIDERS.CLAUDE]: path.join(homeDir, ".claude", "projects"),
-    [PROVIDERS.CODEX]: path.join(homeDir, ".codex", "sessions"),
-    [PROVIDERS.GEMINI]: path.join(homeDir, ".gemini", "tmp")
+    [PROVIDERS.CLAUDE]: path.join(homeDir, '.claude', 'projects'),
+    [PROVIDERS.CODEX]: path.join(homeDir, '.codex', 'sessions'),
+    [PROVIDERS.GEMINI]: path.join(homeDir, '.gemini', 'tmp'),
   };
 
   const all = [];
 
-  const claudeFiles = findFiles(
-    roots[PROVIDERS.CLAUDE],
-    (full, name) => {
-      if (!name.endsWith(".jsonl")) return false;
-      const normalized = String(full).replace(/\\/g, "/");
-      // Claude sub-agent sessions are stored under ".../subagents/agent-*.jsonl".
-      if (normalized.includes("/subagents/")) return false;
-      if (name.startsWith("agent-")) return false;
-      return true;
-    }
-  );
+  const claudeFiles = findFiles(roots[PROVIDERS.CLAUDE], (full, name) => {
+    if (!name.endsWith('.jsonl')) return false;
+    const normalized = String(full).replace(/\\/g, '/');
+    // Claude sub-agent sessions are stored under ".../subagents/agent-*.jsonl".
+    if (normalized.includes('/subagents/')) return false;
+    if (name.startsWith('agent-')) return false;
+    return true;
+  });
   for (const file of claudeFiles) {
     const item = parseClaudeSession(file);
     if (item) all.push(item);
   }
 
-  const codexFiles = findFiles(
-    roots[PROVIDERS.CODEX],
-    (_full, name) => name.endsWith(".jsonl")
-  );
+  const codexFiles = findFiles(roots[PROVIDERS.CODEX], (_full, name) => name.endsWith('.jsonl'));
   for (const file of codexFiles) {
     const item = parseCodexSession(file);
     if (item) all.push(item);
@@ -344,7 +340,7 @@ function listProviderSessions(homeDir = os.homedir()) {
 
   const geminiFiles = findFiles(
     roots[PROVIDERS.GEMINI],
-    (full, name) => name.endsWith(".json") && full.includes(`${path.sep}chats${path.sep}`)
+    (full, name) => name.endsWith('.json') && full.includes(`${path.sep}chats${path.sep}`),
   );
   for (const file of geminiFiles) {
     const item = parseGeminiSession(file);
@@ -386,7 +382,7 @@ function mapSessionsToProjects(sessions, projects) {
       if (!owner) return null;
       return {
         ...session,
-        projectId: owner.id
+        projectId: owner.id,
       };
     })
     .filter(Boolean);
@@ -394,5 +390,5 @@ function mapSessionsToProjects(sessions, projects) {
 
 module.exports = {
   listProviderSessions,
-  mapSessionsToProjects
+  mapSessionsToProjects,
 };

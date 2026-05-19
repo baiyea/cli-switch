@@ -1,4 +1,4 @@
-const { PROVIDERS_CHANNELS } = require("./shared/providers.channels");
+const { PROVIDERS_CHANNELS } = require('./shared/providers.channels');
 
 function registerProvidersMain(context = {}) {
   const {
@@ -21,12 +21,14 @@ function registerProvidersMain(context = {}) {
     dbPath,
     logInfo = () => {},
     logWarn = () => {},
-    logError = () => {}
+    logError = () => {},
   } = context;
 
   if (!registerIpc) return;
 
-  registerIpc(PROVIDERS_CHANNELS.SETTINGS_CLAUDE_GET, async () => appSettingsStore.getProviderStartupSettings());
+  registerIpc(PROVIDERS_CHANNELS.SETTINGS_CLAUDE_GET, async () =>
+    appSettingsStore.getProviderStartupSettings(),
+  );
   registerIpc(PROVIDERS_CHANNELS.SETTINGS_CLAUDE_SAVE, async (_event, payload) => {
     const parsed = providerSettingsSchema.parse(payload);
     const sanitized = stripPresetValuesFromProviderSettings(parsed);
@@ -36,12 +38,12 @@ function registerProvidersMain(context = {}) {
     const parsed = providerTestSchema.parse(payload);
     try {
       const result = await providerConnectionService.testProviderConnection(parsed);
-      if (result?.ok) syncCliConfigAfterSuccessfulProviderTest(parsed, "provider-test");
+      if (result?.ok) syncCliConfigAfterSuccessfulProviderTest(parsed, 'provider-test');
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logError("provider-test", "Unhandled provider connection test error", error, {
-        provider: parsed?.provider || ""
+      logError('provider-test', 'Unhandled provider connection test error', error, {
+        provider: parsed?.provider || '',
       });
       return { ok: false, message: `连接测试异常: ${message}` };
     }
@@ -52,9 +54,9 @@ function registerProvidersMain(context = {}) {
       return await startProviderOAuthLogin(parsed);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logError("oauth-login", "Unhandled OAuth login start error", error, {
-        provider: parsed?.provider || "",
-        profileId: parsed?.profileId || ""
+      logError('oauth-login', 'Unhandled OAuth login start error', error, {
+        provider: parsed?.provider || '',
+        profileId: parsed?.profileId || '',
       });
       return { ok: false, message: `OAuth 登录启动异常: ${message}` };
     }
@@ -63,13 +65,13 @@ function registerProvidersMain(context = {}) {
     const parsed = providerOAuthProbeSchema.parse(payload);
     try {
       const result = await oauthProbeService.probeProviderOAuthConnection(parsed);
-      if (result?.ok) syncCliConfigAfterSuccessfulProviderTest(parsed, "oauth-probe");
+      if (result?.ok) syncCliConfigAfterSuccessfulProviderTest(parsed, 'oauth-probe');
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logError("oauth-probe", "Unhandled OAuth real probe error", error, {
-        provider: parsed?.provider || "",
-        profileId: parsed?.profileId || ""
+      logError('oauth-probe', 'Unhandled OAuth real probe error', error, {
+        provider: parsed?.provider || '',
+        profileId: parsed?.profileId || '',
       });
       return { ok: false, message: `OAuth 探测异常: ${message}` };
     }
@@ -80,12 +82,12 @@ function registerProvidersMain(context = {}) {
       return oauthLoginTracker.getProviderOAuthLinks(parsed);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logError("oauth-login", "Unhandled OAuth link query error", error, {
-        provider: parsed?.provider || "",
-        profileId: parsed?.profileId || "",
-        sessionId: parsed?.sessionId || ""
+      logError('oauth-login', 'Unhandled OAuth link query error', error, {
+        provider: parsed?.provider || '',
+        profileId: parsed?.profileId || '',
+        sessionId: parsed?.sessionId || '',
       });
-      return { ok: false, allUrls: [], authUrls: [], autoOpenedUrl: "", message };
+      return { ok: false, allUrls: [], authUrls: [], autoOpenedUrl: '', message };
     }
   });
   registerIpc(PROVIDERS_CHANNELS.SETTINGS_PROVIDER_PROXY_TEST, async (_event, payload) => {
@@ -94,9 +96,9 @@ function registerProvidersMain(context = {}) {
       return await proxyConnectivityService.testProviderProxyConnectivity(parsed);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logError("proxy-test", "Unhandled proxy connectivity test error", error, {
-        provider: parsed?.provider || "",
-        profileId: parsed?.profileId || ""
+      logError('proxy-test', 'Unhandled proxy connectivity test error', error, {
+        provider: parsed?.provider || '',
+        profileId: parsed?.profileId || '',
       });
       return { ok: false, message: `代理测试异常: ${message}` };
     }
@@ -105,17 +107,17 @@ function registerProvidersMain(context = {}) {
   const runtimeCleanHandler = async () => {
     try {
       const result = cleanRuntimeData();
-      logInfo("settings", "Runtime data cleaned", {
+      logInfo('settings', 'Runtime data cleaned', {
         runtimeDirs: result.runtimeDirs,
         dbPath: result.dbPath,
         cleanedDirectories: result.cleanedDirectories.length,
         cleanedFiles: result.cleanedFiles.length,
-        warnings: result.warnings.length
+        warnings: result.warnings.length,
       });
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logError("settings", "Runtime data cleanup failed", error);
+      logError('settings', 'Runtime data cleanup failed', error);
       return {
         ok: false,
         message: `运行数据清理失败: ${message}`,
@@ -123,18 +125,21 @@ function registerProvidersMain(context = {}) {
         dbPath,
         cleanedDirectories: [],
         cleanedFiles: [],
-        warnings: []
+        warnings: [],
       };
     }
   };
-  registerIpc(PROVIDERS_CHANNELS.SETTINGS_RUNTIME_CLEAN || "settings:runtime:clean", runtimeCleanHandler);
-  if (PROVIDERS_CHANNELS.SETTINGS_RUNTIME_CLEAN !== "settings:runtime:clean") {
+  registerIpc(
+    PROVIDERS_CHANNELS.SETTINGS_RUNTIME_CLEAN || 'settings:runtime:clean',
+    runtimeCleanHandler,
+  );
+  if (PROVIDERS_CHANNELS.SETTINGS_RUNTIME_CLEAN !== 'settings:runtime:clean') {
     try {
-      registerIpc("settings:runtime:clean", runtimeCleanHandler);
+      registerIpc('settings:runtime:clean', runtimeCleanHandler);
     } catch (error) {
-      logWarn("ipc", "Skip duplicate runtime clean IPC registration", {
-        channel: "settings:runtime:clean",
-        error: error instanceof Error ? error.message : String(error)
+      logWarn('ipc', 'Skip duplicate runtime clean IPC registration', {
+        channel: 'settings:runtime:clean',
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }

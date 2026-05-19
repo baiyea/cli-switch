@@ -1,4 +1,4 @@
-const { createFileTreeApi } = require("./preload/file-tree.api");
+const { createFileTreeApi } = require('./preload/file-tree.api');
 
 function createFileTreePreloadApi() {
   return createFileTreeApi();

@@ -10,13 +10,13 @@ All three AI CLI tools are pre-bundled for each platform (macOS ARM64/x64, Windo
 
 ## Why Cli-Switch?
 
-| Problem | Cli-Switch |
-|---------|------------|
-| Installing and updating 3 CLI tools separately | Pre-bundled runtimes, updated with the app |
-| Managing env vars and auth per tool | Visual provider settings with API key / OAuth / proxy |
-| Switching between providers mid-project | One click — sidebar provider tabs |
-| Tracking past sessions across tools | SQLite-backed session history with archive & restore |
-| No way to extract reusable workflows | AI-powered skill generation from session transcripts |
+| Problem                                        | Cli-Switch                                            |
+| ---------------------------------------------- | ----------------------------------------------------- |
+| Installing and updating 3 CLI tools separately | Pre-bundled runtimes, updated with the app            |
+| Managing env vars and auth per tool            | Visual provider settings with API key / OAuth / proxy |
+| Switching between providers mid-project        | One click — sidebar provider tabs                     |
+| Tracking past sessions across tools            | SQLite-backed session history with archive & restore  |
+| No way to extract reusable workflows           | AI-powered skill generation from session transcripts  |
 
 ---
 
@@ -34,14 +34,14 @@ All three ship with the app. No `npm install -g` needed.
 
 Beyond the default providers, Cli-Switch supports virtually any LLM endpoint via provider profiles:
 
-| Provider | Profile | Example Model |
-|----------|---------|---------------|
-| Anthropic (Claude) | API Key / OAuth | Claude Opus, Sonnet |
-| OpenAI (Codex) | API Key / OAuth | GPT-4o, GPT-5 |
-| Google (Gemini) | API Key / OAuth | Gemini 2.5, 2.8 |
-| Kimi (Moonshot) | Code Plan via Claude | kimi-for-coding |
-| MiniMax | Code Plan via Claude | MiniMax-M2.5 |
-| DeepSeek | Code Plan via Claude | deepseek-v4-pro |
+| Provider           | Profile              | Example Model       |
+| ------------------ | -------------------- | ------------------- |
+| Anthropic (Claude) | API Key / OAuth      | Claude Opus, Sonnet |
+| OpenAI (Codex)     | API Key / OAuth      | GPT-4o, GPT-5       |
+| Google (Gemini)    | API Key / OAuth      | Gemini 2.5, 2.8     |
+| Kimi (Moonshot)    | Code Plan via Claude | kimi-for-coding     |
+| MiniMax            | Code Plan via Claude | MiniMax-M2.5        |
+| DeepSeek           | Code Plan via Claude | deepseek-v4-pro     |
 
 Each profile supports **custom base URL**, **custom model name**, and **proxy configuration** — so any OpenAI/Anthropic-compatible endpoint works out of the box.
 
@@ -129,15 +129,15 @@ pnpm dist:win         # Windows x64
 
 ### Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Desktop | Electron 35 |
-| UI | React 18 + Tailwind CSS + Radix UI |
-| Terminal | xterm.js + node-pty |
-| Database | SQLite (better-sqlite3) |
-| State | Zustand |
-| Build | Vite + electron-builder |
-| Test | Playwright (E2E) |
+| Layer    | Technology                         |
+| -------- | ---------------------------------- |
+| Desktop  | Electron 35                        |
+| UI       | React 18 + Tailwind CSS + Radix UI |
+| Terminal | xterm.js + node-pty                |
+| Database | SQLite (better-sqlite3)            |
+| State    | Zustand                            |
+| Build    | Vite + electron-builder            |
+| Test     | Playwright (E2E)                   |
 
 ---
 

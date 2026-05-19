@@ -1,4 +1,4 @@
-const { SIDEBAR_CHANNELS } = require("./shared/sidebar.channels");
+const { SIDEBAR_CHANNELS } = require('./shared/sidebar.channels');
 
 function registerSidebarMain(context = {}) {
   const {
@@ -15,7 +15,7 @@ function registerSidebarMain(context = {}) {
     syncDiscoveredSessionsForProjects,
     sessionBelongsToProjectRoot,
     toSessionView,
-    logInfo = () => {}
+    logInfo = () => {},
   } = context;
 
   if (!registerIpc) return;
@@ -33,21 +33,21 @@ function registerSidebarMain(context = {}) {
 
   registerIpc(SIDEBAR_CHANNELS.PROJECT_ADD, async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
-      title: "Select Project Folder",
-      properties: ["openDirectory"]
+      title: 'Select Project Folder',
+      properties: ['openDirectory'],
     });
 
     if (result.canceled || result.filePaths.length === 0) return null;
     const folderPath = result.filePaths[0];
     const created = projectStore.create({
       name: path.basename(folderPath),
-      path: folderPath
+      path: folderPath,
     });
     const { count: syncedCount } = syncDiscoveredSessionsForProjects([created]);
-    logInfo("project", "Project created and sessions synced", {
+    logInfo('project', 'Project created and sessions synced', {
       projectId: created.id,
       path: created.path,
-      syncedCount
+      syncedCount,
     });
     return created;
   });
@@ -56,27 +56,31 @@ function registerSidebarMain(context = {}) {
 
   registerIpc(SIDEBAR_CHANNELS.SESSION_LIST, async (_event, payload = {}) => {
     const projectIds = Array.isArray(payload.projectIds) ? payload.projectIds : [];
-    const providers = Array.isArray(payload.providers) ? payload.providers.map(normalizeProviderId) : [];
+    const providers = Array.isArray(payload.providers)
+      ? payload.providers.map(normalizeProviderId)
+      : [];
     const allProjects = projectStore.list();
-    const selectedProjects = projectIds.length > 0
-      ? allProjects.filter((p) => projectIds.includes(p.id))
-      : allProjects;
+    const selectedProjects =
+      projectIds.length > 0 ? allProjects.filter((p) => projectIds.includes(p.id)) : allProjects;
     const rows = sessionStore.listAllActive(selectedProjects.map((p) => p.id));
     return rows
       .filter(sessionBelongsToProjectRoot)
       .map(toSessionView)
-      .filter((session) => providers.length === 0 || providers.includes(normalizeProviderId(session.provider)));
+      .filter(
+        (session) =>
+          providers.length === 0 || providers.includes(normalizeProviderId(session.provider)),
+      );
   });
 
   registerIpc(SIDEBAR_CHANNELS.SESSION_SYNC_PROJECT, async (_event, payload) => {
     const parsed = z.object({ projectId: z.string().min(1) }).parse(payload);
     const project = projectStore.getById(parsed.projectId);
-    if (!project) throw new Error("Project not found");
+    if (!project) throw new Error('Project not found');
     const { count } = syncDiscoveredSessionsForProjects([project]);
-    logInfo("session", "Manual project session sync complete", {
+    logInfo('session', 'Manual project session sync complete', {
       projectId: project.id,
       path: project.path,
-      syncedCount: count
+      syncedCount: count,
     });
     return { ok: true, count };
   });
@@ -87,8 +91,8 @@ function registerSidebarMain(context = {}) {
       projectId: parsed.projectId,
       orderedSessions: parsed.orderedSessions.map((item) => ({
         provider: normalizeProviderId(item.provider),
-        providerSessionId: item.providerSessionId
-      }))
+        providerSessionId: item.providerSessionId,
+      })),
     });
     return { ok: true };
   });

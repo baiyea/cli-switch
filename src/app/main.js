@@ -1,15 +1,30 @@
-const path = require("node:path");
-const os = require("node:os");
-const fs = require("node:fs");
-const { spawnSync } = require("node:child_process");
-const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, clipboard } = require("electron");
-const log = require("electron-log");
-const { z } = require("zod");
-const { APP_NAME, APP_ID } = require("../shared/app-config.js");
-const providerEnvPresets = require("../pages/settings/providers/shared/provider-env-presets.json");
-const { IS_DEV, getDataDir, getDbPath } = require("../kernel/test-mode.js");
-const { registerPageMain } = require("./register-page-main");
-const { PtyService, createSkillgenRunner, TERMINAL_CHANNELS, TOP_TOOLBAR_CHANNELS } = require("../pages/home/home.main");
+const path = require('node:path');
+const os = require('node:os');
+const fs = require('node:fs');
+const { spawnSync } = require('node:child_process');
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  shell,
+  Tray,
+  Menu,
+  nativeImage,
+  clipboard,
+} = require('electron');
+const log = require('electron-log');
+const { z } = require('zod');
+const { APP_NAME, APP_ID } = require('../shared/app-config.js');
+const providerEnvPresets = require('../assets/provider-env-presets.json');
+const { IS_E2E, IS_DEV, getDataDir, getDbPath } = require('../kernel/test-mode.js');
+const { registerPageMain } = require('./register-page-main');
+const {
+  PtyService,
+  createSkillgenRunner,
+  TERMINAL_CHANNELS,
+  TOP_TOOLBAR_CHANNELS,
+} = require('../pages/home/home.main');
 const {
   applyProviderStartupEnv,
   getLaunchCommandForProvider,
@@ -25,23 +40,31 @@ const {
   createProviderConnectionService,
   createOAuthProbeService,
   createProxyConnectivityService,
-  createCliConfigSyncService
-} = require("../pages/settings/settings.main");
-const { initDatabase, projectsRepo, sessionsRepo, settingsRepo } = require("../kernel/db/connection");
-const { resolveAssetPathFrom, pickExistingPath } = require("./asset-paths");
+  createCliConfigSyncService,
+} = require('../pages/settings/settings.main');
+const {
+  initDatabase,
+  projectsRepo,
+  sessionsRepo,
+  settingsRepo,
+} = require('../kernel/db/connection');
+const { resolveAssetPathFrom, pickExistingPath } = require('./asset-paths');
 
 // LSUIElement=1 in Info.plist hides all instances from the dock.
 // The main process explicitly requests activation to show its dock icon,
 // while CLI subprocesses (ELECTRON_RUN_AS_NODE=1) stay hidden.
-if (process.platform === "darwin") app.setActivationPolicy("regular");
+if (process.platform === 'darwin') app.setActivationPolicy('regular');
 
 const isDev = IS_DEV;
+const e2eShowWindow = process.env.APP_E2E_SHOW_WINDOW;
+const suppressMainWindowDisplay = e2eShowWindow === '0' || (IS_E2E && e2eShowWindow !== '1');
 let mainWindow = null;
 let tray = null;
 const appHomeDir = getDataDir();
-const runtimeAppId = path.basename(appHomeDir).replace(/^\./, "") || (isDev ? `${APP_ID}dev` : APP_ID);
-const appLogsDir = path.join(appHomeDir, "logs");
-const appCacheDir = path.join(appHomeDir, "cache");
+const runtimeAppId =
+  path.basename(appHomeDir).replace(/^\./, '') || (isDev ? `${APP_ID}dev` : APP_ID);
+const appLogsDir = path.join(appHomeDir, 'logs');
+const appCacheDir = path.join(appHomeDir, 'cache');
 
 function ensureDirSafe(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -52,18 +75,18 @@ function configureAppDataPaths() {
   ensureDirSafe(appLogsDir);
   ensureDirSafe(appCacheDir);
 
-  app.setPath("userData", appHomeDir);
+  app.setPath('userData', appHomeDir);
   try {
     app.setAppLogsPath(appLogsDir);
   } catch {}
   try {
-    app.setPath("logs", appLogsDir);
+    app.setPath('logs', appLogsDir);
   } catch {}
   try {
-    app.setPath("sessionData", appCacheDir);
+    app.setPath('sessionData', appCacheDir);
   } catch {}
   try {
-    app.setPath("cache", appCacheDir);
+    app.setPath('cache', appCacheDir);
   } catch {}
 }
 
@@ -103,8 +126,8 @@ function removeFileSafe(filePath, report) {
 function tryReadJsonFile(filePath, fallback = {}) {
   try {
     if (!filePath || !fs.existsSync(filePath)) return fallback;
-    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : fallback;
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
   } catch {
     return fallback;
   }
@@ -112,27 +135,33 @@ function tryReadJsonFile(filePath, fallback = {}) {
 
 function writeJsonFileSafe(filePath, value) {
   ensureDirSafe(path.dirname(filePath));
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
 function toClaudeProjectKey(cwd) {
-  const value = String(cwd || "").trim();
-  if (!value) return "";
-  return path.resolve(value).replace(/\\/g, "/");
+  const value = String(cwd || '').trim();
+  if (!value) return '';
+  return path.resolve(value).replace(/\\/g, '/');
 }
 
 function syncClaudeProjectTrust(cwd) {
   const projectKey = toClaudeProjectKey(cwd);
   if (!projectKey) return;
-  const configPath = path.join(os.homedir(), ".claude.json");
+  const configPath = path.join(os.homedir(), '.claude.json');
   const currentConfig = tryReadJsonFile(configPath, {});
-  const currentProjects = currentConfig.projects && typeof currentConfig.projects === "object"
-    ? currentConfig.projects
-    : {};
-  const currentProject = currentProjects[projectKey] && typeof currentProjects[projectKey] === "object"
-    ? currentProjects[projectKey]
-    : {};
-  if (currentProject.hasTrustDialogAccepted === true && currentProject.projectOnboardingSeenCount === 0) return;
+  const currentProjects =
+    currentConfig.projects && typeof currentConfig.projects === 'object'
+      ? currentConfig.projects
+      : {};
+  const currentProject =
+    currentProjects[projectKey] && typeof currentProjects[projectKey] === 'object'
+      ? currentProjects[projectKey]
+      : {};
+  if (
+    currentProject.hasTrustDialogAccepted === true &&
+    currentProject.projectOnboardingSeenCount === 0
+  )
+    return;
 
   const nextConfig = {
     ...currentConfig,
@@ -141,93 +170,111 @@ function syncClaudeProjectTrust(cwd) {
       [projectKey]: {
         ...currentProject,
         allowedTools: Array.isArray(currentProject.allowedTools) ? currentProject.allowedTools : [],
-        disabledMcpjsonServers: Array.isArray(currentProject.disabledMcpjsonServers) ? currentProject.disabledMcpjsonServers : [],
-        enabledMcpjsonServers: Array.isArray(currentProject.enabledMcpjsonServers) ? currentProject.enabledMcpjsonServers : [],
-        hasClaudeMdExternalIncludesApproved: currentProject.hasClaudeMdExternalIncludesApproved === true,
-        hasClaudeMdExternalIncludesWarningShown: currentProject.hasClaudeMdExternalIncludesWarningShown === true,
+        disabledMcpjsonServers: Array.isArray(currentProject.disabledMcpjsonServers)
+          ? currentProject.disabledMcpjsonServers
+          : [],
+        enabledMcpjsonServers: Array.isArray(currentProject.enabledMcpjsonServers)
+          ? currentProject.enabledMcpjsonServers
+          : [],
+        hasClaudeMdExternalIncludesApproved:
+          currentProject.hasClaudeMdExternalIncludesApproved === true,
+        hasClaudeMdExternalIncludesWarningShown:
+          currentProject.hasClaudeMdExternalIncludesWarningShown === true,
         hasTrustDialogAccepted: true,
-        mcpContextUris: Array.isArray(currentProject.mcpContextUris) ? currentProject.mcpContextUris : [],
-        mcpServers: currentProject.mcpServers && typeof currentProject.mcpServers === "object" ? currentProject.mcpServers : {},
-        projectOnboardingSeenCount: 0
-      }
-    }
+        mcpContextUris: Array.isArray(currentProject.mcpContextUris)
+          ? currentProject.mcpContextUris
+          : [],
+        mcpServers:
+          currentProject.mcpServers && typeof currentProject.mcpServers === 'object'
+            ? currentProject.mcpServers
+            : {},
+        projectOnboardingSeenCount: 0,
+      },
+    },
   };
-  const currentText = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf8") : "";
+  const currentText = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
   const nextText = `${JSON.stringify(nextConfig, null, 2)}\n`;
   if (currentText === nextText) return;
   try {
     if (currentText) {
-      const backupDir = path.join(os.homedir(), ".claude", "backups");
+      const backupDir = path.join(os.homedir(), '.claude', 'backups');
       ensureDirSafe(backupDir);
-      const backupPath = path.join(backupDir, `claude-json.before-cliswitch-trust.${Date.now()}.json`);
-      fs.writeFileSync(backupPath, currentText, "utf8");
+      const backupPath = path.join(
+        backupDir,
+        `claude-json.before-cliswitch-trust.${Date.now()}.json`,
+      );
+      fs.writeFileSync(backupPath, currentText, 'utf8');
     }
     writeJsonFileSafe(configPath, nextConfig);
-    logInfo("claude-runtime", "Synced Claude project trust from active workspace", {
-      configPath,
-      projectKey
-    });
-  } catch (error) {
-    logWarn("claude-runtime", "Failed to sync Claude project trust", {
+    logInfo('claude-runtime', 'Synced Claude project trust from active workspace', {
       configPath,
       projectKey,
-      reason: error instanceof Error ? error.message : String(error)
+    });
+  } catch (error) {
+    logWarn('claude-runtime', 'Failed to sync Claude project trust', {
+      configPath,
+      projectKey,
+      reason: error instanceof Error ? error.message : String(error),
     });
   }
 }
 
-function syncClaudeSettingsEnv(provider, startupEnv = {}, cwd = "") {
+function syncClaudeSettingsEnv(provider, startupEnv = {}, cwd = '') {
   const id = normalizeProviderId(provider);
-  if (id !== "claude") return startupEnv;
+  if (id !== 'claude') return startupEnv;
   syncClaudeProjectTrust(cwd);
 
-  const userClaudeDir = path.join(os.homedir(), ".claude");
-  const userSettingsPath = path.join(userClaudeDir, "settings.json");
+  const userClaudeDir = path.join(os.homedir(), '.claude');
+  const userSettingsPath = path.join(userClaudeDir, 'settings.json');
   const currentSettings = tryReadJsonFile(userSettingsPath, {});
   const nextSettings = {
     ...currentSettings,
-    env: { ...(startupEnv || {}) }
+    env: { ...(startupEnv || {}) },
   };
-  const currentText = fs.existsSync(userSettingsPath) ? fs.readFileSync(userSettingsPath, "utf8") : "";
+  const currentText = fs.existsSync(userSettingsPath)
+    ? fs.readFileSync(userSettingsPath, 'utf8')
+    : '';
   const nextText = `${JSON.stringify(nextSettings, null, 2)}\n`;
   if (currentText === nextText) return startupEnv;
   try {
     if (currentText) {
-      const backupDir = path.join(userClaudeDir, "backups");
+      const backupDir = path.join(userClaudeDir, 'backups');
       ensureDirSafe(backupDir);
       const backupPath = path.join(backupDir, `settings.before-cliswitch-env.${Date.now()}.json`);
-      fs.writeFileSync(backupPath, currentText, "utf8");
+      fs.writeFileSync(backupPath, currentText, 'utf8');
     }
     writeJsonFileSafe(userSettingsPath, nextSettings);
-    logInfo("claude-runtime", "Synced Claude settings env from active provider profile", {
+    logInfo('claude-runtime', 'Synced Claude settings env from active provider profile', {
       settingsPath: userSettingsPath,
-      env: maskEnvForLog(nextSettings.env || {})
+      env: maskEnvForLog(nextSettings.env || {}),
     });
   } catch (error) {
-    logWarn("claude-runtime", "Failed to sync Claude settings env", {
+    logWarn('claude-runtime', 'Failed to sync Claude settings env', {
       settingsPath: userSettingsPath,
-      reason: error instanceof Error ? error.message : String(error)
+      reason: error instanceof Error ? error.message : String(error),
     });
   }
   return startupEnv;
 }
 
-log.transports.file.level = "info";
-log.transports.console.level = "info";
+log.transports.file.level = 'info';
+log.transports.console.level = 'info';
 log.transports.file.maxSize = 5 * 1024 * 1024;
-log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}";
-log.transports.file.resolvePathFn = () => path.join(appLogsDir, "main.log");
+log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
+log.transports.file.resolvePathFn = () => path.join(appLogsDir, 'main.log');
 
 function toLogError(error) {
   if (!error) return {};
   return {
     message: error.message || String(error),
-    stack: error.stack || ""
+    stack: error.stack || '',
   };
 }
 
 function sanitizeLogText(value) {
-  return String(value || "").replace(/\r?\n/g, " ").trim();
+  return String(value || '')
+    .replace(/\r?\n/g, ' ')
+    .trim();
 }
 
 function formatLogLine(scope, message, meta) {
@@ -235,7 +282,7 @@ function formatLogLine(scope, message, meta) {
   if (meta === undefined || meta === null) return prefix;
   try {
     const metaText = JSON.stringify(meta);
-    if (!metaText || metaText === "{}") return prefix;
+    if (!metaText || metaText === '{}') return prefix;
     return `${prefix} ${sanitizeLogText(metaText)}`;
   } catch {
     return prefix;
@@ -259,15 +306,15 @@ function logDebug(scope, message, meta) {
 }
 
 function logByLevel(level, scope, message, meta) {
-  if (level === "error") {
+  if (level === 'error') {
     log.error(formatLogLine(scope, message, meta));
     return;
   }
-  if (level === "warn") {
+  if (level === 'warn') {
     log.warn(formatLogLine(scope, message, meta));
     return;
   }
-  if (level === "debug") {
+  if (level === 'debug') {
     log.debug(formatLogLine(scope, message, meta));
     return;
   }
@@ -287,21 +334,21 @@ function resolveAssetPath(...parts) {
 
 function getWindowIconPath() {
   return pickExistingPath([
-    process.platform === "win32" ? resolveAssetPath("app-icons", "win", "app.ico") : "",
-    resolveAssetPath("app-icons", "png", "icon_512x512.png"),
-    resolveAssetPath("app-icons", "png", "icon_256x256.png")
+    process.platform === 'win32' ? resolveAssetPath('app-icons', 'win', 'app.ico') : '',
+    resolveAssetPath('app-icons', 'png', 'icon_512x512.png'),
+    resolveAssetPath('app-icons', 'png', 'icon_256x256.png'),
   ]);
 }
 
 function createMacTray() {
-  if (process.platform !== "darwin" || tray) return;
+  if (process.platform !== 'darwin' || tray) return;
 
   const trayPath = pickExistingPath([
-    resolveAssetPath("app-icons", "png", "icon_16x16@2x.png"),
-    resolveAssetPath("app-icons", "png", "icon_16x16.png"),
-    resolveAssetPath("app-icons", "tray", "macos-trayTemplate@2x.png"),
-    resolveAssetPath("app-icons", "tray", "macos-trayTemplate.png"),
-    resolveAssetPath("app-icons", "png", "icon_16x16.png")
+    resolveAssetPath('app-icons', 'png', 'icon_16x16@2x.png'),
+    resolveAssetPath('app-icons', 'png', 'icon_16x16.png'),
+    resolveAssetPath('app-icons', 'tray', 'macos-trayTemplate@2x.png'),
+    resolveAssetPath('app-icons', 'tray', 'macos-trayTemplate.png'),
+    resolveAssetPath('app-icons', 'png', 'icon_16x16.png'),
   ]);
   if (!trayPath) return;
 
@@ -324,24 +371,24 @@ function createMacTray() {
           if (mainWindow.isMinimized()) mainWindow.restore();
           mainWindow.show();
           mainWindow.focus();
-        }
+        },
       },
       {
         label: `Hide ${APP_NAME}`,
         click: () => {
           if (!mainWindow || mainWindow.isDestroyed()) return;
           mainWindow.hide();
-        }
+        },
       },
-      { type: "separator" },
+      { type: 'separator' },
       {
-        label: "Quit",
-        click: () => app.quit()
-      }
-    ])
+        label: 'Quit',
+        click: () => app.quit(),
+      },
+    ]),
   );
 
-  tray.on("click", () => {
+  tray.on('click', () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       createWindow();
       return;
@@ -367,13 +414,13 @@ const skillgenRunner = createSkillgenRunner({
   logInfo,
   logWarn,
   logError,
-  extractCandidatesWithModel: extractSkillCandidatesWithModel
+  extractCandidatesWithModel: extractSkillCandidatesWithModel,
 });
 const providerRuntime = createProviderSettingsRuntime({
   providerEnvPresets,
   normalizeProviderId,
   applyProviderStartupEnv,
-  getProviderStartupSettings: () => appSettingsStore.getProviderStartupSettings()
+  getProviderStartupSettings: () => appSettingsStore.getProviderStartupSettings(),
 });
 const {
   INTERNAL_ENV_KEY_AUTH_MODE,
@@ -386,7 +433,7 @@ const {
   stripPresetValuesFromProviderSettings,
   getStartupEnvForProvider,
   getActiveProviderProfile,
-  buildEnvFromPairs
+  buildEnvFromPairs,
 } = providerRuntime;
 const providerConnectionService = createProviderConnectionService({
   normalizeProviderId,
@@ -399,7 +446,7 @@ const providerConnectionService = createProviderConnectionService({
   isDeepSeekAnthropicBase,
   buildAnthropicCompatHeaders,
   logInfo,
-  logWarn
+  logWarn,
 });
 const oauthProbeService = createOAuthProbeService({
   normalizeProviderId,
@@ -411,7 +458,7 @@ const oauthProbeService = createOAuthProbeService({
   maskEnvForLog,
   shortBody,
   logInfo,
-  logWarn
+  logWarn,
 });
 const proxyConnectivityService = createProxyConnectivityService({
   normalizeProviderId,
@@ -425,7 +472,7 @@ const proxyConnectivityService = createProxyConnectivityService({
   logInfo,
   logWarn,
   internalProxyEnabledKey: INTERNAL_PROXY_ENABLED_KEY,
-  internalProxyUrlKey: INTERNAL_PROXY_URL_KEY
+  internalProxyUrlKey: INTERNAL_PROXY_URL_KEY,
 });
 
 function cleanRuntimeData() {
@@ -434,39 +481,41 @@ function cleanRuntimeData() {
     dbPath,
     cleanedDirectories: [],
     cleanedFiles: [],
-    warnings: []
+    warnings: [],
   };
 
-  const runtimeDirs = Array.from(new Set([
-    path.join(os.homedir(), `.${APP_ID}`),
-    path.join(os.homedir(), `.${APP_ID}dev`),
-    appHomeDir
-  ])).map((item) => path.resolve(item));
+  const runtimeDirs = Array.from(
+    new Set([
+      path.join(os.homedir(), `.${APP_ID}`),
+      path.join(os.homedir(), `.${APP_ID}dev`),
+      appHomeDir,
+    ]),
+  ).map((item) => path.resolve(item));
 
   report.runtimeDirs = runtimeDirs;
 
   ptyService.destroyAll();
 
   try {
-    db.exec("BEGIN");
-    db.exec("DELETE FROM sessions");
-    db.exec("DELETE FROM projects");
-    db.exec("DELETE FROM app_settings");
-    db.exec("COMMIT");
+    db.exec('BEGIN');
+    db.exec('DELETE FROM sessions');
+    db.exec('DELETE FROM projects');
+    db.exec('DELETE FROM app_settings');
+    db.exec('COMMIT');
   } catch (error) {
     try {
-      db.exec("ROLLBACK");
+      db.exec('ROLLBACK');
     } catch {}
     throw error;
   }
 
   try {
-    db.pragma("wal_checkpoint(TRUNCATE)");
+    db.pragma('wal_checkpoint(TRUNCATE)');
   } catch (error) {
     report.warnings.push(`WAL checkpoint 失败: ${error.message || String(error)}`);
   }
   try {
-    db.exec("VACUUM");
+    db.exec('VACUUM');
   } catch (error) {
     report.warnings.push(`VACUUM 失败: ${error.message || String(error)}`);
   }
@@ -476,9 +525,9 @@ function cleanRuntimeData() {
   removeFileSafe(`${activeDbPath}-shm`, report);
 
   for (const runtimeDir of runtimeDirs) {
-    const cacheDir = path.join(runtimeDir, "cache");
-    const logsDir = path.join(runtimeDir, "logs");
-    const tmpDir = path.join(runtimeDir, ".tmp");
+    const cacheDir = path.join(runtimeDir, 'cache');
+    const logsDir = path.join(runtimeDir, 'logs');
+    const tmpDir = path.join(runtimeDir, '.tmp');
     clearDirectoryContentsSafe(cacheDir, report);
     clearDirectoryContentsSafe(logsDir, report);
     clearDirectoryContentsSafe(tmpDir, report);
@@ -493,13 +542,10 @@ function cleanRuntimeData() {
     }
     for (const entry of entries) {
       if (!entry?.isFile?.()) continue;
-      const fileName = String(entry.name || "");
+      const fileName = String(entry.name || '');
       const absPath = path.join(runtimeDir, fileName);
       if (absPath === activeDbPath) continue;
-      if (
-        /\.sqlite(?:-wal|-shm)?$/i.test(fileName)
-        || /\.db$/i.test(fileName)
-      ) {
+      if (/\.sqlite(?:-wal|-shm)?$/i.test(fileName) || /\.db$/i.test(fileName)) {
         removeFileSafe(absPath, report);
       }
     }
@@ -507,8 +553,8 @@ function cleanRuntimeData() {
 
   return {
     ok: true,
-    message: "运行数据已清理",
-    ...report
+    message: '运行数据已清理',
+    ...report,
   };
 }
 
@@ -516,134 +562,170 @@ const providerSettingsSchema = z.object({
   providers: z.object({
     claude: z.object({
       defaultProfileId: z.string().min(1),
-      enabledProfileId: z.string().optional().default(""),
-      profiles: z.array(z.object({
-        id: z.string().min(1),
-        name: z.string().min(1),
-        envVars: z.array(z.object({ key: z.string().min(1), value: z.string() })).optional().default([])
-      })).min(1)
+      enabledProfileId: z.string().optional().default(''),
+      profiles: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            name: z.string().min(1),
+            envVars: z
+              .array(z.object({ key: z.string().min(1), value: z.string() }))
+              .optional()
+              .default([]),
+          }),
+        )
+        .min(1),
     }),
     codex: z.object({
       defaultProfileId: z.string().min(1),
-      enabledProfileId: z.string().optional().default(""),
-      profiles: z.array(z.object({
-        id: z.string().min(1),
-        name: z.string().min(1),
-        envVars: z.array(z.object({ key: z.string().min(1), value: z.string() })).optional().default([])
-      })).min(1)
+      enabledProfileId: z.string().optional().default(''),
+      profiles: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            name: z.string().min(1),
+            envVars: z
+              .array(z.object({ key: z.string().min(1), value: z.string() }))
+              .optional()
+              .default([]),
+          }),
+        )
+        .min(1),
     }),
     gemini: z.object({
       defaultProfileId: z.string().min(1),
-      enabledProfileId: z.string().optional().default(""),
-      profiles: z.array(z.object({
-        id: z.string().min(1),
-        name: z.string().min(1),
-        envVars: z.array(z.object({ key: z.string().min(1), value: z.string() })).optional().default([])
-      })).min(1)
-    })
-  })
+      enabledProfileId: z.string().optional().default(''),
+      profiles: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            name: z.string().min(1),
+            envVars: z
+              .array(z.object({ key: z.string().min(1), value: z.string() }))
+              .optional()
+              .default([]),
+          }),
+        )
+        .min(1),
+    }),
+  }),
 });
 const providerTestSchema = z.object({
   provider: z.string().min(1),
   profileId: z.string().min(1),
-  envVars: z.array(z.object({ key: z.string().min(1), value: z.string().optional().default("") })).optional().default([])
+  envVars: z
+    .array(z.object({ key: z.string().min(1), value: z.string().optional().default('') }))
+    .optional()
+    .default([]),
 });
 const providerOAuthLoginSchema = z.object({
   provider: z.string().min(1),
   profileId: z.string().min(1),
   projectId: z.string().min(1).optional(),
-  cwd: z.string().optional()
+  cwd: z.string().optional(),
 });
 const providerOAuthProbeSchema = z.object({
   provider: z.string().min(1),
   profileId: z.string().min(1),
-  envVars: z.array(z.object({ key: z.string().min(1), value: z.string().optional().default("") })).optional().default([])
+  envVars: z
+    .array(z.object({ key: z.string().min(1), value: z.string().optional().default('') }))
+    .optional()
+    .default([]),
 });
 const providerOAuthLinksSchema = z.object({
   provider: z.string().min(1),
   profileId: z.string().optional(),
-  sessionId: z.string().optional()
+  sessionId: z.string().optional(),
 });
 const providerProxyTestSchema = z.object({
   provider: z.string().min(1),
   profileId: z.string().min(1),
   proxyUrl: z.string().min(1),
-  envVars: z.array(z.object({ key: z.string().min(1), value: z.string().optional().default("") })).optional().default([])
+  envVars: z
+    .array(z.object({ key: z.string().min(1), value: z.string().optional().default('') }))
+    .optional()
+    .default([]),
 });
 const sessionCreateSchema = z.object({
   projectId: z.string().min(1),
   cwd: z.string().optional(),
   title: z.string().optional(),
-  provider: z.string().optional().default("claude")
+  provider: z.string().optional().default('claude'),
 });
 const sessionStartSchema = z.object({
   sessionId: z.string().min(1),
   providerSessionId: z.string().optional(),
   cwd: z.string().optional(),
   name: z.string().optional(),
-  provider: z.string().optional().default("claude")
+  provider: z.string().optional().default('claude'),
 });
 const sessionSuggestTitleSchema = z.object({
   sessionId: z.string().min(1),
   providerSessionId: z.string().optional(),
-  provider: z.string().optional().default("claude")
+  provider: z.string().optional().default('claude'),
 });
 const sessionArchiveSchema = z.object({
-  sessionId: z.string().min(1)
+  sessionId: z.string().min(1),
 });
 const sessionReorderSchema = z.object({
   projectId: z.string().min(1),
-  orderedSessions: z.array(z.object({
-    provider: z.string().min(1),
-    providerSessionId: z.string().min(1)
-  })).default([])
+  orderedSessions: z
+    .array(
+      z.object({
+        provider: z.string().min(1),
+        providerSessionId: z.string().min(1),
+      }),
+    )
+    .default([]),
 });
 const sessionStatsSchema = z.object({
-  provider: z.string().optional().default("claude"),
+  provider: z.string().optional().default('claude'),
   providerSessionId: z.string().optional(),
-  sessionId: z.string().optional()
+  sessionId: z.string().optional(),
 });
 const fileTreeSchema = z.object({
   cwd: z.string().min(1),
-  depth: z.number().int().min(1).max(12).optional().default(6)
+  depth: z.number().int().min(1).max(12).optional().default(6),
 });
 const fileOpenPathSchema = z.object({
-  path: z.string().min(1)
+  path: z.string().min(1),
 });
 const fileAttachmentSaveSchema = z.object({
   cwd: z.string().min(1),
-  sessionId: z.string().min(1)
+  sessionId: z.string().min(1),
 });
 const fileAttachmentSaveBufferSchema = z.object({
   cwd: z.string().min(1),
   sessionId: z.string().min(1),
   base64: z.string().min(1),
-  mimeType: z.string().min(1)
+  mimeType: z.string().min(1),
 });
 const skillgenRunSchema = z.object({
   projectId: z.string().min(1),
-  trigger: z.string().optional().default("manual"),
+  trigger: z.string().optional().default('manual'),
   rebuild: z.boolean().optional().default(false),
-  focusSessionId: z.string().optional().default("")
+  focusSessionId: z.string().optional().default(''),
 });
 
 function toSessionView(row) {
   return {
     sessionId: row.provider_session_id || row.providerSessionId || row.sessionId || row.id,
-    name: row.title || row.name || "New Chat",
-    cwd: row.cwd || row.project_path || "",
-    projectId: row.project_id || row.projectId || "",
-    provider: normalizeProviderId(row.provider || "claude"),
-    providerSessionId: row.provider_session_id || row.providerSessionId || "",
-    status: row.status || "exited",
+    name: row.title || row.name || 'New Chat',
+    cwd: row.cwd || row.project_path || '',
+    projectId: row.project_id || row.projectId || '',
+    provider: normalizeProviderId(row.provider || 'claude'),
+    providerSessionId: row.provider_session_id || row.providerSessionId || '',
+    status: row.status || 'exited',
     sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
-    createdAt: row.created_at ? new Date(row.created_at).getTime() : (row.createdAt || Date.now()),
-    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : (row.updatedAt || row.createdAt || Date.now())
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : row.createdAt || Date.now(),
+    updatedAt: row.updated_at
+      ? new Date(row.updated_at).getTime()
+      : row.updatedAt || row.createdAt || Date.now(),
   };
 }
 
 function toArchivedView(row) {
-  const provider = normalizeProviderId(row.provider || "claude");
+  const provider = normalizeProviderId(row.provider || 'claude');
   const sessionId = row.provider_session_id || row.providerSessionId || row.sessionId || row.id;
   return {
     archiveId: `${provider}:${sessionId}`,
@@ -651,8 +733,8 @@ function toArchivedView(row) {
     provider,
     projectId: row.project_id || row.projectId || null,
     name: row.title || row.name || `session-${String(sessionId).slice(0, 8)}`,
-    cwd: row.cwd || row.project_path || "",
-    archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : Date.now()
+    cwd: row.cwd || row.project_path || '',
+    archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : Date.now(),
   };
 }
 
@@ -670,88 +752,85 @@ function dedupeSessionViews(items) {
 }
 
 function sessionBelongsToProjectRoot(row) {
-  const cwd = row?.cwd || row?.project_path || "";
-  const projectPath = row?.project_path || "";
+  const cwd = row?.cwd || row?.project_path || '';
+  const projectPath = row?.project_path || '';
   if (!cwd || !projectPath) return true;
   return path.resolve(cwd) === path.resolve(projectPath);
 }
 
 function normalizeArchivePayload(payload) {
-  if (typeof payload === "string") {
+  if (typeof payload === 'string') {
     return { sessionId: payload };
   }
-  if (!payload || typeof payload !== "object") {
-    return { sessionId: "" };
+  if (!payload || typeof payload !== 'object') {
+    return { sessionId: '' };
   }
-  if (typeof payload.sessionId === "string") {
+  if (typeof payload.sessionId === 'string') {
     return payload;
   }
   // Backward compatibility: payload can be { sessionId: { sessionId, ... } }.
-  if (payload.sessionId && typeof payload.sessionId === "object") {
+  if (payload.sessionId && typeof payload.sessionId === 'object') {
     return { ...payload, ...payload.sessionId };
   }
   return payload;
 }
 
-function parseArchiveId(identifier, fallbackProvider = "claude") {
-  const raw = String(identifier || "");
-  if (raw.includes(":")) {
-    const [provider, ...rest] = raw.split(":");
+function parseArchiveId(identifier, fallbackProvider = 'claude') {
+  const raw = String(identifier || '');
+  if (raw.includes(':')) {
+    const [provider, ...rest] = raw.split(':');
     return {
       provider: normalizeProviderId(provider),
-      providerSessionId: rest.join(":")
+      providerSessionId: rest.join(':'),
     };
   }
   return {
     provider: normalizeProviderId(fallbackProvider),
-    providerSessionId: raw
+    providerSessionId: raw,
   };
 }
 
 function encodeClaudeProjectDir(cwd) {
   const normalized = path.resolve(cwd);
-  const replaced = normalized
-    .replace(/\\/g, "-")
-    .replace(/\//g, "-")
-    .replace(/:/g, "");
-  return replaced.startsWith("-") ? replaced : `-${replaced}`;
+  const replaced = normalized.replace(/\\/g, '-').replace(/\//g, '-').replace(/:/g, '');
+  return replaced.startsWith('-') ? replaced : `-${replaced}`;
 }
 
 function normalizeTitle(text, maxLen = 36) {
-  if (!text) return "";
-  const compact = String(text).replace(/\s+/g, " ").trim();
-  if (!compact) return "";
+  if (!text) return '';
+  const compact = String(text).replace(/\s+/g, ' ').trim();
+  if (!compact) return '';
   if (compact.length <= maxLen) return compact;
   return `${compact.slice(0, maxLen - 1)}…`;
 }
 
 function extractRenameTitle(content) {
-  if (typeof content !== "string") return "";
-  if (!content.includes("<command-name>/rename</command-name>")) return "";
+  if (typeof content !== 'string') return '';
+  if (!content.includes('<command-name>/rename</command-name>')) return '';
   const match = content.match(/<command-args>([\s\S]*?)<\/command-args>/);
-  if (!match) return "";
+  if (!match) return '';
   return normalizeTitle(match[1], 48);
 }
 
 function extractUserPrompt(content) {
-  if (typeof content !== "string") return "";
+  if (typeof content !== 'string') return '';
   const trimmed = content.trim();
-  if (!trimmed) return "";
+  if (!trimmed) return '';
   // Skip command/meta envelopes and caveat blocks.
-  if (trimmed.startsWith("<")) return "";
-  if (trimmed.includes("<local-command-caveat>")) return "";
+  if (trimmed.startsWith('<')) return '';
+  if (trimmed.includes('<local-command-caveat>')) return '';
   return normalizeTitle(trimmed, 40);
 }
 
 function readTailLines(filePath, maxBytes = 256 * 1024, maxLines = 500) {
   const stat = fs.statSync(filePath);
   const readSize = Math.min(maxBytes, stat.size);
-  const fd = fs.openSync(filePath, "r");
+  const fd = fs.openSync(filePath, 'r');
   try {
     const buffer = Buffer.alloc(readSize);
     fs.readSync(fd, buffer, 0, readSize, stat.size - readSize);
-    const text = buffer.toString("utf8");
-    const lines = text.split("\n").filter(Boolean);
+    const text = buffer.toString('utf8');
+    const lines = text.split('\n').filter(Boolean);
     return lines.slice(-maxLines);
   } finally {
     fs.closeSync(fd);
@@ -761,12 +840,12 @@ function readTailLines(filePath, maxBytes = 256 * 1024, maxLines = 500) {
 function readHeadLines(filePath, maxBytes = 128 * 1024, maxLines = 300) {
   const stat = fs.statSync(filePath);
   const readSize = Math.min(maxBytes, stat.size);
-  const fd = fs.openSync(filePath, "r");
+  const fd = fs.openSync(filePath, 'r');
   try {
     const buffer = Buffer.alloc(readSize);
     fs.readSync(fd, buffer, 0, readSize, 0);
-    const text = buffer.toString("utf8");
-    const lines = text.split("\n").filter(Boolean);
+    const text = buffer.toString('utf8');
+    const lines = text.split('\n').filter(Boolean);
     return lines.slice(0, maxLines);
   } finally {
     fs.closeSync(fd);
@@ -784,20 +863,20 @@ function extractSessionCwdFromJsonl(filePath) {
         continue;
       }
       const cwd = parsed?.cwd || parsed?.entrypoint?.cwd;
-      if (typeof cwd === "string" && cwd.trim().length > 0) {
+      if (typeof cwd === 'string' && cwd.trim().length > 0) {
         return cwd.trim();
       }
     }
-    return "";
+    return '';
   } catch {
-    return "";
+    return '';
   }
 }
 
 function deriveSessionTitleFromJsonl(filePath, fallbackTitle) {
   try {
     const lines = readTailLines(filePath);
-    let promptTitle = "";
+    let promptTitle = '';
 
     for (let i = lines.length - 1; i >= 0; i -= 1) {
       const line = lines[i];
@@ -812,7 +891,7 @@ function deriveSessionTitleFromJsonl(filePath, fallbackTitle) {
       const rename = extractRenameTitle(content);
       if (rename) return rename;
 
-      if (!promptTitle && parsed?.message?.role === "user") {
+      if (!promptTitle && parsed?.message?.role === 'user') {
         const prompt = extractUserPrompt(content);
         if (prompt) promptTitle = prompt;
       }
@@ -825,80 +904,85 @@ function deriveSessionTitleFromJsonl(filePath, fallbackTitle) {
 }
 
 function trimToLength(text, maxChars = 10) {
-  const chars = Array.from(String(text || "").trim());
-  if (chars.length <= maxChars) return chars.join("");
-  return chars.slice(0, maxChars).join("");
+  const chars = Array.from(String(text || '').trim());
+  if (chars.length <= maxChars) return chars.join('');
+  return chars.slice(0, maxChars).join('');
 }
 
 function containsCjk(text) {
-  return /[\u4e00-\u9fff]/.test(String(text || ""));
+  return /[\u4e00-\u9fff]/.test(String(text || ''));
 }
 
 function stripMarkdownArtifacts(text) {
-  return String(text || "")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/`{1,3}[^`]+`{1,3}/g, " ")
-    .replace(/<[^>]+>/g, " ");
+  return String(text || '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/`{1,3}[^`]+`{1,3}/g, ' ')
+    .replace(/<[^>]+>/g, ' ');
 }
 
-function normalizeSuggestedTitle(rawTitle, fallbackTitle = "") {
-  const cleaned = stripMarkdownArtifacts(String(rawTitle || ""))
-    .replace(/\r?\n/g, " ")
-    .replace(/^[\[\(【（]+|[\]\)】）]+$/g, "")
-    .replace(/[“”"'`]/g, "")
-    .replace(/[，。！？、；：,.!?;:]/g, " ")
-    .replace(/\s+/g, " ")
+function normalizeSuggestedTitle(rawTitle, fallbackTitle = '') {
+  const cleaned = stripMarkdownArtifacts(String(rawTitle || ''))
+    .replace(/\r?\n/g, ' ')
+    .replace(/^[\[\(【（]+|[\]\)】）]+$/g, '')
+    .replace(/[“”"'`]/g, '')
+    .replace(/[，。！？、；：,.!?;:]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
-  const compact = cleaned.replace(/[\s\[\]\(\){}<>【】]/g, "");
-  const base = compact || cleaned || String(fallbackTitle || "").trim();
+  const compact = cleaned.replace(/[\s\[\]\(\){}<>【】]/g, '');
+  const base = compact || cleaned || String(fallbackTitle || '').trim();
   return trimToLength(base, 10);
 }
 
 function looksLikeMetaReasoningTitle(text) {
-  const value = String(text || "").trim();
+  const value = String(text || '').trim();
   if (!value) return false;
   return /^(我需要|让我|需要分析|分析这个|好的我|根据对话|基于对话|这个对话|总结一下)/.test(value);
 }
 
 function deriveRuleBasedTaskTitle(text) {
-  const source = stripMarkdownArtifacts(String(text || ""));
-  if (!source) return "";
+  const source = stripMarkdownArtifacts(String(text || ''));
+  if (!source) return '';
   const rules = [
     {
-      title: "检查容器挂载",
-      patterns: [/容器|docker/i, /挂载|路径|volume|-v|sqlite|同步/i]
+      title: '检查容器挂载',
+      patterns: [/容器|docker/i, /挂载|路径|volume|-v|sqlite|同步/i],
     },
     {
-      title: "调整构建脚本",
-      patterns: [/docker-build\.sh|构建|build|脚本/i, /调整|修改|修复|检查|流程|询问/i]
+      title: '调整构建脚本',
+      patterns: [/docker-build\.sh|构建|build|脚本/i, /调整|修改|修复|检查|流程|询问/i],
     },
     {
-      title: "优化推送流程",
-      patterns: [/push|推送/i, /询问|确认|流程|是否/i]
+      title: '优化推送流程',
+      patterns: [/push|推送/i, /询问|确认|流程|是否/i],
     },
     {
-      title: "排查数据同步",
-      patterns: [/数据同步|同步路径|同步|路径/i]
-    }
+      title: '排查数据同步',
+      patterns: [/数据同步|同步路径|同步|路径/i],
+    },
   ];
   for (const rule of rules) {
     const matched = rule.patterns.every((pattern) => pattern.test(source));
     if (matched) return rule.title;
   }
-  return "";
+  return '';
 }
 
 function looksLikeLowQualityTaskTitle(text) {
-  const value = String(text || "").trim();
+  const value = String(text || '').trim();
   if (!value) return true;
   if (looksLikeMetaReasoningTitle(value)) return true;
   if (/^(请|帮我|麻烦|看看|请帮我|请你)/.test(value)) return true;
   if (/(这个|一下|数据同|对话|内容|问题)$/i.test(value)) return true;
-  if (!/[修复检查调整优化排查生成重命名构建推送测试登录提取分析同步部署更新]/.test(value)) return true;
+  if (!/[修复检查调整优化排查生成重命名构建推送测试登录提取分析同步部署更新]/.test(value))
+    return true;
   return false;
 }
 
-function deriveTaskTitleFromConversation(latestUserText = "", latestAssistantText = "", fallbackTitle = "会话") {
+function deriveTaskTitleFromConversation(
+  latestUserText = '',
+  latestAssistantText = '',
+  fallbackTitle = '会话',
+) {
   const ruleFromUser = deriveRuleBasedTaskTitle(latestUserText);
   if (containsCjk(ruleFromUser)) return ruleFromUser;
   const ruleFromAssistant = deriveRuleBasedTaskTitle(latestAssistantText);
@@ -907,12 +991,14 @@ function deriveTaskTitleFromConversation(latestUserText = "", latestAssistantTex
   if (containsCjk(ruleFromMix)) return ruleFromMix;
 
   const userCandidate = extractChineseCandidate(latestUserText);
-  if (containsCjk(userCandidate) && !looksLikeLowQualityTaskTitle(userCandidate)) return userCandidate;
+  if (containsCjk(userCandidate) && !looksLikeLowQualityTaskTitle(userCandidate))
+    return userCandidate;
   const assistantCandidate = extractChineseCandidate(latestAssistantText);
-  if (containsCjk(assistantCandidate) && !looksLikeLowQualityTaskTitle(assistantCandidate)) return assistantCandidate;
+  if (containsCjk(assistantCandidate) && !looksLikeLowQualityTaskTitle(assistantCandidate))
+    return assistantCandidate;
   const mix = extractChineseCandidate(`${latestUserText}\n${latestAssistantText}`);
   if (containsCjk(mix) && !looksLikeLowQualityTaskTitle(mix)) return mix;
-  return normalizeSuggestedTitle(fallbackTitle, "会话");
+  return normalizeSuggestedTitle(fallbackTitle, '会话');
 }
 
 function extractChineseCandidate(text) {
@@ -921,35 +1007,46 @@ function extractChineseCandidate(text) {
     .split(/[\n。！？!?；;：:，,]/)
     .map((item) => item.trim())
     .filter(Boolean);
-  if (parts.length === 0) return "";
-  const actionPattern = /(修复|检查|调整|生成|优化|重命名|构建|推送|测试|登录|提取|分析|同步|发布|部署|更新|排查|解决)/;
-  const scored = parts.map((part) => {
-    const chinese = (part.match(/[\u4e00-\u9fff]/g) || []).join("");
-    let score = 0;
-    if (chinese.length > 0) score += Math.min(chinese.length, 16);
-    if (actionPattern.test(part)) score += 12;
-    return { part, chinese, score };
-  }).sort((a, b) => b.score - a.score);
+  if (parts.length === 0) return '';
+  const actionPattern =
+    /(修复|检查|调整|生成|优化|重命名|构建|推送|测试|登录|提取|分析|同步|发布|部署|更新|排查|解决)/;
+  const scored = parts
+    .map((part) => {
+      const chinese = (part.match(/[\u4e00-\u9fff]/g) || []).join('');
+      let score = 0;
+      if (chinese.length > 0) score += Math.min(chinese.length, 16);
+      if (actionPattern.test(part)) score += 12;
+      return { part, chinese, score };
+    })
+    .sort((a, b) => b.score - a.score);
   const best = scored[0];
-  if (!best) return "";
+  if (!best) return '';
   const candidate = best.chinese || best.part;
-  return trimToLength(candidate.replace(/\s+/g, ""), 10);
+  return trimToLength(candidate.replace(/\s+/g, ''), 10);
 }
 
-function fallbackSuggestedTitle(latestUserText = "", latestAssistantText = "", fallbackTitle = "会话") {
-  const taskTitle = deriveTaskTitleFromConversation(latestUserText, latestAssistantText, fallbackTitle || "会话");
+function fallbackSuggestedTitle(
+  latestUserText = '',
+  latestAssistantText = '',
+  fallbackTitle = '会话',
+) {
+  const taskTitle = deriveTaskTitleFromConversation(
+    latestUserText,
+    latestAssistantText,
+    fallbackTitle || '会话',
+  );
   if (containsCjk(taskTitle)) return taskTitle;
-  const source = String(latestUserText || latestAssistantText || "").trim();
-  return normalizeSuggestedTitle(source || fallbackTitle || "会话", "会话");
+  const source = String(latestUserText || latestAssistantText || '').trim();
+  return normalizeSuggestedTitle(source || fallbackTitle || '会话', '会话');
 }
 
 function sanitizeModelResponsePreview(text) {
-  return String(text || "")
-    .replace(/\r?\n/g, " ")
-    .replace(/(Bearer\s+)[A-Za-z0-9._-]{8,}/gi, "$1***")
-    .replace(/("?(?:api[_-]?key|token|secret|authorization)"?\s*:\s*")[^"]+(")/gi, "$1***$2")
-    .replace(/([?&](?:api[_-]?key|token|key)=)[^&\s]+/gi, "$1***")
-    .replace(/\s+/g, " ")
+  return String(text || '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/(Bearer\s+)[A-Za-z0-9._-]{8,}/gi, '$1***')
+    .replace(/("?(?:api[_-]?key|token|secret|authorization)"?\s*:\s*")[^"]+(")/gi, '$1***$2')
+    .replace(/([?&](?:api[_-]?key|token|key)=)[^&\s]+/gi, '$1***')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -957,83 +1054,83 @@ function previewPayloadForLog(payload, maxLen = 1200) {
   try {
     return shortBodyLong(sanitizeModelResponsePreview(JSON.stringify(payload || {})), maxLen);
   } catch {
-    return shortBodyLong(sanitizeModelResponsePreview(String(payload || "")), maxLen);
+    return shortBodyLong(sanitizeModelResponsePreview(String(payload || '')), maxLen);
   }
 }
 
 function extractTextFromContentValue(content) {
-  if (typeof content === "string") return content.trim();
-  if (!content) return "";
+  if (typeof content === 'string') return content.trim();
+  if (!content) return '';
 
   if (Array.isArray(content)) {
     return content
       .map((item) => {
-        if (typeof item === "string") return item;
-        if (!item || typeof item !== "object") return "";
-        if (typeof item.text === "string") return item.text;
-        if (typeof item.output_text === "string") return item.output_text;
-        if (typeof item.input_text === "string") return item.input_text;
-        if (typeof item.content === "string") return item.content;
-        if (item.type === "text" && typeof item.value === "string") return item.value;
-        return "";
+        if (typeof item === 'string') return item;
+        if (!item || typeof item !== 'object') return '';
+        if (typeof item.text === 'string') return item.text;
+        if (typeof item.output_text === 'string') return item.output_text;
+        if (typeof item.input_text === 'string') return item.input_text;
+        if (typeof item.content === 'string') return item.content;
+        if (item.type === 'text' && typeof item.value === 'string') return item.value;
+        return '';
       })
       .filter(Boolean)
-      .join("\n")
+      .join('\n')
       .trim();
   }
 
-  if (typeof content === "object") {
-    if (typeof content.text === "string") return content.text.trim();
-    if (typeof content.output_text === "string") return content.output_text.trim();
-    if (typeof content.input_text === "string") return content.input_text.trim();
-    if (typeof content.content === "string") return content.content.trim();
-    if (typeof content.value === "string") return content.value.trim();
+  if (typeof content === 'object') {
+    if (typeof content.text === 'string') return content.text.trim();
+    if (typeof content.output_text === 'string') return content.output_text.trim();
+    if (typeof content.input_text === 'string') return content.input_text.trim();
+    if (typeof content.content === 'string') return content.content.trim();
+    if (typeof content.value === 'string') return content.value.trim();
     if (Array.isArray(content.parts)) {
       const joined = content.parts
-        .map((part) => (typeof part?.text === "string" ? part.text : ""))
+        .map((part) => (typeof part?.text === 'string' ? part.text : ''))
         .filter(Boolean)
-        .join("\n")
+        .join('\n')
         .trim();
       if (joined) return joined;
     }
   }
 
-  return "";
+  return '';
 }
 
 function extractTitleTextFromOpenAiResponse(data) {
   const candidates = [
     extractTextFromContentValue(data?.choices?.[0]?.message?.content),
     extractTextFromContentValue(data?.choices?.[0]?.delta?.content),
-    String(data?.choices?.[0]?.text || "").trim(),
-    String(data?.output_text || "").trim(),
+    String(data?.choices?.[0]?.text || '').trim(),
+    String(data?.output_text || '').trim(),
     extractTextFromContentValue(data?.output?.[0]?.content),
     extractTextFromContentValue(data?.message?.content),
-    String(data?.result || "").trim()
+    String(data?.result || '').trim(),
   ];
-  return candidates.find((item) => !!item) || "";
+  return candidates.find((item) => !!item) || '';
 }
 
 function extractTitleTextFromClaudeResponse(data) {
   const candidates = [
     extractTextFromContentValue(data?.content),
-    String(data?.completion || "").trim(),
-    String(data?.output_text || "").trim(),
+    String(data?.completion || '').trim(),
+    String(data?.output_text || '').trim(),
     extractTextFromContentValue(data?.choices?.[0]?.message?.content),
-    String(data?.choices?.[0]?.text || "").trim(),
+    String(data?.choices?.[0]?.text || '').trim(),
     extractTextFromContentValue(data?.message?.content),
-    extractTextFromContentValue(data?.delta)
+    extractTextFromContentValue(data?.delta),
   ];
-  return candidates.find((item) => !!item) || "";
+  return candidates.find((item) => !!item) || '';
 }
 
 function extractClaudeThinkingPreview(data) {
   const blocks = Array.isArray(data?.content) ? data.content : [];
   const thinking = blocks
-    .filter((item) => item && typeof item === "object" && item.type === "thinking")
-    .map((item) => String(item.thinking || item.text || item.content || "").trim())
+    .filter((item) => item && typeof item === 'object' && item.type === 'thinking')
+    .map((item) => String(item.thinking || item.text || item.content || '').trim())
     .filter(Boolean)
-    .join("\n")
+    .join('\n')
     .trim();
   return thinking;
 }
@@ -1041,17 +1138,17 @@ function extractClaudeThinkingPreview(data) {
 function extractTitleTextFromGeminiResponse(data) {
   const candidates = [
     extractTextFromContentValue(data?.candidates?.[0]?.content?.parts),
-    String(data?.candidates?.[0]?.output || "").trim(),
-    String(data?.candidates?.[0]?.text || "").trim(),
-    String(data?.text || "").trim(),
-    String(data?.output_text || "").trim(),
-    extractTextFromContentValue(data?.response?.candidates?.[0]?.content?.parts)
+    String(data?.candidates?.[0]?.output || '').trim(),
+    String(data?.candidates?.[0]?.text || '').trim(),
+    String(data?.text || '').trim(),
+    String(data?.output_text || '').trim(),
+    extractTextFromContentValue(data?.response?.candidates?.[0]?.content?.parts),
   ];
-  return candidates.find((item) => !!item) || "";
+  return candidates.find((item) => !!item) || '';
 }
 
 function extractJsonArrayFromText(rawText) {
-  const text = String(rawText || "").trim();
+  const text = String(rawText || '').trim();
   if (!text) return [];
   const direct = (() => {
     try {
@@ -1082,15 +1179,18 @@ function extractJsonArrayFromText(rawText) {
 }
 
 function normalizeSkillCandidateItem(item) {
-  if (!item || typeof item !== "object") return null;
-  const title = String(item.title || item.name || "").trim();
+  if (!item || typeof item !== 'object') return null;
+  const title = String(item.title || item.name || '').trim();
   if (!title) return null;
   const toArray = (value, maxItems = 12, maxLen = 260) => {
-    const arr = Array.isArray(value) ? value : (value ? [value] : []);
+    const arr = Array.isArray(value) ? value : value ? [value] : [];
     const out = [];
     const seen = new Set();
     for (const entry of arr) {
-      const text = String(entry || "").replace(/\s+/g, " ").trim().slice(0, maxLen);
+      const text = String(entry || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, maxLen);
       if (!text || seen.has(text)) continue;
       seen.add(text);
       out.push(text);
@@ -1100,8 +1200,8 @@ function normalizeSkillCandidateItem(item) {
   };
   return {
     title,
-    summary: String(item.summary || item.description || "").trim(),
-    description: String(item.description || item.summary || "").trim(),
+    summary: String(item.summary || item.description || '').trim(),
+    description: String(item.description || item.summary || '').trim(),
     tags: toArray(item.tags || [], 8, 32),
     steps: toArray(item.steps || [], 12, 260),
     whenToUse: toArray(item.whenToUse || item.when_to_use || [], 10, 220),
@@ -1110,7 +1210,7 @@ function normalizeSkillCandidateItem(item) {
     commands: toArray(item.commands || [], 10, 260),
     evidence: toArray(item.evidence || [], 10, 260),
     contexts: toArray(item.contexts || item.context || [], 8, 260),
-    slug: String(item.slug || "").trim()
+    slug: String(item.slug || '').trim(),
   };
 }
 
@@ -1131,14 +1231,14 @@ function pickSuccessfulEvidenceLines(transcript = [], maxItems = 48) {
     /\bpassed?\b/i,
     /\bsuccess(?:ful|fully)?\b/i,
     /\bcompleted?\b/i,
-    /已完成|构建成功|测试通过|执行成功|更新成功|创建成功/
+    /已完成|构建成功|测试通过|执行成功|更新成功|创建成功/,
   ];
   const fallbackPatterns = [
     /\bcreated?\b/i,
     /\bupdated?\b/i,
     /\brenamed?\b/i,
     /\bbuild\b/i,
-    /\btest\b/i
+    /\btest\b/i,
   ];
   const picked = [];
   const seen = new Set();
@@ -1155,237 +1255,254 @@ function pickSuccessfulEvidenceLines(transcript = [], maxItems = 48) {
   return picked;
 }
 
-function buildSkillExtractionPrompt({ transcript = [], sessionFilePath = "" } = {}) {
+function buildSkillExtractionPrompt({ transcript = [], sessionFilePath = '' } = {}) {
   const lines = Array.isArray(transcript) ? transcript.slice(-200) : [];
   const recentContextLines = lines.slice(-140);
   const evidenceLines = pickSuccessfulEvidenceLines(lines, 48);
   const { latestUserText, latestAssistantText } = sessionFilePath
     ? parseLatestConversationRoundFromSessionFile(sessionFilePath)
-    : { latestUserText: "", latestAssistantText: "" };
+    : { latestUserText: '', latestAssistantText: '' };
   const latestUser = cleanText(latestUserText).slice(0, 800);
   const latestAssistant = cleanText(latestAssistantText).slice(0, 800);
-  const context = recentContextLines.join("\n");
-  const evidence = evidenceLines.length > 0 ? evidenceLines.join("\n") : "(none)";
+  const context = recentContextLines.join('\n');
+  const evidence = evidenceLines.length > 0 ? evidenceLines.join('\n') : '(none)';
   return [
-    "你是工程团队的技能萃取助手。",
-    "任务：从下面会话里提取“已成功执行、可复用”的技能案例。",
-    "严格要求：",
-    "1) 只提取有成功证据的案例（例如 exit=0 / passed / success / 已完成 / 构建成功）。",
-    "2) 不要提取失败、调研、闲聊。",
-    "3) 输出必须是 JSON 数组，不要 markdown，不要解释。",
-    "4) 每个元素字段：title, summary, steps[], whenToUse[], validation[], antiPatterns[], commands[], evidence[], tags[]。",
-    "5) title 必须中文，10字以内，任务导向（例如：检查容器挂载）。",
-    "6) 最多返回 5 条；没有就返回 []。",
-    "",
-    "最新一轮对话（用于判断当前目标）：",
-    `- 用户：${latestUser || "(empty)"}`,
-    `- 助手：${latestAssistant || "(empty)"}`,
-    "",
-    "成功证据候选片段（优先依赖这一段提炼技能）：",
+    '你是工程团队的技能萃取助手。',
+    '任务：从下面会话里提取“已成功执行、可复用”的技能案例。',
+    '严格要求：',
+    '1) 只提取有成功证据的案例（例如 exit=0 / passed / success / 已完成 / 构建成功）。',
+    '2) 不要提取失败、调研、闲聊。',
+    '3) 输出必须是 JSON 数组，不要 markdown，不要解释。',
+    '4) 每个元素字段：title, summary, steps[], whenToUse[], validation[], antiPatterns[], commands[], evidence[], tags[]。',
+    '5) title 必须中文，10字以内，任务导向（例如：检查容器挂载）。',
+    '6) 最多返回 5 条；没有就返回 []。',
+    '',
+    '最新一轮对话（用于判断当前目标）：',
+    `- 用户：${latestUser || '(empty)'}`,
+    `- 助手：${latestAssistant || '(empty)'}`,
+    '',
+    '成功证据候选片段（优先依赖这一段提炼技能）：',
     evidence,
-    "",
-    "会话转录片段（最近窗口）：",
-    context || "(empty)"
-  ].join("\n");
+    '',
+    '会话转录片段（最近窗口）：',
+    context || '(empty)',
+  ].join('\n');
 }
 
 async function extractSkillCandidatesByOpenAi({ env, requestId, prompt }) {
-  const apiKey = String(env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) throw new Error("missing OPENAI_API_KEY");
-  const base = String(env.OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "");
-  const model = String(env.OPENAI_MODEL || env.MODEL || "gpt-4o-mini").trim();
+  const apiKey = String(env.OPENAI_API_KEY || '').trim();
+  if (!apiKey) throw new Error('missing OPENAI_API_KEY');
+  const base = String(env.OPENAI_BASE_URL || 'https://api.openai.com').replace(/\/+$/, '');
+  const model = String(env.OPENAI_MODEL || env.MODEL || 'gpt-4o-mini').trim();
   const url = `${base}/v1/chat/completions`;
-  logInfo("skillgen-llm", "OpenAI skill extraction request", {
+  logInfo('skillgen-llm', 'OpenAI skill extraction request', {
     requestId,
     model,
     url,
-    promptPreview: shortBodyLong(prompt, 320)
+    promptPreview: shortBodyLong(prompt, 320),
   });
-  const response = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json"
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.1,
+        max_tokens: 900,
+        messages: [
+          { role: 'system', content: '你只输出 JSON 数组，不要解释。' },
+          { role: 'user', content: prompt },
+        ],
+      }),
     },
-    body: JSON.stringify({
-      model,
-      temperature: 0.1,
-      max_tokens: 900,
-      messages: [
-        { role: "system", content: "你只输出 JSON 数组，不要解释。" },
-        { role: "user", content: prompt }
-      ]
-    })
-  }, 20000);
+    20000,
+  );
   if (!response.ok) {
     const rawBody = await response.text();
     const body = shortBody(rawBody);
-    logWarn("skillgen-llm", "OpenAI skill extraction http failed", {
+    logWarn('skillgen-llm', 'OpenAI skill extraction http failed', {
       requestId,
       model,
       status: response.status,
-      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200)
+      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200),
     });
-    throw new Error(`openai http ${response.status}${body ? ` ${body}` : ""}`);
+    throw new Error(`openai http ${response.status}${body ? ` ${body}` : ''}`);
   }
   const data = await response.json();
   const text = extractTitleTextFromOpenAiResponse(data);
   if (!text) {
-    logWarn("skillgen-llm", "OpenAI skill extraction empty content", {
+    logWarn('skillgen-llm', 'OpenAI skill extraction empty content', {
       requestId,
       model,
-      responsePreview: previewPayloadForLog(data, 1400)
+      responsePreview: previewPayloadForLog(data, 1400),
     });
-    throw new Error("openai empty content");
+    throw new Error('openai empty content');
   }
   const parsed = extractJsonArrayFromText(text);
-  if (parsed.length === 0) throw new Error("openai invalid json array");
-  logInfo("skillgen-llm", "OpenAI skill extraction response", {
+  if (parsed.length === 0) throw new Error('openai invalid json array');
+  logInfo('skillgen-llm', 'OpenAI skill extraction response', {
     requestId,
     model,
     rawPreview: shortBodyLong(text, 600),
-    itemCount: parsed.length
+    itemCount: parsed.length,
   });
   return sanitizeSkillgenCandidates(parsed);
 }
 
 async function extractSkillCandidatesByClaude({ env, requestId, prompt }) {
-  const apiKey = String(env.ANTHROPIC_API_KEY || "").trim();
-  const authToken = String(env.ANTHROPIC_AUTH_TOKEN || "").trim();
-  const base = String(env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
+  const apiKey = String(env.ANTHROPIC_API_KEY || '').trim();
+  const authToken = String(env.ANTHROPIC_AUTH_TOKEN || '').trim();
+  const base = String(env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '');
   const { headers, deepSeekBase } = buildAnthropicCompatHeaders({
     apiKey,
     authToken,
     base,
-    includeJsonContentType: true
+    includeJsonContentType: true,
   });
   if (deepSeekBase && !apiKey && !authToken) {
-    throw new Error("missing ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN for DeepSeek Anthropic API");
+    throw new Error('missing ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN for DeepSeek Anthropic API');
   }
-  if (!apiKey && !authToken) throw new Error("missing anthropic credentials");
-  const model = String(env.ANTHROPIC_MODEL || env.MODEL || "claude-3-5-haiku-latest").trim();
+  if (!apiKey && !authToken) throw new Error('missing anthropic credentials');
+  const model = String(env.ANTHROPIC_MODEL || env.MODEL || 'claude-3-5-haiku-latest').trim();
   const url = `${base}/v1/messages`;
-  logInfo("skillgen-llm", "Claude skill extraction request", {
+  logInfo('skillgen-llm', 'Claude skill extraction request', {
     requestId,
     model,
     url,
-    promptPreview: shortBodyLong(prompt, 320)
+    promptPreview: shortBodyLong(prompt, 320),
   });
-  const response = await fetchWithTimeout(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model,
-      max_tokens: 1200,
-      temperature: 0.1,
-      thinking: { type: "disabled" },
-      messages: [{ role: "user", content: prompt }]
-    })
-  }, 25000);
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model,
+        max_tokens: 1200,
+        temperature: 0.1,
+        thinking: { type: 'disabled' },
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    },
+    25000,
+  );
   if (!response.ok) {
     const rawBody = await response.text();
     const body = shortBody(rawBody);
-    logWarn("skillgen-llm", "Claude skill extraction http failed", {
+    logWarn('skillgen-llm', 'Claude skill extraction http failed', {
       requestId,
       model,
       status: response.status,
-      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200)
+      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200),
     });
-    throw new Error(`claude http ${response.status}${body ? ` ${body}` : ""}`);
+    throw new Error(`claude http ${response.status}${body ? ` ${body}` : ''}`);
   }
   const data = await response.json();
   let text = extractTitleTextFromClaudeResponse(data);
   if (!text) {
     const thinking = extractClaudeThinkingPreview(data);
-    text = thinking || "";
+    text = thinking || '';
   }
   if (!text) {
-    logWarn("skillgen-llm", "Claude skill extraction empty content", {
+    logWarn('skillgen-llm', 'Claude skill extraction empty content', {
       requestId,
       model,
-      responsePreview: previewPayloadForLog(data, 1400)
+      responsePreview: previewPayloadForLog(data, 1400),
     });
-    throw new Error("claude empty content");
+    throw new Error('claude empty content');
   }
   const parsed = extractJsonArrayFromText(text);
-  if (parsed.length === 0) throw new Error("claude invalid json array");
-  logInfo("skillgen-llm", "Claude skill extraction response", {
+  if (parsed.length === 0) throw new Error('claude invalid json array');
+  logInfo('skillgen-llm', 'Claude skill extraction response', {
     requestId,
     model,
     rawPreview: shortBodyLong(text, 600),
-    itemCount: parsed.length
+    itemCount: parsed.length,
   });
   return sanitizeSkillgenCandidates(parsed);
 }
 
 async function extractSkillCandidatesByGemini({ env, requestId, prompt }) {
-  const apiKey = String(env.GEMINI_API_KEY || env.GOOGLE_API_KEY || "").trim();
-  if (!apiKey) throw new Error("missing gemini api key");
-  const base = String(env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
-  const model = String(env.GEMINI_MODEL || env.MODEL || "gemini-1.5-flash").trim();
+  const apiKey = String(env.GEMINI_API_KEY || env.GOOGLE_API_KEY || '').trim();
+  if (!apiKey) throw new Error('missing gemini api key');
+  const base = String(env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com').replace(
+    /\/+$/,
+    '',
+  );
+  const model = String(env.GEMINI_MODEL || env.MODEL || 'gemini-1.5-flash').trim();
   const url = `${base}/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  logInfo("skillgen-llm", "Gemini skill extraction request", {
+  logInfo('skillgen-llm', 'Gemini skill extraction request', {
     requestId,
     model,
     url: `${base}/v1beta/models/${encodeURIComponent(model)}:generateContent?key=***`,
-    promptPreview: shortBodyLong(prompt, 320)
+    promptPreview: shortBodyLong(prompt, 320),
   });
-  const response = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 1200 }
-    })
-  }, 25000);
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1200 },
+      }),
+    },
+    25000,
+  );
   if (!response.ok) {
     const rawBody = await response.text();
     const body = shortBody(rawBody);
-    logWarn("skillgen-llm", "Gemini skill extraction http failed", {
+    logWarn('skillgen-llm', 'Gemini skill extraction http failed', {
       requestId,
       model,
       status: response.status,
-      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200)
+      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200),
     });
-    throw new Error(`gemini http ${response.status}${body ? ` ${body}` : ""}`);
+    throw new Error(`gemini http ${response.status}${body ? ` ${body}` : ''}`);
   }
   const data = await response.json();
   const text = extractTitleTextFromGeminiResponse(data);
   if (!text) {
-    logWarn("skillgen-llm", "Gemini skill extraction empty content", {
+    logWarn('skillgen-llm', 'Gemini skill extraction empty content', {
       requestId,
       model,
-      responsePreview: previewPayloadForLog(data, 1400)
+      responsePreview: previewPayloadForLog(data, 1400),
     });
-    throw new Error("gemini empty content");
+    throw new Error('gemini empty content');
   }
   const parsed = extractJsonArrayFromText(text);
-  if (parsed.length === 0) throw new Error("gemini invalid json array");
-  logInfo("skillgen-llm", "Gemini skill extraction response", {
+  if (parsed.length === 0) throw new Error('gemini invalid json array');
+  logInfo('skillgen-llm', 'Gemini skill extraction response', {
     requestId,
     model,
     rawPreview: shortBodyLong(text, 600),
-    itemCount: parsed.length
+    itemCount: parsed.length,
   });
   return sanitizeSkillgenCandidates(parsed);
 }
 
 async function extractSkillCandidatesWithModel({
-  providerHint = "claude",
-  sessionId = "",
-  sessionFilePath = "",
-  transcript = []
+  providerHint = 'claude',
+  sessionId = '',
+  sessionFilePath = '',
+  transcript = [],
 }) {
-  const hint = normalizeProviderId(providerHint || "claude");
-  const providersToTry = [hint, "claude", "codex", "gemini"].filter((item, idx, arr) => arr.indexOf(item) === idx);
+  const hint = normalizeProviderId(providerHint || 'claude');
+  const providersToTry = [hint, 'claude', 'codex', 'gemini'].filter(
+    (item, idx, arr) => arr.indexOf(item) === idx,
+  );
   const requestId = `skillgen-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const prompt = buildSkillExtractionPrompt({ transcript, sessionFilePath });
   const latestRound = sessionFilePath
     ? parseLatestConversationRoundFromSessionFile(sessionFilePath)
-    : { latestUserText: "", latestAssistantText: "" };
-  let lastError = "";
+    : { latestUserText: '', latestAssistantText: '' };
+  let lastError = '';
 
-  logInfo("skillgen-llm", "Start model skill extraction", {
+  logInfo('skillgen-llm', 'Start model skill extraction', {
     requestId,
     providerHint: hint,
     providersToTry,
@@ -1394,78 +1511,84 @@ async function extractSkillCandidatesWithModel({
     transcriptLines: Array.isArray(transcript) ? transcript.length : 0,
     latestUserPreview: shortBodyLong(latestRound.latestUserText, 180),
     latestAssistantPreview: shortBodyLong(latestRound.latestAssistantText, 180),
-    transcriptTailPreview: shortBodyLong((Array.isArray(transcript) ? transcript.slice(-6).join(" | ") : ""), 320)
+    transcriptTailPreview: shortBodyLong(
+      Array.isArray(transcript) ? transcript.slice(-6).join(' | ') : '',
+      320,
+    ),
   });
 
   for (const providerId of providersToTry) {
     const env = getStartupEnvForProvider(providerId);
     try {
       let candidates = [];
-      if (providerId === "codex") candidates = await extractSkillCandidatesByOpenAi({ env, requestId, prompt });
-      else if (providerId === "claude") candidates = await extractSkillCandidatesByClaude({ env, requestId, prompt });
-      else if (providerId === "gemini") candidates = await extractSkillCandidatesByGemini({ env, requestId, prompt });
+      if (providerId === 'codex')
+        candidates = await extractSkillCandidatesByOpenAi({ env, requestId, prompt });
+      else if (providerId === 'claude')
+        candidates = await extractSkillCandidatesByClaude({ env, requestId, prompt });
+      else if (providerId === 'gemini')
+        candidates = await extractSkillCandidatesByGemini({ env, requestId, prompt });
       if (!Array.isArray(candidates) || candidates.length === 0) {
-        throw new Error("model returned empty candidates");
+        throw new Error('model returned empty candidates');
       }
-      logInfo("skillgen-llm", "Model skill extraction accepted", {
+      logInfo('skillgen-llm', 'Model skill extraction accepted', {
         requestId,
         provider: providerId,
-        candidateCount: candidates.length
+        candidateCount: candidates.length,
       });
       return candidates;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       lastError = `[${providerId}] ${reason}`;
-      logWarn("skillgen-llm", "Model skill extraction failed, trying next provider", {
+      logWarn('skillgen-llm', 'Model skill extraction failed, trying next provider', {
         requestId,
         provider: providerId,
-        reason
+        reason,
       });
     }
   }
-  throw new Error(lastError || "all model providers unavailable");
+  throw new Error(lastError || 'all model providers unavailable');
 }
 
 function extractMessageTextBlocks(content = []) {
-  if (!Array.isArray(content)) return "";
+  if (!Array.isArray(content)) return '';
   return content
     .map((item) => {
-      if (!item || typeof item !== "object") return "";
-      if (typeof item.text === "string") return item.text;
-      if (typeof item.input_text === "string") return item.input_text;
-      if (typeof item.output_text === "string") return item.output_text;
-      if (typeof item.content === "string") return item.content;
-      return "";
+      if (!item || typeof item !== 'object') return '';
+      if (typeof item.text === 'string') return item.text;
+      if (typeof item.input_text === 'string') return item.input_text;
+      if (typeof item.output_text === 'string') return item.output_text;
+      if (typeof item.content === 'string') return item.content;
+      return '';
     })
     .filter(Boolean)
-    .join("\n")
+    .join('\n')
     .trim();
 }
 
 function extractConversationText(content) {
-  if (typeof content === "string") {
+  if (typeof content === 'string') {
     return String(content).trim();
   }
   if (Array.isArray(content)) {
     return content
       .map((item) => {
-        if (!item || typeof item !== "object") return "";
-        const itemType = String(item.type || "").toLowerCase();
-        if (itemType === "tool_result" || itemType === "tool_use") return "";
-        if (typeof item.text === "string") return item.text;
-        if (typeof item.content === "string") return item.content;
-        if (typeof item.thinking === "string") return item.thinking;
+        if (!item || typeof item !== 'object') return '';
+        const itemType = String(item.type || '').toLowerCase();
+        if (itemType === 'tool_result' || itemType === 'tool_use') return '';
+        if (typeof item.text === 'string') return item.text;
+        if (typeof item.content === 'string') return item.content;
+        if (typeof item.thinking === 'string') return item.thinking;
         return extractTextFromContentValue(item);
       })
       .filter(Boolean)
-      .join("\n")
+      .join('\n')
       .trim();
   }
   return extractTextFromContentValue(content);
 }
 
-function isSkippableConversationText(text = "") {
-  const value = String(text || "").trim();
+function isSkippableConversationText(text = '') {
+  const value = String(text || '').trim();
   if (!value) return true;
   if (/^\[Request interrupted by user\]$/i.test(value)) return true;
   if (/^No files found$/i.test(value)) return true;
@@ -1474,7 +1597,7 @@ function isSkippableConversationText(text = "") {
 }
 
 function parseLatestConversationRoundFromSessionFile(sessionFilePath) {
-  const fallback = { latestUserText: "", latestAssistantText: "" };
+  const fallback = { latestUserText: '', latestAssistantText: '' };
   try {
     const lines = readTailLines(sessionFilePath, 512 * 1024, 3000);
     const turns = [];
@@ -1485,25 +1608,27 @@ function parseLatestConversationRoundFromSessionFile(sessionFilePath) {
       } catch {
         continue;
       }
-      if (!parsed || typeof parsed !== "object") continue;
+      if (!parsed || typeof parsed !== 'object') continue;
 
-      if (parsed.type === "event_msg" && parsed?.payload?.type === "user_message") {
-        const text = String(parsed?.payload?.message || "").trim();
-        if (text) turns.push({ role: "user", text });
+      if (parsed.type === 'event_msg' && parsed?.payload?.type === 'user_message') {
+        const text = String(parsed?.payload?.message || '').trim();
+        if (text) turns.push({ role: 'user', text });
         continue;
       }
 
-      if (parsed.type === "response_item" && parsed?.payload?.type === "message") {
-        const role = String(parsed?.payload?.role || "").toLowerCase();
-        if (role !== "user" && role !== "assistant") continue;
+      if (parsed.type === 'response_item' && parsed?.payload?.type === 'message') {
+        const role = String(parsed?.payload?.role || '').toLowerCase();
+        if (role !== 'user' && role !== 'assistant') continue;
         const text = extractMessageTextBlocks(parsed?.payload?.content || []);
         if (text) turns.push({ role, text });
         continue;
       }
 
       // Claude/OpenClaw style jsonl
-      const directRole = String(parsed?.message?.role || parsed?.role || parsed?.type || "").toLowerCase();
-      if (directRole === "user" || directRole === "assistant") {
+      const directRole = String(
+        parsed?.message?.role || parsed?.role || parsed?.type || '',
+      ).toLowerCase();
+      if (directRole === 'user' || directRole === 'assistant') {
         if (parsed?.isMeta) continue;
         const directText = extractConversationText(parsed?.message?.content ?? parsed?.content);
         if (!isSkippableConversationText(directText)) {
@@ -1515,23 +1640,23 @@ function parseLatestConversationRoundFromSessionFile(sessionFilePath) {
 
     if (turns.length === 0) return fallback;
 
-    let assistantText = "";
-    let userText = "";
+    let assistantText = '';
+    let userText = '';
     for (let i = turns.length - 1; i >= 0; i -= 1) {
       const item = turns[i];
-      if (!assistantText && item.role === "assistant") {
+      if (!assistantText && item.role === 'assistant') {
         assistantText = item.text;
         continue;
       }
-      if ((assistantText && item.role === "user") || (!assistantText && item.role === "user")) {
+      if ((assistantText && item.role === 'user') || (!assistantText && item.role === 'user')) {
         userText = item.text;
         break;
       }
     }
 
     return {
-      latestUserText: String(userText || "").slice(0, 1200),
-      latestAssistantText: String(assistantText || "").slice(0, 1200)
+      latestUserText: String(userText || '').slice(0, 1200),
+      latestAssistantText: String(assistantText || '').slice(0, 1200),
     };
   } catch {
     return fallback;
@@ -1539,22 +1664,23 @@ function parseLatestConversationRoundFromSessionFile(sessionFilePath) {
 }
 
 function toTimestampMs(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string") return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return null;
   const ms = Date.parse(value);
   return Number.isFinite(ms) ? ms : null;
 }
 
 function readJsonlObjects(filePath) {
-  const raw = fs.readFileSync(filePath, "utf8");
-  const lines = String(raw || "").split(/\r?\n/).filter(Boolean);
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const lines = String(raw || '')
+    .split(/\r?\n/)
+    .filter(Boolean);
   const output = [];
   for (const line of lines) {
     try {
       const parsed = JSON.parse(line);
-      if (parsed && typeof parsed === "object") output.push(parsed);
-    } catch {
-    }
+      if (parsed && typeof parsed === 'object') output.push(parsed);
+    } catch {}
   }
   return output;
 }
@@ -1563,13 +1689,13 @@ function countConversationRounds(turns = []) {
   let rounds = 0;
   let pendingUser = false;
   for (const turn of turns) {
-    if (!turn || typeof turn !== "object") continue;
-    const role = String(turn.role || "").toLowerCase();
-    if (role === "user") {
+    if (!turn || typeof turn !== 'object') continue;
+    const role = String(turn.role || '').toLowerCase();
+    if (role === 'user') {
       pendingUser = true;
       continue;
     }
-    if (role === "assistant" && pendingUser) {
+    if (role === 'assistant' && pendingUser) {
       rounds += 1;
       pendingUser = false;
     }
@@ -1585,17 +1711,26 @@ function buildEmptyTokenStats() {
     reasoning: 0,
     tool: 0,
     total: 0,
-    available: false
+    available: false,
   };
 }
 
-function finalizeSessionStats({ provider, providerSessionId, sourcePath, startedAt, endedAt, rounds, tokens }) {
+function finalizeSessionStats({
+  provider,
+  providerSessionId,
+  sourcePath,
+  startedAt,
+  endedAt,
+  rounds,
+  tokens,
+}) {
   const safeStartedAt = Number.isFinite(startedAt) ? startedAt : null;
   const safeEndedAt = Number.isFinite(endedAt) ? endedAt : null;
   const nowMs = Date.now();
-  const durationMs = safeStartedAt != null
-    ? Math.max(0, (safeEndedAt != null ? safeEndedAt : nowMs) - safeStartedAt)
-    : 0;
+  const durationMs =
+    safeStartedAt != null
+      ? Math.max(0, (safeEndedAt != null ? safeEndedAt : nowMs) - safeStartedAt)
+      : 0;
   return {
     provider,
     providerSessionId,
@@ -1611,8 +1746,8 @@ function finalizeSessionStats({ provider, providerSessionId, sourcePath, started
       reasoning: Math.max(0, Math.floor(Number(tokens?.reasoning || 0))),
       tool: Math.max(0, Math.floor(Number(tokens?.tool || 0))),
       total: Math.max(0, Math.floor(Number(tokens?.total || 0))),
-      available: Boolean(tokens?.available)
-    }
+      available: Boolean(tokens?.available),
+    },
   };
 }
 
@@ -1631,30 +1766,29 @@ function parseClaudeSessionStats({ filePath, providerSessionId }) {
       endedAt = endedAt == null ? ts : Math.max(endedAt, ts);
     }
 
-    const role = String(parsed?.message?.role || parsed?.role || parsed?.type || "").toLowerCase();
-    if ((role === "user" || role === "assistant") && !parsed?.isMeta) {
+    const role = String(parsed?.message?.role || parsed?.role || parsed?.type || '').toLowerCase();
+    if ((role === 'user' || role === 'assistant') && !parsed?.isMeta) {
       const text = extractConversationText(parsed?.message?.content ?? parsed?.content);
       if (!isSkippableConversationText(text)) turns.push({ role, text });
     }
 
     const usage = parsed?.message?.usage;
-    if (!usage || typeof usage !== "object") continue;
+    if (!usage || typeof usage !== 'object') continue;
     const messageKey = String(parsed?.message?.id || parsed?.uuid || `line:${i}`);
     const prev = perMessageUsage.get(messageKey) || buildEmptyTokenStats();
     const next = {
       input: Math.max(prev.input, Number(usage.input_tokens || usage.prompt_tokens || 0)),
       output: Math.max(prev.output, Number(usage.output_tokens || 0)),
-      cached: Math.max(prev.cached, Number(usage.cache_read_input_tokens || usage.cached_tokens || 0)),
+      cached: Math.max(
+        prev.cached,
+        Number(usage.cache_read_input_tokens || usage.cached_tokens || 0),
+      ),
       reasoning: Math.max(prev.reasoning, Number(usage.reasoning_output_tokens || 0)),
       tool: Math.max(prev.tool, Number(usage.tool_tokens || 0)),
       total: 0,
-      available: true
+      available: true,
     };
-    next.total = Math.max(
-      prev.total,
-      Number(usage.total_tokens || 0),
-      next.input + next.output
-    );
+    next.total = Math.max(prev.total, Number(usage.total_tokens || 0), next.input + next.output);
     perMessageUsage.set(messageKey, next);
   }
 
@@ -1665,18 +1799,18 @@ function parseClaudeSessionStats({ filePath, providerSessionId }) {
     mergedTokens.cached += usage.cached;
     mergedTokens.reasoning += usage.reasoning;
     mergedTokens.tool += usage.tool;
-    mergedTokens.total += usage.total || (usage.input + usage.output);
+    mergedTokens.total += usage.total || usage.input + usage.output;
     mergedTokens.available = mergedTokens.available || usage.available;
   }
 
   return finalizeSessionStats({
-    provider: "claude",
+    provider: 'claude',
     providerSessionId,
     sourcePath: filePath,
     startedAt,
     endedAt,
     rounds: countConversationRounds(turns),
-    tokens: mergedTokens
+    tokens: mergedTokens,
   });
 }
 
@@ -1694,43 +1828,49 @@ function parseCodexSessionStats({ filePath, providerSessionId }) {
       endedAt = endedAt == null ? ts : Math.max(endedAt, ts);
     }
 
-    if (parsed?.type === "event_msg" && parsed?.payload?.type === "user_message") {
-      const text = String(parsed?.payload?.message || "").trim();
-      if (text) turns.push({ role: "user", text });
+    if (parsed?.type === 'event_msg' && parsed?.payload?.type === 'user_message') {
+      const text = String(parsed?.payload?.message || '').trim();
+      if (text) turns.push({ role: 'user', text });
     }
 
-    if (parsed?.type === "response_item" && parsed?.payload?.type === "message") {
-      const role = String(parsed?.payload?.role || "").toLowerCase();
-      if (role !== "user" && role !== "assistant") continue;
+    if (parsed?.type === 'response_item' && parsed?.payload?.type === 'message') {
+      const role = String(parsed?.payload?.role || '').toLowerCase();
+      if (role !== 'user' && role !== 'assistant') continue;
       const text = extractMessageTextBlocks(parsed?.payload?.content || []);
       if (text) turns.push({ role, text });
     }
 
-    if (parsed?.type === "event_msg" && parsed?.payload?.type === "token_count") {
+    if (parsed?.type === 'event_msg' && parsed?.payload?.type === 'token_count') {
       const usage = parsed?.payload?.info?.total_token_usage;
-      if (!usage || typeof usage !== "object") continue;
+      if (!usage || typeof usage !== 'object') continue;
       tokenTotals.input = Math.max(tokenTotals.input, Number(usage.input_tokens || 0));
       tokenTotals.cached = Math.max(tokenTotals.cached, Number(usage.cached_input_tokens || 0));
       tokenTotals.output = Math.max(tokenTotals.output, Number(usage.output_tokens || 0));
-      tokenTotals.reasoning = Math.max(tokenTotals.reasoning, Number(usage.reasoning_output_tokens || 0));
-      tokenTotals.total = Math.max(tokenTotals.total, Number(usage.total_tokens || (tokenTotals.input + tokenTotals.output)));
+      tokenTotals.reasoning = Math.max(
+        tokenTotals.reasoning,
+        Number(usage.reasoning_output_tokens || 0),
+      );
+      tokenTotals.total = Math.max(
+        tokenTotals.total,
+        Number(usage.total_tokens || tokenTotals.input + tokenTotals.output),
+      );
       tokenTotals.available = true;
     }
   }
 
   return finalizeSessionStats({
-    provider: "codex",
+    provider: 'codex',
     providerSessionId,
     sourcePath: filePath,
     startedAt,
     endedAt,
     rounds: countConversationRounds(turns),
-    tokens: tokenTotals
+    tokens: tokenTotals,
   });
 }
 
 function parseGeminiSessionStats({ filePath, providerSessionId }) {
-  const payload = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
   const turns = [];
   const tokenTotals = buildEmptyTokenStats();
@@ -1739,217 +1879,244 @@ function parseGeminiSessionStats({ filePath, providerSessionId }) {
   let endedAt = toTimestampMs(payload?.lastUpdated);
 
   for (const message of messages) {
-    const role = String(message?.type || "").toLowerCase();
+    const role = String(message?.type || '').toLowerCase();
     const ts = toTimestampMs(message?.timestamp);
     if (ts != null) {
       startedAt = startedAt == null ? ts : Math.min(startedAt, ts);
       endedAt = endedAt == null ? ts : Math.max(endedAt, ts);
     }
 
-    if (role === "user" || role === "gemini") {
+    if (role === 'user' || role === 'gemini') {
       const text = extractTextFromContentValue(message?.content);
-      if (text) turns.push({ role: role === "gemini" ? "assistant" : "user", text });
+      if (text) turns.push({ role: role === 'gemini' ? 'assistant' : 'user', text });
     }
 
-    if (role === "gemini" && message?.tokens && typeof message.tokens === "object") {
+    if (role === 'gemini' && message?.tokens && typeof message.tokens === 'object') {
       const usage = message.tokens;
       tokenTotals.input = Math.max(tokenTotals.input, Number(usage.input || 0));
       tokenTotals.cached = Math.max(tokenTotals.cached, Number(usage.cached || 0));
       tokenTotals.output = Math.max(tokenTotals.output, Number(usage.output || 0));
       tokenTotals.reasoning = Math.max(tokenTotals.reasoning, Number(usage.thoughts || 0));
       tokenTotals.tool = Math.max(tokenTotals.tool, Number(usage.tool || 0));
-      tokenTotals.total = Math.max(tokenTotals.total, Number(usage.total || (tokenTotals.input + tokenTotals.output)));
+      tokenTotals.total = Math.max(
+        tokenTotals.total,
+        Number(usage.total || tokenTotals.input + tokenTotals.output),
+      );
       tokenTotals.available = true;
     }
   }
 
   return finalizeSessionStats({
-    provider: "gemini",
+    provider: 'gemini',
     providerSessionId,
     sourcePath: filePath,
     startedAt,
     endedAt,
     rounds: countConversationRounds(turns),
-    tokens: tokenTotals
+    tokens: tokenTotals,
   });
 }
 
 function resolveSessionFilePathForStats({ provider, providerSessionId, row }) {
-  const fromRow = String(row?.session_file_path || "").trim();
+  const fromRow = String(row?.session_file_path || '').trim();
   if (fromRow && fs.existsSync(fromRow)) return fromRow;
-  if (!providerSessionId) return "";
+  if (!providerSessionId) return '';
 
   const discovered = listProviderSessions();
-  const matched = discovered.find((item) =>
-    normalizeProviderId(item?.provider) === provider && String(item?.providerSessionId || "") === String(providerSessionId)
+  const matched = discovered.find(
+    (item) =>
+      normalizeProviderId(item?.provider) === provider &&
+      String(item?.providerSessionId || '') === String(providerSessionId),
   );
-  return String(matched?.sessionFilePath || "").trim();
+  return String(matched?.sessionFilePath || '').trim();
 }
 
 function readSessionStats({ provider, providerSessionId, row }) {
   const filePath = resolveSessionFilePathForStats({ provider, providerSessionId, row });
-  if (!filePath) throw new Error("session file not found");
-  if (!fs.existsSync(filePath)) throw new Error("session file missing");
+  if (!filePath) throw new Error('session file not found');
+  if (!fs.existsSync(filePath)) throw new Error('session file missing');
 
-  if (provider === "claude") return parseClaudeSessionStats({ filePath, providerSessionId });
-  if (provider === "codex") return parseCodexSessionStats({ filePath, providerSessionId });
-  if (provider === "gemini") return parseGeminiSessionStats({ filePath, providerSessionId });
+  if (provider === 'claude') return parseClaudeSessionStats({ filePath, providerSessionId });
+  if (provider === 'codex') return parseCodexSessionStats({ filePath, providerSessionId });
+  if (provider === 'gemini') return parseGeminiSessionStats({ filePath, providerSessionId });
 
   throw new Error(`unsupported provider: ${provider}`);
 }
 
 async function suggestTitleByOpenAi({ env, userText, assistantText, requestId }) {
-  const apiKey = String(env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) throw new Error("missing OPENAI_API_KEY");
-  const base = String(env.OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "");
-  const model = String(env.OPENAI_MODEL || env.MODEL || "gpt-4o-mini").trim();
+  const apiKey = String(env.OPENAI_API_KEY || '').trim();
+  if (!apiKey) throw new Error('missing OPENAI_API_KEY');
+  const base = String(env.OPENAI_BASE_URL || 'https://api.openai.com').replace(/\/+$/, '');
+  const model = String(env.OPENAI_MODEL || env.MODEL || 'gpt-4o-mini').trim();
   const url = `${base}/v1/chat/completions`;
-  const prompt = `你是会话命名助手。基于“最新一轮对话”，提炼当前正在做的事情目标。\n要求：\n1) 输出必须是中文\n2) 10个字以内\n3) 只输出标题，不要括号、引号、标点、解释\n\n用户：${userText || "（空）"}\n助手：${assistantText || "（空）"}`;
+  const prompt = `你是会话命名助手。基于“最新一轮对话”，提炼当前正在做的事情目标。\n要求：\n1) 输出必须是中文\n2) 10个字以内\n3) 只输出标题，不要括号、引号、标点、解释\n\n用户：${userText || '（空）'}\n助手：${assistantText || '（空）'}`;
 
-  logInfo("session-title", "OpenAI title suggestion request", {
+  logInfo('session-title', 'OpenAI title suggestion request', {
     requestId,
     model,
     url: `${base}/v1/chat/completions`,
     userPreview: shortBodyLong(userText, 260),
-    assistantPreview: shortBodyLong(assistantText, 260)
+    assistantPreview: shortBodyLong(assistantText, 260),
   });
-  const response = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json"
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        max_tokens: 32,
+        messages: [
+          { role: 'system', content: '你只输出中文标题文本，最多10个字。' },
+          { role: 'user', content: prompt },
+        ],
+      }),
     },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      max_tokens: 32,
-      messages: [
-        { role: "system", content: "你只输出中文标题文本，最多10个字。" },
-        { role: "user", content: prompt }
-      ]
-    })
-  }, 15000);
+    15000,
+  );
 
   if (!response.ok) {
     const rawBody = await response.text();
     const body = shortBody(rawBody);
-    logWarn("session-title", "OpenAI title suggestion http failed", {
+    logWarn('session-title', 'OpenAI title suggestion http failed', {
       requestId,
       model,
       status: response.status,
-      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200)
+      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200),
     });
-    throw new Error(`openai http ${response.status}${body ? ` ${body}` : ""}`);
+    throw new Error(`openai http ${response.status}${body ? ` ${body}` : ''}`);
   }
   const data = await response.json();
   const text = extractTitleTextFromOpenAiResponse(data);
   if (!text) {
-    logWarn("session-title", "OpenAI title suggestion empty parsed content", {
+    logWarn('session-title', 'OpenAI title suggestion empty parsed content', {
       requestId,
       model,
       topLevelKeys: Object.keys(data || {}).slice(0, 20),
-      responsePreview: previewPayloadForLog(data, 1400)
+      responsePreview: previewPayloadForLog(data, 1400),
     });
-    throw new Error("openai empty content");
+    throw new Error('openai empty content');
   }
-  logInfo("session-title", "OpenAI title suggestion response", {
+  logInfo('session-title', 'OpenAI title suggestion response', {
     requestId,
     model,
     rawTitle: shortBodyLong(text, 400),
-    responsePreview: previewPayloadForLog(data, 700)
+    responsePreview: previewPayloadForLog(data, 700),
   });
   return text;
 }
 
 async function suggestTitleByClaude({ env, userText, assistantText, requestId }) {
-  const apiKey = String(env.ANTHROPIC_API_KEY || "").trim();
-  const authToken = String(env.ANTHROPIC_AUTH_TOKEN || "").trim();
-  const base = String(env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
+  const apiKey = String(env.ANTHROPIC_API_KEY || '').trim();
+  const authToken = String(env.ANTHROPIC_AUTH_TOKEN || '').trim();
+  const base = String(env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '');
   const { headers, deepSeekBase } = buildAnthropicCompatHeaders({
     apiKey,
     authToken,
     base,
-    includeJsonContentType: true
+    includeJsonContentType: true,
   });
   if (deepSeekBase && !apiKey && !authToken) {
-    throw new Error("missing ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN for DeepSeek Anthropic API");
+    throw new Error('missing ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN for DeepSeek Anthropic API');
   }
-  if (!apiKey && !authToken) throw new Error("missing anthropic credentials");
-  const model = String(env.ANTHROPIC_MODEL || env.MODEL || "claude-3-5-haiku-latest").trim();
+  if (!apiKey && !authToken) throw new Error('missing anthropic credentials');
+  const model = String(env.ANTHROPIC_MODEL || env.MODEL || 'claude-3-5-haiku-latest').trim();
   const url = `${base}/v1/messages`;
-  const prompt = `基于最新一轮对话，提炼当前目标。\n要求：输出中文、10个字以内、只输出标题，不要解释。\n用户：${userText || "（空）"}\n助手：${assistantText || "（空）"}`;
+  const prompt = `基于最新一轮对话，提炼当前目标。\n要求：输出中文、10个字以内、只输出标题，不要解释。\n用户：${userText || '（空）'}\n助手：${assistantText || '（空）'}`;
 
-  logInfo("session-title", "Claude title suggestion request", {
+  logInfo('session-title', 'Claude title suggestion request', {
     requestId,
     model,
     url: `${base}/v1/messages`,
     userPreview: shortBodyLong(userText, 260),
-    assistantPreview: shortBodyLong(assistantText, 260)
+    assistantPreview: shortBodyLong(assistantText, 260),
   });
-  const requestClaude = async ({ maxTokens = 32, disableThinking = false, tag = "primary" } = {}) => {
+  const requestClaude = async ({
+    maxTokens = 32,
+    disableThinking = false,
+    tag = 'primary',
+  } = {}) => {
     const bodyPayload = {
       model,
       max_tokens: maxTokens,
       temperature: 0.2,
-      messages: [{ role: "user", content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
     };
     if (disableThinking) {
-      bodyPayload.thinking = { type: "disabled" };
+      bodyPayload.thinking = { type: 'disabled' };
     }
-    logInfo("session-title", "Claude title suggestion attempt", {
+    logInfo('session-title', 'Claude title suggestion attempt', {
       requestId,
       model,
       tag,
       maxTokens,
-      disableThinking
+      disableThinking,
     });
-    const response = await fetchWithTimeout(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(bodyPayload)
-    }, 15000);
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(bodyPayload),
+      },
+      15000,
+    );
     if (!response.ok) {
       const rawBody = await response.text();
       const body = shortBody(rawBody);
-      logWarn("session-title", "Claude title suggestion http failed", {
+      logWarn('session-title', 'Claude title suggestion http failed', {
         requestId,
         model,
         tag,
         status: response.status,
-        bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200)
+        bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200),
       });
-      throw new Error(`claude http ${response.status}${body ? ` ${body}` : ""}`);
+      throw new Error(`claude http ${response.status}${body ? ` ${body}` : ''}`);
     }
     const data = await response.json();
     return data;
   };
 
-  let data = await requestClaude({ maxTokens: 32, disableThinking: false, tag: "primary" });
+  let data = await requestClaude({ maxTokens: 32, disableThinking: false, tag: 'primary' });
   let text = extractTitleTextFromClaudeResponse(data);
   if (!text) {
-    const stopReason = String(data?.stop_reason || "").trim().toLowerCase();
+    const stopReason = String(data?.stop_reason || '')
+      .trim()
+      .toLowerCase();
     const thinkingPreview = extractClaudeThinkingPreview(data);
-    const hasThinkingOnly = !!thinkingPreview && stopReason === "max_tokens";
-    logWarn("session-title", "Claude title suggestion empty parsed content", {
+    const hasThinkingOnly = !!thinkingPreview && stopReason === 'max_tokens';
+    logWarn('session-title', 'Claude title suggestion empty parsed content', {
       requestId,
       model,
       topLevelKeys: Object.keys(data || {}).slice(0, 20),
       stopReason: stopReason || null,
       hasThinkingOnly,
-      responsePreview: previewPayloadForLog(data, 1400)
+      responsePreview: previewPayloadForLog(data, 1400),
     });
     if (hasThinkingOnly) {
-      logInfo("session-title", "Claude title suggestion retry after thinking-only response", {
+      logInfo('session-title', 'Claude title suggestion retry after thinking-only response', {
         requestId,
         model,
-        thinkingPreview: shortBodyLong(thinkingPreview, 260)
+        thinkingPreview: shortBodyLong(thinkingPreview, 260),
       });
-      data = await requestClaude({ maxTokens: 128, disableThinking: true, tag: "retry_no_thinking" });
+      data = await requestClaude({
+        maxTokens: 128,
+        disableThinking: true,
+        tag: 'retry_no_thinking',
+      });
       text = extractTitleTextFromClaudeResponse(data);
       if (!text) {
         const secondThinking = extractClaudeThinkingPreview(data);
         if (secondThinking) {
-          const candidate = deriveTaskTitleFromConversation(userText, assistantText, extractChineseCandidate(secondThinking) || "会话");
+          const candidate = deriveTaskTitleFromConversation(
+            userText,
+            assistantText,
+            extractChineseCandidate(secondThinking) || '会话',
+          );
           if (containsCjk(candidate)) {
             text = candidate;
           }
@@ -1957,79 +2124,93 @@ async function suggestTitleByClaude({ env, userText, assistantText, requestId })
       }
     }
   }
-  if (!text) throw new Error("claude empty content");
-  logInfo("session-title", "Claude title suggestion response", {
+  if (!text) throw new Error('claude empty content');
+  logInfo('session-title', 'Claude title suggestion response', {
     requestId,
     model,
     rawTitle: shortBodyLong(text, 400),
-    responsePreview: previewPayloadForLog(data, 700)
+    responsePreview: previewPayloadForLog(data, 700),
   });
   return text;
 }
 
 async function suggestTitleByGemini({ env, userText, assistantText, requestId }) {
-  const apiKey = String(env.GEMINI_API_KEY || env.GOOGLE_API_KEY || "").trim();
-  if (!apiKey) throw new Error("missing gemini api key");
-  const base = String(env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
-  const model = String(env.GEMINI_MODEL || env.MODEL || "gemini-1.5-flash").trim();
-  const prompt = `基于最新一轮对话，提炼当前目标。要求：输出中文标题，10个字以内，只输出标题。\n用户：${userText || "（空）"}\n助手：${assistantText || "（空）"}`;
+  const apiKey = String(env.GEMINI_API_KEY || env.GOOGLE_API_KEY || '').trim();
+  if (!apiKey) throw new Error('missing gemini api key');
+  const base = String(env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com').replace(
+    /\/+$/,
+    '',
+  );
+  const model = String(env.GEMINI_MODEL || env.MODEL || 'gemini-1.5-flash').trim();
+  const prompt = `基于最新一轮对话，提炼当前目标。要求：输出中文标题，10个字以内，只输出标题。\n用户：${userText || '（空）'}\n助手：${assistantText || '（空）'}`;
   const url = `${base}/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-  logInfo("session-title", "Gemini title suggestion request", {
+  logInfo('session-title', 'Gemini title suggestion request', {
     requestId,
     model,
     url: `${base}/v1beta/models/${encodeURIComponent(model)}:generateContent?key=***`,
     userPreview: shortBodyLong(userText, 260),
-    assistantPreview: shortBodyLong(assistantText, 260)
+    assistantPreview: shortBodyLong(assistantText, 260),
   });
-  const response = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 32 }
-    })
-  }, 15000);
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 32 },
+      }),
+    },
+    15000,
+  );
   if (!response.ok) {
     const rawBody = await response.text();
     const body = shortBody(rawBody);
-    logWarn("session-title", "Gemini title suggestion http failed", {
+    logWarn('session-title', 'Gemini title suggestion http failed', {
       requestId,
       model,
       status: response.status,
-      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200)
+      bodyPreview: shortBodyLong(sanitizeModelResponsePreview(rawBody), 1200),
     });
-    throw new Error(`gemini http ${response.status}${body ? ` ${body}` : ""}`);
+    throw new Error(`gemini http ${response.status}${body ? ` ${body}` : ''}`);
   }
   const data = await response.json();
   const text = extractTitleTextFromGeminiResponse(data);
   if (!text) {
-    logWarn("session-title", "Gemini title suggestion empty parsed content", {
+    logWarn('session-title', 'Gemini title suggestion empty parsed content', {
       requestId,
       model,
       topLevelKeys: Object.keys(data || {}).slice(0, 20),
-      responsePreview: previewPayloadForLog(data, 1400)
+      responsePreview: previewPayloadForLog(data, 1400),
     });
-    throw new Error("gemini empty content");
+    throw new Error('gemini empty content');
   }
-  logInfo("session-title", "Gemini title suggestion response", {
+  logInfo('session-title', 'Gemini title suggestion response', {
     requestId,
     model,
     rawTitle: shortBodyLong(text, 400),
-    responsePreview: previewPayloadForLog(data, 700)
+    responsePreview: previewPayloadForLog(data, 700),
   });
   return text;
 }
 
-async function suggestSessionTitleWithModel({ provider, sessionFilePath, fallbackTitle = "" }) {
+async function suggestSessionTitleWithModel({ provider, sessionFilePath, fallbackTitle = '' }) {
   const id = normalizeProviderId(provider);
-  const { latestUserText, latestAssistantText } = parseLatestConversationRoundFromSessionFile(sessionFilePath);
-  const fallback = fallbackSuggestedTitle(latestUserText, latestAssistantText, fallbackTitle || "会话");
+  const { latestUserText, latestAssistantText } =
+    parseLatestConversationRoundFromSessionFile(sessionFilePath);
+  const fallback = fallbackSuggestedTitle(
+    latestUserText,
+    latestAssistantText,
+    fallbackTitle || '会话',
+  );
   const requestId = `${id}-title-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const providersToTry = [id, "claude", "codex", "gemini"].filter((value, idx, arr) => arr.indexOf(value) === idx);
-  let lastError = "";
+  const providersToTry = [id, 'claude', 'codex', 'gemini'].filter(
+    (value, idx, arr) => arr.indexOf(value) === idx,
+  );
+  let lastError = '';
 
-  logInfo("session-title", "Start title suggestion", {
+  logInfo('session-title', 'Start title suggestion', {
     requestId,
     provider: id,
     sessionFilePath,
@@ -2037,56 +2218,78 @@ async function suggestSessionTitleWithModel({ provider, sessionFilePath, fallbac
     fallbackTitle: shortBodyLong(fallbackTitle, 120),
     fallbackSuggested: fallback,
     latestUserText: shortBodyLong(latestUserText, 320),
-    latestAssistantText: shortBodyLong(latestAssistantText, 320)
+    latestAssistantText: shortBodyLong(latestAssistantText, 320),
   });
 
   for (const providerId of providersToTry) {
     const env = getStartupEnvForProvider(providerId);
     try {
-      let raw = "";
-      if (providerId === "codex") raw = await suggestTitleByOpenAi({ env, userText: latestUserText, assistantText: latestAssistantText, requestId });
-      else if (providerId === "claude") raw = await suggestTitleByClaude({ env, userText: latestUserText, assistantText: latestAssistantText, requestId });
-      else if (providerId === "gemini") raw = await suggestTitleByGemini({ env, userText: latestUserText, assistantText: latestAssistantText, requestId });
+      let raw = '';
+      if (providerId === 'codex')
+        raw = await suggestTitleByOpenAi({
+          env,
+          userText: latestUserText,
+          assistantText: latestAssistantText,
+          requestId,
+        });
+      else if (providerId === 'claude')
+        raw = await suggestTitleByClaude({
+          env,
+          userText: latestUserText,
+          assistantText: latestAssistantText,
+          requestId,
+        });
+      else if (providerId === 'gemini')
+        raw = await suggestTitleByGemini({
+          env,
+          userText: latestUserText,
+          assistantText: latestAssistantText,
+          requestId,
+        });
       else continue;
       let title = normalizeSuggestedTitle(raw, fallback);
-      if (!title) throw new Error("empty title after normalization");
+      if (!title) throw new Error('empty title after normalization');
       if (looksLikeLowQualityTaskTitle(title)) {
-        const refined = deriveTaskTitleFromConversation(latestUserText, latestAssistantText, fallback);
-        logInfo("session-title", "Model title refined from low-quality candidate", {
+        const refined = deriveTaskTitleFromConversation(
+          latestUserText,
+          latestAssistantText,
+          fallback,
+        );
+        logInfo('session-title', 'Model title refined from low-quality candidate', {
           requestId,
           provider: providerId,
           rawTitle: shortBodyLong(raw, 240),
           normalizedTitle: title,
-          refinedTitle: refined
+          refinedTitle: refined,
         });
         title = refined;
       }
-      if (!containsCjk(title)) throw new Error("model title not chinese");
-      logInfo("session-title", "Model title accepted", {
+      if (!containsCjk(title)) throw new Error('model title not chinese');
+      logInfo('session-title', 'Model title accepted', {
         requestId,
         provider: providerId,
         rawTitle: shortBodyLong(raw, 400),
         normalizedTitle: title,
-        normalizedLength: Array.from(String(title || "")).length
+        normalizedLength: Array.from(String(title || '')).length,
       });
-      return { ok: true, title, source: "llm", provider: providerId };
+      return { ok: true, title, source: 'llm', provider: providerId };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       lastError = `[${providerId}] ${reason}`;
-      logWarn("session-title", "Model title suggestion failed, trying next provider", {
+      logWarn('session-title', 'Model title suggestion failed, trying next provider', {
         requestId,
         provider: providerId,
-        reason
+        reason,
       });
     }
   }
 
-  logWarn("session-title", "Falling back to heuristic title suggestion", {
+  logWarn('session-title', 'Falling back to heuristic title suggestion', {
     requestId,
     provider: id,
-    reason: lastError || "all model providers unavailable",
+    reason: lastError || 'all model providers unavailable',
     fallbackSuggested: fallback,
-    fallbackLength: Array.from(String(fallback || "")).length
+    fallbackLength: Array.from(String(fallback || '')).length,
   });
 
   // If model path is unavailable or unauthorized, do not force a truncated local fallback.
@@ -2094,30 +2297,30 @@ async function suggestSessionTitleWithModel({ provider, sessionFilePath, fallbac
   if (lastError) {
     return {
       ok: false,
-      title: "",
-      source: "none",
-      reason: lastError
+      title: '',
+      source: 'none',
+      reason: lastError,
     };
   }
 
   return {
     ok: true,
-    title: fallback || "会话",
-    source: "fallback",
-    reason: lastError || "all model providers unavailable"
+    title: fallback || '会话',
+    source: 'fallback',
+    reason: lastError || 'all model providers unavailable',
   };
 }
 
 function listClaudeSessionsForProject(project) {
   const projectDirName = encodeClaudeProjectDir(project.path);
-  const root = path.join(os.homedir(), ".claude", "projects", projectDirName);
+  const root = path.join(os.homedir(), '.claude', 'projects', projectDirName);
   if (!fs.existsSync(root)) return [];
 
   const entries = fs.readdirSync(root, { withFileTypes: true });
   const sessions = [];
   for (const entry of entries) {
     if (!entry.isFile()) continue;
-    if (!entry.name.endsWith(".jsonl")) continue;
+    if (!entry.name.endsWith('.jsonl')) continue;
     const uuid = entry.name.slice(0, -6);
     if (!/^[0-9a-fA-F-]{36}$/.test(uuid)) continue;
     const filePath = path.join(root, entry.name);
@@ -2125,8 +2328,7 @@ function listClaudeSessionsForProject(project) {
     try {
       const stat = fs.statSync(filePath);
       createdAt = stat.mtimeMs;
-    } catch {
-    }
+    } catch {}
 
     const fallbackTitle = `session-${uuid.slice(0, 8)}`;
     const title = deriveSessionTitleFromJsonl(filePath, fallbackTitle);
@@ -2138,8 +2340,8 @@ function listClaudeSessionsForProject(project) {
       cwd: sessionCwd,
       projectId: project.id,
       providerSessionId: uuid,
-      status: "exited",
-      createdAt
+      status: 'exited',
+      createdAt,
     });
   }
 
@@ -2148,7 +2350,7 @@ function listClaudeSessionsForProject(project) {
 }
 
 function buildFileTree(cwd, depth) {
-  const IGNORE = new Set([".git", ".DS_Store", "node_modules"]);
+  const IGNORE = new Set(['.git', '.DS_Store', 'node_modules']);
   const gitInfo = getGitStatusSnapshot(cwd);
 
   function walk(dir, level) {
@@ -2164,27 +2366,27 @@ function buildFileTree(cwd, depth) {
       .filter((entry) => !IGNORE.has(entry.name))
       .map((entry) => {
         const full = path.join(dir, entry.name);
-        const relative = path.relative(cwd, full).replace(/\\/g, "/");
+        const relative = path.relative(cwd, full).replace(/\\/g, '/');
         if (entry.isDirectory()) {
           const children = walk(full, level + 1);
           return {
             name: entry.name,
             path: full,
-            type: "directory",
+            type: 'directory',
             hasGitChanges: children.some((child) => child.hasGitChanges || !!child.gitStatus),
-            children
+            children,
           };
         }
         return {
           name: entry.name,
           path: full,
-          type: "file",
-          gitStatus: gitInfo.byPath.get(relative) || ""
+          type: 'file',
+          gitStatus: gitInfo.byPath.get(relative) || '',
         };
       });
 
     nodes.sort((a, b) => {
-      if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
     return nodes;
@@ -2193,24 +2395,26 @@ function buildFileTree(cwd, depth) {
 }
 
 function getGitStatusSnapshot(cwd) {
-  const repoProbe = spawnSync("git", ["-C", cwd, "rev-parse", "--is-inside-work-tree"], {
-    encoding: "utf8"
+  const repoProbe = spawnSync('git', ['-C', cwd, 'rev-parse', '--is-inside-work-tree'], {
+    encoding: 'utf8',
   });
   if (repoProbe.status !== 0) {
     return { isRepo: false, byPath: new Map() };
   }
 
   const statusProbe = spawnSync(
-    "git",
-    ["-C", cwd, "-c", "core.quotepath=false", "status", "--porcelain=v1", "--untracked-files=all"],
-    { encoding: "utf8" }
+    'git',
+    ['-C', cwd, '-c', 'core.quotepath=false', 'status', '--porcelain=v1', '--untracked-files=all'],
+    { encoding: 'utf8' },
   );
   if (statusProbe.status !== 0) {
     return { isRepo: true, byPath: new Map() };
   }
 
   const byPath = new Map();
-  const lines = String(statusProbe.stdout || "").split(/\r?\n/).filter(Boolean);
+  const lines = String(statusProbe.stdout || '')
+    .split(/\r?\n/)
+    .filter(Boolean);
   for (const line of lines) {
     const xy = line.slice(0, 2);
     const raw = line.slice(3).trim();
@@ -2228,32 +2432,32 @@ function getGitStatusSnapshot(cwd) {
 }
 
 function normalizeStatusPath(rawPath) {
-  const renamed = rawPath.includes(" -> ") ? rawPath.split(" -> ").pop() : rawPath;
-  const trimmed = String(renamed || "").trim();
-  if (!trimmed) return "";
-  if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
-    return trimmed.slice(1, -1).replace(/\\"/g, "\"").replace(/\\\\/g, "\\").replace(/\\/g, "/");
+  const renamed = rawPath.includes(' -> ') ? rawPath.split(' -> ').pop() : rawPath;
+  const trimmed = String(renamed || '').trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\/g, '/');
   }
-  return trimmed.replace(/\\/g, "/");
+  return trimmed.replace(/\\/g, '/');
 }
 
 function toGitBadgeCode(xy) {
-  const code = String(xy || "  ");
-  if (code === "??") return "U";
-  if (code.includes("U")) return "U";
-  if (code.includes("D")) return "D";
-  if (code.includes("A")) return "A";
-  return "M";
+  const code = String(xy || '  ');
+  if (code === '??') return 'U';
+  if (code.includes('U')) return 'U';
+  if (code.includes('D')) return 'D';
+  if (code.includes('A')) return 'A';
+  return 'M';
 }
 
 function gitBadgePriority(code) {
-  if (code === "U") return 4;
-  if (code === "D") return 3;
-  if (code === "A") return 2;
+  if (code === 'U') return 4;
+  if (code === 'D') return 3;
+  if (code === 'A') return 2;
   return 1;
 }
 
-function getStartupCommandForProvider(provider = "claude") {
+function getStartupCommandForProvider(provider = 'claude') {
   // Normal sessions should always launch provider CLI runtime.
   // OAuth login command is only used from settings "start OAuth login" action.
   return getLaunchCommandForProvider(provider);
@@ -2270,42 +2474,50 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
 }
 
 function shortBody(text) {
-  return String(text || "").replace(/\s+/g, " ").trim().slice(0, 160);
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
 }
 
 function shortBodyLong(text, maxLen = 800) {
-  return String(text || "").replace(/\s+/g, " ").trim().slice(0, maxLen);
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLen);
 }
 
-function isDeepSeekAnthropicBase(baseUrl = "") {
-  const text = String(baseUrl || "").trim().replace(/\/+$/, "");
+function isDeepSeekAnthropicBase(baseUrl = '') {
+  const text = String(baseUrl || '')
+    .trim()
+    .replace(/\/+$/, '');
   if (!text) return false;
   try {
     const parsed = new URL(text);
-    const host = String(parsed.hostname || "").toLowerCase();
-    const pathname = String(parsed.pathname || "").toLowerCase();
-    return host === "api.deepseek.com" && pathname.startsWith("/anthropic");
+    const host = String(parsed.hostname || '').toLowerCase();
+    const pathname = String(parsed.pathname || '').toLowerCase();
+    return host === 'api.deepseek.com' && pathname.startsWith('/anthropic');
   } catch {
     return /api\.deepseek\.com\/anthropic/i.test(text);
   }
 }
 
 function buildAnthropicCompatHeaders({
-  apiKey = "",
-  authToken = "",
-  base = "",
-  includeJsonContentType = false
+  apiKey = '',
+  authToken = '',
+  base = '',
+  includeJsonContentType = false,
 } = {}) {
   const headers = {
-    "anthropic-version": "2023-06-01"
+    'anthropic-version': '2023-06-01',
   };
   if (includeJsonContentType) {
-    headers["content-type"] = "application/json";
+    headers['content-type'] = 'application/json';
   }
-  const normalizedApiKey = String(apiKey || "").trim();
-  const normalizedAuthToken = String(authToken || "").trim();
-  const rawApiKey = normalizedApiKey.replace(/^Bearer\s+/i, "").trim();
-  const rawAuthToken = normalizedAuthToken.replace(/^Bearer\s+/i, "").trim();
+  const normalizedApiKey = String(apiKey || '').trim();
+  const normalizedAuthToken = String(authToken || '').trim();
+  const rawApiKey = normalizedApiKey.replace(/^Bearer\s+/i, '').trim();
+  const rawAuthToken = normalizedAuthToken.replace(/^Bearer\s+/i, '').trim();
   const deepSeekBase = isDeepSeekAnthropicBase(base);
   // DeepSeek Anthropic compatibility:
   // - Anthropic SDK path uses ANTHROPIC_API_KEY -> x-api-key
@@ -2315,32 +2527,34 @@ function buildAnthropicCompatHeaders({
     // Prefer whichever credential is provided. Keep both header styles to maximize compatibility.
     const deepSeekToken = rawApiKey || rawAuthToken;
     if (deepSeekToken) {
-      headers["x-api-key"] = deepSeekToken;
+      headers['x-api-key'] = deepSeekToken;
       headers.Authorization = `Bearer ${deepSeekToken}`;
     }
   } else {
     if (rawApiKey) {
-      headers["x-api-key"] = rawApiKey;
+      headers['x-api-key'] = rawApiKey;
     }
     if (rawAuthToken) {
-      headers.Authorization = /^Bearer\s+/i.test(normalizedAuthToken) ? normalizedAuthToken : `Bearer ${rawAuthToken}`;
+      headers.Authorization = /^Bearer\s+/i.test(normalizedAuthToken)
+        ? normalizedAuthToken
+        : `Bearer ${rawAuthToken}`;
     }
   }
   return { headers, deepSeekBase };
 }
 
 function maskSecret(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  const normalized = text.replace(/^Bearer\s+/i, "");
-  if (normalized.length <= 8) return "*".repeat(Math.max(4, normalized.length));
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const normalized = text.replace(/^Bearer\s+/i, '');
+  if (normalized.length <= 8) return '*'.repeat(Math.max(4, normalized.length));
   return `${normalized.slice(0, 4)}***${normalized.slice(-4)}`;
 }
 
 function maskEnvForLog(env = {}) {
   const result = {};
   for (const key of Object.keys(env).sort()) {
-    const value = String(env[key] ?? "").trim();
+    const value = String(env[key] ?? '').trim();
     if (!value) continue;
     if (/(key|token|secret|password)/i.test(key)) {
       result[key] = maskSecret(value);
@@ -2352,20 +2566,22 @@ function maskEnvForLog(env = {}) {
 }
 
 function runCommandWithEnv(command, env = {}, timeoutMs = 12000) {
-  const shellCommand = String(command || "").trim();
+  const shellCommand = String(command || '').trim();
   if (!shellCommand) {
     return {
       ok: false,
       timedOut: false,
       exitCode: null,
-      stdout: "",
-      stderr: "empty command"
+      stdout: '',
+      stderr: 'empty command',
     };
   }
 
   const childEnv = { ...process.env, ...(env || {}) };
   // Prevent host shell credentials from polluting provider tests/probes.
-  const authMode = String(childEnv[INTERNAL_ENV_KEY_AUTH_MODE] || "").trim().toLowerCase();
+  const authMode = String(childEnv[INTERNAL_ENV_KEY_AUTH_MODE] || '')
+    .trim()
+    .toLowerCase();
   if (authMode === AUTH_MODE_OAUTH) {
     delete childEnv.GEMINI_API_KEY;
     delete childEnv.GOOGLE_API_KEY;
@@ -2375,22 +2591,26 @@ function runCommandWithEnv(command, env = {}, timeoutMs = 12000) {
   }
   const options = {
     env: childEnv,
-    encoding: "utf8",
+    encoding: 'utf8',
     timeout: timeoutMs,
     maxBuffer: 1024 * 1024 * 4,
-    input: "",
-    stdio: ["pipe", "pipe", "pipe"]
+    input: '',
+    stdio: ['pipe', 'pipe', 'pipe'],
   };
 
-  const isWin = process.platform === "win32";
+  const isWin = process.platform === 'win32';
   const result = isWin
-    ? spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", shellCommand], options)
-    : spawnSync(process.env.SHELL || "/bin/zsh", ["-lc", shellCommand], options);
+    ? spawnSync(
+        'powershell.exe',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', shellCommand],
+        options,
+      )
+    : spawnSync(process.env.SHELL || '/bin/zsh', ['-lc', shellCommand], options);
 
-  const stdout = String(result.stdout || "");
-  const stderr = String(result.stderr || "");
-  const exitCode = typeof result.status === "number" ? result.status : null;
-  const timedOut = !!result.error && result.error.code === "ETIMEDOUT";
+  const stdout = String(result.stdout || '');
+  const stderr = String(result.stderr || '');
+  const exitCode = typeof result.status === 'number' ? result.status : null;
+  const timedOut = !!result.error && result.error.code === 'ETIMEDOUT';
   const ok = !timedOut && !result.error && exitCode === 0;
 
   return { ok, timedOut, exitCode, stdout, stderr };
@@ -2418,14 +2638,14 @@ async function startProviderOAuthLogin({ provider, profileId, projectId, cwd }) 
 
   const context = resolveOAuthLoginContext({ projectId, cwd });
   if (!context) {
-    return { ok: false, message: "请先添加并选择一个项目，再启动 OAuth 登录。" };
+    return { ok: false, message: '请先添加并选择一个项目，再启动 OAuth 登录。' };
   }
 
   const command = getOAuthLoginCommandForProvider(id);
   if (!command) {
     return {
       ok: false,
-      message: `OAuth 登录命令不可用：provider=${id}，请检查 CLI runtime 是否已准备。`
+      message: `OAuth 登录命令不可用：provider=${id}，请检查 CLI runtime 是否已准备。`,
     };
   }
 
@@ -2435,26 +2655,26 @@ async function startProviderOAuthLogin({ provider, profileId, projectId, cwd }) 
     cwd: context.cwd,
     name,
     provider: id,
-    sessionId: localSessionId
+    sessionId: localSessionId,
   });
   const wrote = ptyService.write(localSessionId, command);
   if (!wrote) {
-    logWarn("oauth-login", "OAuth login command write skipped: PTY not found", {
+    logWarn('oauth-login', 'OAuth login command write skipped: PTY not found', {
       provider: id,
       sessionId: localSessionId,
-      profileId
+      profileId,
     });
   }
-  if (id === "gemini") {
+  if (id === 'gemini') {
     // Gemini OAuth often asks to choose auth method first; press Enter to pick default "Sign in with Google".
     const autoSelectDelays = [900, 2200];
     for (const delayMs of autoSelectDelays) {
       setTimeout(() => {
-        const ok = ptyService.write(localSessionId, "\r");
-        logInfo("oauth-login", "Gemini OAuth auto-select prompt step", {
+        const ok = ptyService.write(localSessionId, '\r');
+        logInfo('oauth-login', 'Gemini OAuth auto-select prompt step', {
           sessionId: localSessionId,
           delayMs,
-          wrote: ok
+          wrote: ok,
         });
       }, delayMs);
     }
@@ -2467,37 +2687,38 @@ async function startProviderOAuthLogin({ provider, profileId, projectId, cwd }) 
     providerSessionId: localSessionId,
     cwd: context.cwd,
     sessionFilePath: null,
-    status: "running"
+    status: 'running',
   });
   sessionStore.updateStateByProviderSessionId({
     provider: id,
     providerSessionId: localSessionId,
-    status: "running"
+    status: 'running',
   });
 
-  logInfo("oauth-login", "OAuth login session started", {
+  logInfo('oauth-login', 'OAuth login session started', {
     provider: id,
     sessionId: localSessionId,
     profileId,
     projectId: context.projectId,
     cwd: context.cwd,
-    command: command.trim()
+    command: command.trim(),
   });
   oauthLoginTracker.registerSession({
     sessionId: localSessionId,
     provider: id,
-    profileId: String(profileId || "")
+    profileId: String(profileId || ''),
   });
 
   return {
     ok: true,
-    message: id === "gemini"
-      ? "已经获得Gemini授权，如过要重新登陆，请进入Gemini 内执行：/auth signout"
-      : `${id} OAuth 登录会话已启动，请在终端中完成登录流程。`,
+    message:
+      id === 'gemini'
+        ? '已经获得Gemini授权，如过要重新登陆，请进入Gemini 内执行：/auth signout'
+        : `${id} OAuth 登录会话已启动，请在终端中完成登录流程。`,
     session: {
       sessionId: localSessionId,
-      projectId: context.projectId
-    }
+      projectId: context.projectId,
+    },
   };
 }
 
@@ -2512,17 +2733,17 @@ function syncDiscoveredSessionsForProjects(projects) {
       title: session.name,
       provider: normalizeProviderId(session.provider),
       providerSessionId: session.providerSessionId || session.sessionId,
-      cwd: session.cwd || "",
+      cwd: session.cwd || '',
       sessionFilePath: session.sessionFilePath || null,
-      createdAt: session.createdAt
+      createdAt: session.createdAt,
     });
     if (result?.reconciled && result.fromProviderSessionId && result.toProviderSessionId) {
       mappings.push({
         provider: normalizeProviderId(session.provider),
         fromProviderSessionId: result.fromProviderSessionId,
         toProviderSessionId: result.toProviderSessionId,
-        cwd: session.cwd || "",
-        projectId: session.projectId
+        cwd: session.cwd || '',
+        projectId: session.projectId,
       });
     }
   }
@@ -2532,29 +2753,33 @@ const oauthLoginTracker = createOAuthLoginTracker({
   normalizeProviderId,
   openExternal: (url) => shell.openExternal(url),
   logInfo,
-  logWarn
+  logWarn,
 });
 const cliConfigSyncService = createCliConfigSyncService({
   normalizeProviderId,
   logInfo,
-  logWarn
+  logWarn,
 });
 
 function syncCliConfigAfterSuccessfulProviderTest(parsed, source) {
   const provider = normalizeProviderId(parsed?.provider);
-  const profileId = String(parsed?.profileId || "");
+  const profileId = String(parsed?.profileId || '');
   const mergedPairs = getMergedProviderProfileEnvVars(provider, profileId, parsed?.envVars || []);
-  const env = applyProviderStartupEnv(provider, applyUnifiedProxyEnv(buildEnvFromPairs(mergedPairs)));
+  const env = applyProviderStartupEnv(
+    provider,
+    applyUnifiedProxyEnv(buildEnvFromPairs(mergedPairs)),
+  );
   return cliConfigSyncService.syncProviderCliConfig({
     provider,
     profileId,
     env,
-    source
+    source,
   });
 }
 
 const ptyService = new PtyService({
-  getStartupEnv: ({ provider, cwd }) => syncClaudeSettingsEnv(provider, getStartupEnvForProvider(provider), cwd),
+  getStartupEnv: ({ provider, cwd }) =>
+    syncClaudeSettingsEnv(provider, getStartupEnvForProvider(provider), cwd),
   logWarn,
   onData: ({ sessionId, data }) => {
     oauthLoginTracker.handleOutput(sessionId, data);
@@ -2562,9 +2787,9 @@ const ptyService = new PtyService({
   },
   onExit: ({ sessionId, exitCode }) => {
     oauthLoginTracker.unregisterSession(sessionId);
-    logInfo("pty", "Session exited", { sessionId, exitCode });
+    logInfo('pty', 'Session exited', { sessionId, exitCode });
     sendToRenderer(TERMINAL_CHANNELS.EXIT, { sessionId, exitCode });
-  }
+  },
 });
 const sessionStartInFlight = new Map();
 const SHELL_BOOTSTRAP_TIMEOUT_MS = 3000;
@@ -2575,19 +2800,24 @@ function sleep(ms) {
 }
 
 function stripAnsi(text) {
-  return String(text || "")
-    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1B\][^\x07]*(?:\x07|\x1B\\)/g, "");
+  return String(text || '')
+    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\x1B\][^\x07]*(?:\x07|\x1B\\)/g, '');
 }
 
 function hasShellPrompt(snapshotText) {
-  const normalized = stripAnsi(snapshotText).replace(/\r/g, "");
+  const normalized = stripAnsi(snapshotText).replace(/\r/g, '');
   if (!normalized) return false;
-  const lines = normalized.split("\n").slice(-10).map((line) => String(line || "").trimEnd());
+  const lines = normalized
+    .split('\n')
+    .slice(-10)
+    .map((line) => String(line || '').trimEnd());
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i];
     if (!line.trim()) continue;
-    if (/ELECTRON_RUN_AS_NODE=1|No startup command available|No launch command available/i.test(line)) {
+    if (
+      /ELECTRON_RUN_AS_NODE=1|No startup command available|No launch command available/i.test(line)
+    ) {
       return false;
     }
     if (/(^|[^\w])[#$%>] ?$/.test(line)) {
@@ -2605,7 +2835,7 @@ async function waitForShellBootstrap(sessionId, timeoutMs = SHELL_BOOTSTRAP_TIME
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     const snapshot = ptyService.getSnapshot(sessionId);
-    if (hasShellPrompt(snapshot?.data || "")) return true;
+    if (hasShellPrompt(snapshot?.data || '')) return true;
     await sleep(SHELL_BOOTSTRAP_POLL_MS);
   }
   return false;
@@ -2628,35 +2858,35 @@ function runWithSessionStartLock(sessionId, task) {
 
 function registerAppIpc() {
   const registerIpc = (channel, handler) => {
-    if (typeof channel !== "string" || !channel.trim()) {
-      logWarn("ipc", "Skip IPC registration because channel is invalid", { channel });
+    if (typeof channel !== 'string' || !channel.trim()) {
+      logWarn('ipc', 'Skip IPC registration because channel is invalid', { channel });
       return false;
     }
     ipcMain.handle(channel, async (event, payload) => {
       try {
         return await handler(event, payload);
       } catch (error) {
-        logError("ipc", `Handler failed: ${channel}`, error, { payload });
+        logError('ipc', `Handler failed: ${channel}`, error, { payload });
         throw error;
       }
     });
-    logInfo("ipc", "Registered invoke handler", { channel });
+    logInfo('ipc', 'Registered invoke handler', { channel });
     return true;
   };
 
   const registerIpcOn = (channel, handler) => {
-    if (typeof channel !== "string" || !channel.trim()) {
-      logWarn("ipc", "Skip IPC on-registration because channel is invalid", { channel });
+    if (typeof channel !== 'string' || !channel.trim()) {
+      logWarn('ipc', 'Skip IPC on-registration because channel is invalid', { channel });
       return false;
     }
     ipcMain.on(channel, (event, payload) => {
       try {
         handler(event, payload);
       } catch (error) {
-        logError("ipc", `On-handler failed: ${channel}`, error, { payload });
+        logError('ipc', `On-handler failed: ${channel}`, error, { payload });
       }
     });
-    logInfo("ipc", "Registered event handler", { channel });
+    logInfo('ipc', 'Registered event handler', { channel });
     return true;
   };
 
@@ -2726,15 +2956,15 @@ function registerAppIpc() {
     logByLevel,
     logInfo,
     logWarn,
-    logError
+    logError,
   });
 }
 
 function createWindow() {
-  logInfo("app", "Creating main window", { isDev });
+  logInfo('app', 'Creating main window', { isDev });
   const iconPath = getWindowIconPath();
-  logInfo("app", "Resolved window icon path", { iconPath: iconPath || "" });
-  const useHiddenTitleBar = process.platform === "darwin" || process.platform === "win32";
+  logInfo('app', 'Resolved window icon path', { iconPath: iconPath || '' });
+  const useHiddenTitleBar = process.platform === 'darwin' || process.platform === 'win32';
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 860,
@@ -2743,31 +2973,36 @@ function createWindow() {
     title: APP_NAME,
     show: false,
     autoHideMenuBar: true,
-    frame: process.platform === "win32" ? false : undefined,
-    titleBarStyle: useHiddenTitleBar ? "hidden" : undefined,
+    frame: process.platform === 'win32' ? false : undefined,
+    titleBarStyle: useHiddenTitleBar ? 'hidden' : undefined,
     titleBarOverlay: undefined,
-    trafficLightPosition: process.platform === "darwin"
-      ? { x: 14, y: 20 }
-      : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: 14, y: 20 } : undefined,
     icon: iconPath || undefined,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
-    }
+      sandbox: false,
+    },
   });
 
-  if (process.platform !== "darwin") {
+  if (process.platform !== 'darwin') {
     mainWindow.setMenuBarVisibility(false);
   }
 
-  mainWindow.once("ready-to-show", () => {
+  mainWindow.once('ready-to-show', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (suppressMainWindowDisplay) {
+      logInfo('app', 'Silent window mode enabled, skip showing/focusing main window', {
+        APP_E2E: process.env.APP_E2E || '',
+        APP_E2E_SHOW_WINDOW: e2eShowWindow || '',
+      });
+      return;
+    }
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
-    if (process.platform === "win32") {
-      mainWindow.setAlwaysOnTop(true, "screen-saver");
+    if (process.platform === 'win32') {
+      mainWindow.setAlwaysOnTop(true, 'screen-saver');
       mainWindow.focus();
       setTimeout(() => {
         if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -2777,10 +3012,10 @@ function createWindow() {
     } else {
       mainWindow.focus();
     }
-    logInfo("app", "Main window shown", {
+    logInfo('app', 'Main window shown', {
       visible: mainWindow.isVisible(),
       focused: mainWindow.isFocused(),
-      bounds: mainWindow.getBounds()
+      bounds: mainWindow.getBounds(),
     });
   });
 
@@ -2788,39 +3023,42 @@ function createWindow() {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(app.getAppPath(), "dist/renderer/index.html"));
+    mainWindow.loadFile(path.join(app.getAppPath(), 'dist/renderer/index.html'));
   }
 
-  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
-    logError("window", "Renderer failed to load", new Error(errorDescription), {
-      errorCode,
-      validatedURL
-    });
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL) => {
+      logError('window', 'Renderer failed to load', new Error(errorDescription), {
+        errorCode,
+        validatedURL,
+      });
+    },
+  );
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logWarn('window', 'Renderer process gone', details);
   });
 
-  mainWindow.webContents.on("render-process-gone", (_event, details) => {
-    logWarn("window", "Renderer process gone", details);
-  });
-
-  mainWindow.on("closed", () => {
-    logInfo("app", "Main window closed");
+  mainWindow.on('closed', () => {
+    logInfo('app', 'Main window closed');
     mainWindow = null;
   });
 }
 
 app.whenReady().then(() => {
-  logInfo("app", "Application ready", {
+  logInfo('app', 'Application ready', {
     appVersion: app.getVersion(),
     platform: process.platform,
     isDev,
     runtimeAppId,
-    appHomeDir
+    appHomeDir,
   });
 
   // 允许渲染进程通过 navigator.clipboard 读写剪贴板
-  const { session } = require("electron");
+  const { session } = require('electron');
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
-    if (permission === "clipboard-read" || permission === "clipboard-write") {
+    if (permission === 'clipboard-read' || permission === 'clipboard-write') {
       return true;
     }
     return false;
@@ -2829,61 +3067,61 @@ app.whenReady().then(() => {
   // Windows/Linux 只保留 Undo/Redo/SelectAll，去掉 Copy/Paste role。
   // Copy/Paste 快捷键由 xterm.js 的 attachCustomKeyEventHandler 处理，
   // 避免 Edit 菜单 role 拦截系统快捷键导致键盘事件不传递到 renderer。
-  if (process.platform !== "darwin") {
+  if (process.platform !== 'darwin') {
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([
         {
-          label: "Edit",
+          label: 'Edit',
           submenu: [
-            { role: "undo" },
-            { role: "redo" },
-            { type: "separator" },
-            { role: "selectAll" }
-          ]
-        }
-      ])
+            { role: 'undo' },
+            { role: 'redo' },
+            { type: 'separator' },
+            { role: 'selectAll' },
+          ],
+        },
+      ]),
     );
   }
-  if (process.platform === "darwin" && app.dock) {
+  if (process.platform === 'darwin' && app.dock) {
     const dockIconPath = pickExistingPath([
-      resolveAssetPath("app-icons", "mac", "dock-icon.png"),
-      resolveAssetPath("app-icons", "png", "icon_512x512.png"),
-      resolveAssetPath("app-icons", "png", "icon_256x256.png")
+      resolveAssetPath('app-icons', 'mac', 'dock-icon.png'),
+      resolveAssetPath('app-icons', 'png', 'icon_512x512.png'),
+      resolveAssetPath('app-icons', 'png', 'icon_256x256.png'),
     ]);
     if (dockIconPath) app.dock.setIcon(dockIconPath);
-    logInfo("app", "Resolved dock icon path", { dockIconPath: dockIconPath || "" });
+    logInfo('app', 'Resolved dock icon path', { dockIconPath: dockIconPath || '' });
   }
   createWindow();
   registerAppIpc();
   createMacTray();
 
-  app.on("activate", () => {
+  app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on("before-quit", () => {
-  logInfo("app", "Before quit: destroying PTY sessions");
-  ptyService.destroyAll({ quiet: process.platform === "win32" });
+app.on('before-quit', () => {
+  logInfo('app', 'Before quit: destroying PTY sessions');
+  ptyService.destroyAll({ quiet: process.platform === 'win32' });
   if (tray) {
     tray.destroy();
     tray = null;
   }
 });
 
-app.on("window-all-closed", () => {
-  logInfo("app", "All windows closed");
-  if (process.platform !== "darwin") app.quit();
+app.on('window-all-closed', () => {
+  logInfo('app', 'All windows closed');
+  if (process.platform !== 'darwin') app.quit();
 });
 
-process.on("uncaughtException", (error) => {
-  logError("process", "Uncaught exception", error);
+process.on('uncaughtException', (error) => {
+  logError('process', 'Uncaught exception', error);
 });
 
-process.on("unhandledRejection", (reason) => {
+process.on('unhandledRejection', (reason) => {
   if (reason instanceof Error) {
-    logError("process", "Unhandled rejection", reason);
+    logError('process', 'Unhandled rejection', reason);
     return;
   }
-  log.error("[process] Unhandled rejection", { reason: String(reason) });
+  log.error('[process] Unhandled rejection', { reason: String(reason) });
 });

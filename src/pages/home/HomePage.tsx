@@ -1,42 +1,50 @@
-import { useEffect, useMemo, useState } from "react";
-import packageJson from "../../../package.json";
-import appLogo from "../../assets/brand/app-logo.png";
-import { Button } from "../../ui/button";
-import { ExplorerToggleIcon, SettingsIcon } from "../../ui/icon-registry";
-import { SidebarProjectsPanel } from "./sidebar/block.renderer";
-import { TerminalPanel, RenameSessionDialog } from "./terminal/block.renderer";
-import { ExplorerPane } from "./file-tree/block.renderer";
-import { TopToolbar, SkillgenResultDialog } from "./top-toolbar/block.renderer";
-import { WelcomeView } from "./WelcomeView";
-import { SettingsModal } from "../settings/providers/renderer/SettingsModal";
-import { useHomeWorkspace } from "./renderer/use-home-workspace";
-import { useSessionLauncher } from "./renderer/use-session-launcher";
-import { isProviderConfigured, useProviderSettings } from "../settings/providers/renderer/use-provider-settings";
-import { useFileTree } from "./file-tree/renderer/use-file-tree";
-import { useArchiveList } from "../settings/archive/renderer/use-archive-list";
-import { useSessionRename } from "./terminal/renderer/use-session-rename";
-import { useSkillgenRunner } from "./top-toolbar/renderer/use-skillgen-runner";
+import { useEffect, useMemo, useState } from 'react';
+
+import packageJson from '../../../package.json';
+import appLogo from '../../assets/brand/app-logo.png';
+import { Button } from '../../ui/button';
+import { ExplorerToggleIcon, SettingsIcon } from '../../ui/icon-registry';
+import { useArchiveList } from '../settings/archive/renderer/use-archive-list';
+import { SettingsModal } from '../settings/providers/renderer/SettingsModal';
+import {
+  isProviderConfigured,
+  useProviderSettings,
+} from '../settings/providers/renderer/use-provider-settings';
+import { ExplorerPane } from './file-tree/block.renderer';
+import { useFileTree } from './file-tree/renderer/use-file-tree';
+import { useHomeWorkspace } from './renderer/use-home-workspace';
+import { useSessionLauncher } from './renderer/use-session-launcher';
+import { SidebarProjectsPanel } from './sidebar/block.renderer';
+import { RenameSessionDialog, TerminalPanel } from './terminal/block.renderer';
+import { useSessionRename } from './terminal/renderer/use-session-rename';
+import { SkillgenResultDialog, TopToolbar } from './top-toolbar/block.renderer';
+import { useSkillgenRunner } from './top-toolbar/renderer/use-skillgen-runner';
+import { WelcomeView } from './WelcomeView';
 
 const SESSION_TOOL_OPTIONS = [
-  { id: "claude", label: "Claude Code" },
-  { id: "codex", label: "Codex CLI" },
-  { id: "gemini", label: "Gemini CLI" }
+  { id: 'claude', label: 'Claude Code' },
+  { id: 'codex', label: 'Codex CLI' },
+  { id: 'gemini', label: 'Gemini CLI' },
 ];
 
 const PROVIDER_LABEL = {
-  claude: "Claude Code",
-  codex: "Codex CLI",
-  gemini: "Gemini CLI"
+  claude: 'Claude Code',
+  codex: 'Codex CLI',
+  gemini: 'Gemini CLI',
 };
 
-const APP_VERSION = String(packageJson?.version || "0.1.0");
+const APP_VERSION = String(packageJson?.version || '0.1.0');
 
 export function HomePage() {
-  const isWindows = typeof navigator !== "undefined"
-    && /win/i.test(String(navigator.platform || navigator.userAgent || ""));
+  const isWindows =
+    typeof navigator !== 'undefined' &&
+    /win/i.test(String(navigator.platform || navigator.userAgent || ''));
+  const isMacOS =
+    typeof navigator !== 'undefined' &&
+    /mac/i.test(String(navigator.platform || navigator.userAgent || ''));
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState("providers");
-  const [appError, setAppError] = useState("");
+  const [settingsSection, setSettingsSection] = useState('providers');
+  const [appError, setAppError] = useState('');
   const [explorerVisible, setExplorerVisible] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -56,7 +64,7 @@ export function HomePage() {
     loadWorkspace,
     refreshSessions,
     onAddProject,
-    sidebarProjectsPanelProps
+    sidebarProjectsPanelProps,
   } = useHomeWorkspace({ setAppError });
 
   const {
@@ -67,7 +75,7 @@ export function HomePage() {
     loadSettings,
     providerSectionProps,
     enabledProviderIds,
-    activeSessionProviderMeta
+    activeSessionProviderMeta,
   } = useProviderSettings({
     sessions,
     activeProjectId,
@@ -78,44 +86,35 @@ export function HomePage() {
     setActiveSession,
     setActiveProjectId,
     providerLabel: PROVIDER_LABEL,
-    onFirstProviderConfigured: () => setSettingsOpen(false)
+    onFirstProviderConfigured: () => setSettingsOpen(false),
   });
 
   const { explorerPaneProps } = useFileTree({
     activeProject,
     activeWorkspaceCwd,
     explorerVisible,
-    setAppError
+    setAppError,
   });
 
-  const {
-    archivedSessions,
-    loadArchivedSessions,
-    onRestoreArchivedSession
-  } = useArchiveList({ refreshSessions });
+  const { archivedSessions, loadArchivedSessions, onRestoreArchivedSession } = useArchiveList({
+    refreshSessions,
+  });
 
-  const {
-    openRenameModal,
-    renameDialogProps
-  } = useSessionRename({
+  const { openRenameModal, renameDialogProps } = useSessionRename({
     sessions,
     renameSession,
-    setAppError
+    setAppError,
   });
 
-  const {
-    skillgenRunning,
-    onRunSkillgen,
-    skillgenResultDialogProps
-  } = useSkillgenRunner({
+  const { skillgenRunning, onRunSkillgen, skillgenResultDialogProps } = useSkillgenRunner({
     activeProject,
     activeSessionId,
-    setAppError
+    setAppError,
   });
 
   const enabledSessionToolOptions = useMemo(
     () => SESSION_TOOL_OPTIONS.filter((item) => enabledProviderIds.includes(item.id)),
-    [enabledProviderIds]
+    [enabledProviderIds],
   );
   const primarySessionTool = enabledSessionToolOptions[0] || null;
   const { createSessionForProject } = useSessionLauncher({
@@ -126,16 +125,13 @@ export function HomePage() {
     setSettingsOpen,
     setSettingsSection,
     setProviderTab,
-    setAppError
+    setAppError,
   });
 
   useEffect(() => {
     (async () => {
       try {
-        const [settings] = await Promise.all([
-          loadSettings(),
-          loadWorkspace()
-        ]);
+        const [settings] = await Promise.all([loadSettings(), loadWorkspace()]);
         if (!isProviderConfigured(settings)) {
           setProviderCheckPassed(false);
           setSettingsOpen(true);
@@ -150,14 +146,16 @@ export function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (!settingsOpen || settingsSection !== "archive") return;
+    if (!settingsOpen || settingsSection !== 'archive') return;
     loadArchivedSessions();
   }, [settingsOpen, settingsSection]);
 
   const hasProjects = projects.length > 0;
 
   return (
-    <div className={`layout ${isWindows ? "windows" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+    <div
+      className={`layout ${isWindows ? 'windows' : ''} ${isMacOS ? 'macos' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
+    >
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="brand">
@@ -192,7 +190,7 @@ export function HomePage() {
           <Button
             type="button"
             variant="ghost"
-            className={`sidebar-settings-btn ${settingsOpen ? "active" : ""}`}
+            className={`sidebar-settings-btn ${settingsOpen ? 'active' : ''}`}
             onClick={async () => {
               if (!providerCheckPassed) return;
               await loadSettings();
@@ -226,18 +224,24 @@ export function HomePage() {
 
         {appError && <div className="banner-error">{appError}</div>}
 
-        <div className={`main-content ${explorerVisible ? "" : "explorer-hidden"}`}>
+        <div className={`main-content ${explorerVisible ? '' : 'explorer-hidden'}`}>
           <section className="main-panel">
             {!hasProjects ? (
               <WelcomeView
                 onCreateProject={() => void onAddProject()}
                 onImportProject={() => void onAddProject()}
-                onLearnMore={() => window.open("https://github.com/baiyea/cli-switch", "_blank", "noopener,noreferrer")}
+                onLearnMore={() =>
+                  window.open(
+                    'https://github.com/baiyea/cli-switch',
+                    '_blank',
+                    'noopener,noreferrer',
+                  )
+                }
               />
             ) : activeProject ? (
               <TerminalPanel />
             ) : (
-              <div className="settings-wrap" style={{ display: "block" }}>
+              <div className="settings-wrap" style={{ display: 'block' }}>
                 Select a project from the sidebar to begin your architectural session.
               </div>
             )}
@@ -254,12 +258,12 @@ export function HomePage() {
             setSettingsOpen(false);
           }}
           settingsSection={settingsSection}
-          onSelectProviders={() => setSettingsSection("providers")}
+          onSelectProviders={() => setSettingsSection('providers')}
           onSelectArchive={async () => {
-            setSettingsSection("archive");
+            setSettingsSection('archive');
             await loadArchivedSessions();
           }}
-          onSelectAbout={() => setSettingsSection("about")}
+          onSelectAbout={() => setSettingsSection('about')}
           providerSectionProps={providerSectionProps}
           archivedSessions={archivedSessions}
           providerLabel={PROVIDER_LABEL}

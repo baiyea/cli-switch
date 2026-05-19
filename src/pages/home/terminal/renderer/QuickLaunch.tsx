@@ -1,6 +1,7 @@
-import React from "react";
-import { QUICK_LAUNCH } from "../../../../shared/constants";
-import styles from "./QuickLaunch.module.css";
+import React from 'react';
+
+import { QUICK_LAUNCH } from '../../../../shared/constants';
+import styles from './QuickLaunch.module.css';
 
 type Props = {
   onLaunch: (toolName: string, command: string) => void;

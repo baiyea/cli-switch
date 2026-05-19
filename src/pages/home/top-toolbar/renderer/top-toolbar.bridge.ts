@@ -32,7 +32,7 @@ export const topToolbarBridge = {
   skillgen: {
     run(payload: SkillgenRunPayload): Promise<SkillgenRunResult> {
       return window.electronAPI.skillgen.run(payload);
-    }
+    },
   },
   window: {
     setTrafficLightPosition(payload: { x: number; y: number }): Promise<{ ok: boolean }> {
@@ -49,6 +49,6 @@ export const topToolbarBridge = {
     },
     close(): Promise<{ ok: boolean }> {
       return window.electronAPI.windowControls.close();
-    }
-  }
+    },
+  },
 };

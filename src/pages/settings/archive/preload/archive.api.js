@@ -1,5 +1,5 @@
-const { ipcRenderer } = require("electron");
-const { ARCHIVE_CHANNELS } = require("../shared/archive.channels");
+const { ipcRenderer } = require('electron');
+const { ARCHIVE_CHANNELS } = require('../shared/archive.channels');
 
 function createArchiveApi() {
   return {

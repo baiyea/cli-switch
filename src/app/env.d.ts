@@ -18,7 +18,11 @@ declare global {
       scrollTerminalLines: (sessionId: string, lines: number) => boolean;
       appendTerminalData: (sessionId: string, data: string) => boolean;
       destroyAllSessions: () => boolean;
-      simulateImagePaste: (sessionId: string, base64: string, mimeType?: string) => Promise<{
+      simulateImagePaste: (
+        sessionId: string,
+        base64: string,
+        mimeType?: string,
+      ) => Promise<{
         ok: boolean;
         reason?: string;
         relPath?: string;
@@ -27,13 +31,18 @@ declare global {
     };
     electronAPI: {
       pty: {
-        create: (payload: { cwd: string; name?: string }) => Promise<{ sessionId: string; name: string }>;
+        create: (payload: {
+          cwd: string;
+          name?: string;
+        }) => Promise<{ sessionId: string; name: string }>;
         snapshot: (payload: { sessionId: string }) => Promise<{ sessionId: string; data: string }>;
         input: (payload: { sessionId: string; data: string }) => void;
         resize: (payload: { sessionId: string; cols: number; rows: number }) => void;
         destroy: (payload: { sessionId: string }) => void;
         onData: (listener: (payload: { sessionId: string; data: string }) => void) => () => void;
-        onExit: (listener: (payload: { sessionId: string; exitCode: number }) => void) => () => void;
+        onExit: (
+          listener: (payload: { sessionId: string; exitCode: number }) => void,
+        ) => () => void;
       };
       projects: {
         list: () => Promise<Array<{ id: string; name: string; path: string }>>;
@@ -41,126 +50,166 @@ declare global {
         remove: (id: string) => Promise<void>;
       };
       sessions: {
-        list: (payload?: { projectIds?: string[]; providers?: string[] }) => Promise<Array<{
+        list: (payload?: { projectIds?: string[]; providers?: string[] }) => Promise<
+          Array<{
+            sessionId: string;
+            name: string;
+            cwd: string;
+            projectId: string;
+            provider: 'claude' | 'codex' | 'gemini';
+            providerSessionId: string;
+            status: 'creating' | 'running' | 'exited';
+            sortOrder?: number;
+            createdAt: number;
+          }>
+        >;
+        create: (payload: {
+          projectId: string;
+          cwd?: string;
+          title?: string;
+          provider?: string;
+        }) => Promise<{
           sessionId: string;
           name: string;
           cwd: string;
           projectId: string;
-          provider: "claude" | "codex" | "gemini";
+          provider: 'claude' | 'codex' | 'gemini';
           providerSessionId: string;
-          status: "creating" | "running" | "exited";
-          sortOrder?: number;
-          createdAt: number;
-        }>>;
-        create: (payload: { projectId: string; cwd?: string; title?: string; provider?: string }) => Promise<{
-          sessionId: string;
-          name: string;
-          cwd: string;
-          projectId: string;
-          provider: "claude" | "codex" | "gemini";
-          providerSessionId: string;
-          status: "creating" | "running" | "exited";
-          sortOrder?: number;
-          createdAt: number;
-        }>;
-        start: (payload: { sessionId: string; cwd?: string; name?: string; provider?: string; providerSessionId?: string }) => Promise<{
-          sessionId: string;
-          name: string;
-          cwd: string;
-          projectId: string;
-          provider: "claude" | "codex" | "gemini";
-          providerSessionId: string;
-          status: "creating" | "running" | "exited";
+          status: 'creating' | 'running' | 'exited';
           sortOrder?: number;
           createdAt: number;
         }>;
-        rename: (payload: { sessionId: string; title: string; provider?: string; providerSessionId?: string }) => Promise<{ ok: boolean }>;
-        suggestTitle: (payload: { sessionId: string; provider?: string; providerSessionId?: string }) => Promise<{
+        start: (payload: {
+          sessionId: string;
+          cwd?: string;
+          name?: string;
+          provider?: string;
+          providerSessionId?: string;
+        }) => Promise<{
+          sessionId: string;
+          name: string;
+          cwd: string;
+          projectId: string;
+          provider: 'claude' | 'codex' | 'gemini';
+          providerSessionId: string;
+          status: 'creating' | 'running' | 'exited';
+          sortOrder?: number;
+          createdAt: number;
+        }>;
+        rename: (payload: {
+          sessionId: string;
+          title: string;
+          provider?: string;
+          providerSessionId?: string;
+        }) => Promise<{ ok: boolean }>;
+        suggestTitle: (payload: {
+          sessionId: string;
+          provider?: string;
+          providerSessionId?: string;
+        }) => Promise<{
           ok: boolean;
           title: string;
-          source: "llm" | "fallback";
+          source: 'llm' | 'fallback';
           reason?: string;
         }>;
         syncProject: (payload: { projectId: string }) => Promise<{ ok: boolean; count: number }>;
         reorder: (payload: {
           projectId: string;
-          orderedSessions: Array<{ provider: "claude" | "codex" | "gemini"; providerSessionId: string }>;
+          orderedSessions: Array<{
+            provider: 'claude' | 'codex' | 'gemini';
+            providerSessionId: string;
+          }>;
         }) => Promise<{ ok: boolean }>;
         stats: (payload: {
-          provider?: "claude" | "codex" | "gemini";
+          provider?: 'claude' | 'codex' | 'gemini';
           providerSessionId?: string;
           sessionId?: string;
         }) => Promise<
           | {
-            ok: true;
-            stats: {
-              provider: "claude" | "codex" | "gemini";
-              providerSessionId: string;
-              startedAt: number | null;
-              endedAt: number | null;
-              durationMs: number;
-              rounds: number;
-              tokens: {
-                input: number;
-                output: number;
-                cached: number;
-                reasoning: number;
-                tool: number;
-                total: number;
-                available: boolean;
+              ok: true;
+              stats: {
+                provider: 'claude' | 'codex' | 'gemini';
+                providerSessionId: string;
+                startedAt: number | null;
+                endedAt: number | null;
+                durationMs: number;
+                rounds: number;
+                tokens: {
+                  input: number;
+                  output: number;
+                  cached: number;
+                  reasoning: number;
+                  tool: number;
+                  total: number;
+                  available: boolean;
+                };
+                sourcePath?: string;
               };
-              sourcePath?: string;
-            };
-          }
+            }
           | { ok: false; reason: string }
         >;
-        archive: (payload: { sessionId: string; provider?: string; providerSessionId?: string }) => Promise<{ ok: boolean }>;
-        listArchived: (payload?: { projectIds?: string[] }) => Promise<Array<{
-          archiveId: string;
+        archive: (payload: {
           sessionId: string;
-          provider: "claude" | "codex" | "gemini";
-          projectId: string | null;
-          name: string;
-          cwd: string;
-          archivedAt: number;
-        }>>;
+          provider?: string;
+          providerSessionId?: string;
+        }) => Promise<{ ok: boolean }>;
+        listArchived: (payload?: { projectIds?: string[] }) => Promise<
+          Array<{
+            archiveId: string;
+            sessionId: string;
+            provider: 'claude' | 'codex' | 'gemini';
+            projectId: string | null;
+            name: string;
+            cwd: string;
+            archivedAt: number;
+          }>
+        >;
         restore: (sessionId: string) => Promise<{ ok: boolean }>;
       };
       settings: {
         getClaude: () => Promise<{
-          providers: Record<string, {
-            defaultProfileId: string;
-            enabledProfileId?: string;
-            profiles: Array<{
-              id: string;
-              name: string;
-              envVars: Array<{ key: string; value: string }>;
-            }>;
-          }>;
+          providers: Record<
+            string,
+            {
+              defaultProfileId: string;
+              enabledProfileId?: string;
+              profiles: Array<{
+                id: string;
+                name: string;
+                envVars: Array<{ key: string; value: string }>;
+              }>;
+            }
+          >;
         }>;
         saveClaude: (payload: {
-          providers: Record<string, {
-            defaultProfileId: string;
-            enabledProfileId?: string;
-            profiles: Array<{
-              id: string;
-              name: string;
-              envVars: Array<{ key: string; value: string }>;
-            }>;
-          }>;
+          providers: Record<
+            string,
+            {
+              defaultProfileId: string;
+              enabledProfileId?: string;
+              profiles: Array<{
+                id: string;
+                name: string;
+                envVars: Array<{ key: string; value: string }>;
+              }>;
+            }
+          >;
         }) => Promise<{
-          providers: Record<string, {
-            defaultProfileId: string;
-            enabledProfileId?: string;
-            profiles: Array<{
-              id: string;
-              name: string;
-              envVars: Array<{ key: string; value: string }>;
-            }>;
-          }>;
+          providers: Record<
+            string,
+            {
+              defaultProfileId: string;
+              enabledProfileId?: string;
+              profiles: Array<{
+                id: string;
+                name: string;
+                envVars: Array<{ key: string; value: string }>;
+              }>;
+            }
+          >;
         }>;
         testProvider: (payload: {
-          provider: "claude" | "codex" | "gemini";
+          provider: 'claude' | 'codex' | 'gemini';
           profileId: string;
           envVars: Array<{ key: string; value: string }>;
         }) => Promise<{
@@ -168,7 +217,7 @@ declare global {
           message: string;
         }>;
         startProviderOAuthLogin: (payload: {
-          provider: "claude" | "codex" | "gemini";
+          provider: 'claude' | 'codex' | 'gemini';
           profileId: string;
           projectId?: string;
           cwd?: string;
@@ -181,7 +230,7 @@ declare global {
           };
         }>;
         probeProviderOAuth: (payload: {
-          provider: "claude" | "codex" | "gemini";
+          provider: 'claude' | 'codex' | 'gemini';
           profileId: string;
           envVars: Array<{ key: string; value: string }>;
         }) => Promise<{
@@ -189,7 +238,7 @@ declare global {
           message: string;
         }>;
         getProviderOAuthLinks: (payload: {
-          provider: "claude" | "codex" | "gemini";
+          provider: 'claude' | 'codex' | 'gemini';
           profileId?: string;
           sessionId?: string;
         }) => Promise<{
@@ -200,7 +249,7 @@ declare global {
           autoOpenedUrl?: string;
         }>;
         testProviderProxy: (payload: {
-          provider: "claude" | "codex" | "gemini";
+          provider: 'claude' | 'codex' | 'gemini';
           profileId: string;
           envVars: Array<{ key: string; value: string }>;
           proxyUrl: string;
@@ -256,7 +305,7 @@ declare global {
       };
       logs: {
         write: (payload: {
-          level?: "debug" | "info" | "warn" | "error";
+          level?: 'debug' | 'info' | 'warn' | 'error';
           scope?: string;
           message: string;
           meta?: unknown;
@@ -269,8 +318,8 @@ declare global {
           items: Array<{
             name: string;
             path: string;
-            type: "file" | "directory";
-            gitStatus?: "" | "M" | "A" | "D" | "U";
+            type: 'file' | 'directory';
+            gitStatus?: '' | 'M' | 'A' | 'D' | 'U';
             hasGitChanges?: boolean;
             children?: unknown[];
           }>;

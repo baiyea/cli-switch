@@ -1,19 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import { logBridge } from "../../../shared/bridge";
-import { projectBridge, sidebarSessionBridge } from "../sidebar/renderer/sidebar.bridge";
-import { useSessionStore } from "../home.store";
+import { useEffect, useMemo, useState } from 'react';
 
-export function useHomeWorkspace({
-  setAppError
-}) {
+import { logBridge } from '../../../shared/bridge';
+import { useSessionStore } from '../home.store';
+import { projectBridge, sidebarSessionBridge } from '../sidebar/renderer/sidebar.bridge';
+
+export function useHomeWorkspace({ setAppError }) {
   const [projects, setProjects] = useState([]);
   const [expandedProjects, setExpandedProjects] = useState({});
   const [activeProjectId, setActiveProjectId] = useState(null);
   const [openCreateMenuProjectId, setOpenCreateMenuProjectId] = useState(null);
   const [createMenuPlacementByProject, setCreateMenuPlacementByProject] = useState({});
   const [showAllSessionsByProject, setShowAllSessionsByProject] = useState({});
-  const [draggingSessionId, setDraggingSessionId] = useState("");
-  const [dragOverSessionId, setDragOverSessionId] = useState("");
+  const [draggingSessionId, setDraggingSessionId] = useState('');
+  const [dragOverSessionId, setDragOverSessionId] = useState('');
 
   const sessions = useSessionStore((state) => state.sessions);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
@@ -27,13 +26,13 @@ export function useHomeWorkspace({
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) || null,
-    [projects, activeProjectId]
+    [projects, activeProjectId],
   );
   const activeSession = useMemo(
     () => sessions.find((session) => session.sessionId === activeSessionId) || null,
-    [sessions, activeSessionId]
+    [sessions, activeSessionId],
   );
-  const activeWorkspaceCwd = activeSession?.cwd || activeProject?.path || "";
+  const activeWorkspaceCwd = activeSession?.cwd || activeProject?.path || '';
   async function loadProjects() {
     const list = await projectBridge.list();
     setProjects(list);
@@ -41,7 +40,7 @@ export function useHomeWorkspace({
     setExpandedProjects((prev) => {
       const next = { ...prev };
       for (const project of list) {
-        if (typeof next[project.id] !== "boolean") next[project.id] = true;
+        if (typeof next[project.id] !== 'boolean') next[project.id] = true;
       }
       return next;
     });
@@ -64,7 +63,7 @@ export function useHomeWorkspace({
   }
 
   async function onAddProject() {
-    setAppError?.("");
+    setAppError?.('');
     try {
       const created = await projectBridge.add();
       if (!created) return;
@@ -72,17 +71,20 @@ export function useHomeWorkspace({
       await loadSessionsByProjects(list.map((project) => project.id));
       setActiveProjectId(created.id);
     } catch (e) {
-      setAppError?.(`添加项目失败：${e?.message || "未知错误"}`);
+      setAppError?.(`添加项目失败：${e?.message || '未知错误'}`);
     }
   }
 
   async function handleSessionDrop(projectId, orderedProjectSessions, targetSessionId) {
     const sourceSessionId = draggingSessionId;
-    setDragOverSessionId("");
-    setDraggingSessionId("");
-    if (!projectId || !sourceSessionId || !targetSessionId || sourceSessionId === targetSessionId) return;
+    setDragOverSessionId('');
+    setDraggingSessionId('');
+    if (!projectId || !sourceSessionId || !targetSessionId || sourceSessionId === targetSessionId)
+      return;
 
-    const fromIndex = orderedProjectSessions.findIndex((item) => item.sessionId === sourceSessionId);
+    const fromIndex = orderedProjectSessions.findIndex(
+      (item) => item.sessionId === sourceSessionId,
+    );
     const toIndex = orderedProjectSessions.findIndex((item) => item.sessionId === targetSessionId);
     if (fromIndex < 0 || toIndex < 0) return;
 
@@ -92,20 +94,20 @@ export function useHomeWorkspace({
     await reorderSessions(
       projectId,
       nextOrder.map((item) => ({
-        provider: item.provider || "claude",
-        providerSessionId: item.providerSessionId || item.sessionId
-      }))
+        provider: item.provider || 'claude',
+        providerSessionId: item.providerSessionId || item.sessionId,
+      })),
     );
   }
 
   async function onSyncProjectHistory(project) {
     if (!project) return;
-    setAppError?.("");
+    setAppError?.('');
     try {
       await sidebarSessionBridge.syncProject({ projectId: project.id });
       await refreshSessions();
     } catch (e) {
-      setAppError?.(`读取历史会话失败：${e?.message || "未知错误"}`);
+      setAppError?.(`读取历史会话失败：${e?.message || '未知错误'}`);
     }
   }
 
@@ -120,24 +122,24 @@ export function useHomeWorkspace({
   useEffect(() => {
     if (!activeSessionId) return;
     logBridge.write({
-      level: "info",
-      scope: "app",
-      message: "Ensuring session running",
-      meta: { activeSessionId }
+      level: 'info',
+      scope: 'app',
+      message: 'Ensuring session running',
+      meta: { activeSessionId },
     });
     ensureSessionRunning(activeSessionId);
   }, [activeSessionId, ensureSessionRunning]);
 
   useEffect(() => {
     logBridge.write({
-      level: "info",
-      scope: "app",
-      message: "Selection changed",
+      level: 'info',
+      scope: 'app',
+      message: 'Selection changed',
       meta: {
         activeProjectId: activeProject?.id || null,
         activeSessionId: activeSession?.sessionId || null,
-        activeSessionCwd: activeSession?.cwd || ""
-      }
+        activeSessionCwd: activeSession?.cwd || '',
+      },
     });
   }, [activeProject?.id, activeSession?.sessionId, activeSession?.cwd]);
 
@@ -145,11 +147,11 @@ export function useHomeWorkspace({
     if (!openCreateMenuProjectId) return undefined;
     const onWindowClick = (event) => {
       const target = event.target;
-      if (target instanceof HTMLElement && target.closest(".project-create-wrap")) return;
+      if (target instanceof HTMLElement && target.closest('.project-create-wrap')) return;
       setOpenCreateMenuProjectId(null);
     };
-    window.addEventListener("click", onWindowClick);
-    return () => window.removeEventListener("click", onWindowClick);
+    window.addEventListener('click', onWindowClick);
+    return () => window.removeEventListener('click', onWindowClick);
   }, [openCreateMenuProjectId]);
 
   return {
@@ -188,7 +190,7 @@ export function useHomeWorkspace({
       handleSessionDrop,
       setActiveSession,
       destroySession,
-      setShowAllSessionsByProject
-    }
+      setShowAllSessionsByProject,
+    },
   };
 }

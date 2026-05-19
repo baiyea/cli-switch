@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-const fs = require("node:fs");
-const path = require("node:path");
+const fs = require('node:fs');
+const path = require('node:path');
 
-const ROOT = path.resolve(__dirname, "..");
-const DIR = path.join(ROOT, "src", "pages");
+const ROOT = path.resolve(__dirname, '..');
+const DIR = path.join(ROOT, 'src', 'pages');
 
 function walk(dir, fn) {
   if (!fs.existsSync(dir)) return;
@@ -17,7 +17,7 @@ function walk(dir, fn) {
 let count = 0;
 walk(DIR, (filePath) => {
   if (!/\.(ts|tsx|js|jsx)$/.test(filePath)) return;
-  let content = fs.readFileSync(filePath, "utf8");
+  let content = fs.readFileSync(filePath, 'utf8');
   const orig = content;
 
   // Calculate depth of this file relative to src/pages/
@@ -36,7 +36,7 @@ walk(DIR, (filePath) => {
   // More reliable: manually do a build-and-fix cycle instead of auto-fix
 
   if (orig !== content) {
-    fs.writeFileSync(filePath, content, "utf8");
+    fs.writeFileSync(filePath, content, 'utf8');
     count++;
   }
 });

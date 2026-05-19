@@ -1,14 +1,14 @@
-const path = require("node:path");
-const { test, expect, launchApp, closeApp } = require(path.resolve(__dirname, "../../../../tests/e2e"));
+const path = require('node:path');
+const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
-test.describe("@terminal E2E", () => {
+test.describe('@terminal E2E', () => {
   /** @type {import('playwright').ElectronApplication} */
   let electronApp;
   /** @type {import('playwright').Page} */
   let window;
 
   test.beforeAll(async () => {
-    const cwd = path.resolve(__dirname, "../../../../../");
+    const cwd = path.resolve(__dirname, '../../../../../');
     const result = await launchApp({ cwd });
     electronApp = result.electronApp;
     window = result.window;
@@ -18,8 +18,8 @@ test.describe("@terminal E2E", () => {
     await closeApp({ electronApp });
   });
 
-  test.fixme("click Start Terminal creates a session", async () => {
-    const btn = window.locator("button", { hasText: "Start Terminal" });
+  test.fixme('click Start Terminal creates a session', async () => {
+    const btn = window.locator('button', { hasText: 'Start Terminal' });
     await expect(btn).toBeVisible();
     await btn.click();
     await window.waitForSelector('[data-testid="terminal-pane"]', {
@@ -27,17 +27,17 @@ test.describe("@terminal E2E", () => {
     });
   });
 
-  test.fixme("echo hello returns hello output", async () => {
+  test.fixme('echo hello returns hello output', async () => {
     await window.waitForSelector('[data-testid="terminal-pane"]');
     await window.waitForTimeout(300);
-    await window.keyboard.type("echo hello");
-    await window.keyboard.press("Enter");
+    await window.keyboard.type('echo hello');
+    await window.keyboard.press('Enter');
     await window.waitForTimeout(500);
   });
 
-  test.fixme("pwd returns test project path", async () => {
-    await window.keyboard.type("pwd");
-    await window.keyboard.press("Enter");
+  test.fixme('pwd returns test project path', async () => {
+    await window.keyboard.type('pwd');
+    await window.keyboard.press('Enter');
     await window.waitForTimeout(300);
   });
 });

@@ -1,7 +1,9 @@
-"use strict";
+'use strict';
 
 function normalizeText(text) {
-  return String(text || "").replace(/\s+/g, " ").trim();
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function detectCommands(rawCommand, rawContent) {
@@ -9,11 +11,12 @@ function detectCommands(rawCommand, rawContent) {
   const direct = normalizeText(rawCommand);
   if (direct) commands.push(direct);
 
-  const content = String(rawContent || "");
+  const content = String(rawContent || '');
   const lines = content.split(/\r?\n/);
-  const commandLike = /^(?:[$>#]\s*)?((?:pnpm|npm|yarn|npx|node|python|python3|pytest|git|go|cargo|make|uv|pip|playwright|vite|electron)\b.*)$/i;
+  const commandLike =
+    /^(?:[$>#]\s*)?((?:pnpm|npm|yarn|npx|node|python|python3|pytest|git|go|cargo|make|uv|pip|playwright|vite|electron)\b.*)$/i;
   for (const line of lines) {
-    const cleaned = String(line || "").trim();
+    const cleaned = String(line || '').trim();
     if (!cleaned) continue;
     const matched = cleaned.match(commandLike);
     if (!matched) continue;
@@ -26,16 +29,16 @@ function detectCommands(rawCommand, rawContent) {
 function normalizeMessages(messages = []) {
   return messages.map((item, index) => ({
     turnId: Number(item?.turnId || index + 1),
-    role: String(item?.role || ""),
-    content: normalizeText(item?.content || ""),
-    commands: detectCommands(item?.command || "", item?.content || ""),
-    ts: item?.ts || "",
-    toolName: String(item?.toolName || ""),
-    callId: String(item?.callId || ""),
-    exitCode: Number.isFinite(item?.exitCode) ? Number(item.exitCode) : null
+    role: String(item?.role || ''),
+    content: normalizeText(item?.content || ''),
+    commands: detectCommands(item?.command || '', item?.content || ''),
+    ts: item?.ts || '',
+    toolName: String(item?.toolName || ''),
+    callId: String(item?.callId || ''),
+    exitCode: Number.isFinite(item?.exitCode) ? Number(item.exitCode) : null,
   }));
 }
 
 module.exports = {
-  normalizeMessages
+  normalizeMessages,
 };

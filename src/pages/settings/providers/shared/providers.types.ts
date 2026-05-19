@@ -40,4 +40,4 @@ export interface ProxyTestResult {
   latencyMs?: number;
 }
 
-export type ProviderId = "claude" | "codex" | "gemini";
+export type ProviderId = 'claude' | 'codex' | 'gemini';

@@ -1,4 +1,4 @@
-const { contextBridge } = require("electron");
-const { createPageApis } = require("./register-page-preload");
+const { contextBridge } = require('electron');
+const { createPageApis } = require('./register-page-preload');
 
-contextBridge.exposeInMainWorld("electronAPI", createPageApis());
+contextBridge.exposeInMainWorld('electronAPI', createPageApis());

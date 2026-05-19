@@ -1,7 +1,7 @@
-import { TopToolbar } from "./renderer/TopToolbar";
-import { SkillgenResultDialog } from "./renderer/SkillgenResultDialog";
+import { SkillgenResultDialog } from './renderer/SkillgenResultDialog';
+import { TopToolbar } from './renderer/TopToolbar';
 
-export { TopToolbar, SkillgenResultDialog };
+export { SkillgenResultDialog, TopToolbar };
 
 export const topToolbarRenderer = {
   panels: {

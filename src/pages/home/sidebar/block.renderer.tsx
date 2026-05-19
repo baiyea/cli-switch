@@ -1,4 +1,4 @@
-import { SidebarProjectsPanel } from "./renderer/SidebarProjectsPanel";
+import { SidebarProjectsPanel } from './renderer/SidebarProjectsPanel';
 
 export { SidebarProjectsPanel };
 

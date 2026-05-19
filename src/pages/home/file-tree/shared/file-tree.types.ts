@@ -1,4 +1,4 @@
-export type FileTreeItemType = "file" | "directory";
+export type FileTreeItemType = 'file' | 'directory';
 
 export interface FileTreeItem {
   name: string;

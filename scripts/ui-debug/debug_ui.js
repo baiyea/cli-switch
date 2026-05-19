@@ -9,7 +9,7 @@ function artifactPath(fileName) {
 
 async function run() {
   const browser = await chromium.launch({
-    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   });
   const page = await browser.newPage();
 
@@ -19,7 +19,7 @@ async function run() {
 
   // 截图全屏看看到底显示了什么
   await page.screenshot({ path: artifactPath('debug_app_state.png') });
-  
+
   // 检查是否有错误提示或空白
   const content = await page.content();
   console.log('Page content length:', content.length);

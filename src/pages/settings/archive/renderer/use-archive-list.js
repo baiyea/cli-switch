@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { archiveBridge } from "./archive.bridge";
+import { useState } from 'react';
+
+import { archiveBridge } from './archive.bridge';
 
 export function useArchiveList({ refreshSessions } = {}) {
   const [archivedSessions, setArchivedSessions] = useState([]);
@@ -12,15 +13,12 @@ export function useArchiveList({ refreshSessions } = {}) {
 
   async function onRestoreArchivedSession(archiveId) {
     await archiveBridge.restore({ archiveId });
-    await Promise.all([
-      refreshSessions?.(),
-      loadArchivedSessions()
-    ]);
+    await Promise.all([refreshSessions?.(), loadArchivedSessions()]);
   }
 
   return {
     archivedSessions,
     loadArchivedSessions,
-    onRestoreArchivedSession
+    onRestoreArchivedSession,
   };
 }

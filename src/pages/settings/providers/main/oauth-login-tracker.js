@@ -1,7 +1,7 @@
 function stripAnsiForUrl(text) {
-  return String(text || "")
-    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1B\][^\x07]*(?:\x07|\x1B\\)/g, "");
+  return String(text || '')
+    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\x1B\][^\x07]*(?:\x07|\x1B\\)/g, '');
 }
 
 function extractUrls(text) {
@@ -10,7 +10,9 @@ function extractUrls(text) {
   const seen = new Set();
   const urls = [];
   for (const raw of matches) {
-    const normalized = String(raw || "").trim().replace(/[),.;]+$/, "");
+    const normalized = String(raw || '')
+      .trim()
+      .replace(/[),.;]+$/, '');
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
     urls.push(normalized);
@@ -21,29 +23,31 @@ function extractUrls(text) {
 function shouldAutoOpenOAuthUrl(normalizeProviderId, provider, url) {
   const id = normalizeProviderId(provider);
   if (!url) return false;
-  if (id === "codex") return /auth\.openai\.com|openai\.com/i.test(url);
-  if (id === "gemini") {
+  if (id === 'codex') return /auth\.openai\.com|openai\.com/i.test(url);
+  if (id === 'gemini') {
     try {
       const parsed = new URL(url);
-      const host = String(parsed.hostname || "").toLowerCase();
-      const pathname = String(parsed.pathname || "");
-      if (host !== "accounts.google.com") return false;
-      return /^\/o\/oauth2\/v2\/auth\/?$/i.test(pathname) || /^\/o\/oauth2\/auth\/?$/i.test(pathname);
+      const host = String(parsed.hostname || '').toLowerCase();
+      const pathname = String(parsed.pathname || '');
+      if (host !== 'accounts.google.com') return false;
+      return (
+        /^\/o\/oauth2\/v2\/auth\/?$/i.test(pathname) || /^\/o\/oauth2\/auth\/?$/i.test(pathname)
+      );
     } catch {
       return false;
     }
   }
-  if (id === "claude") return /anthropic|claude/i.test(url);
+  if (id === 'claude') return /anthropic|claude/i.test(url);
   return false;
 }
 
-function toLinksPayload(meta, sid = "") {
+function toLinksPayload(meta, sid = '') {
   return {
     ok: true,
     sessionId: sid,
     allUrls: Array.from(meta?.discoveredUrls || []),
     authUrls: Array.from(meta?.authUrls || []),
-    autoOpenedUrl: meta?.autoOpenedUrl || ""
+    autoOpenedUrl: meta?.autoOpenedUrl || '',
   };
 }
 
@@ -53,12 +57,12 @@ function createOAuthLoginTracker({ normalizeProviderId, openExternal, logInfo, l
   function registerSession({ sessionId, provider, profileId }) {
     sessionMeta.set(sessionId, {
       provider: normalizeProviderId(provider),
-      profileId: String(profileId || ""),
+      profileId: String(profileId || ''),
       createdAt: Date.now(),
       opened: false,
-      autoOpenedUrl: "",
+      autoOpenedUrl: '',
       authUrls: new Set(),
-      discoveredUrls: new Set()
+      discoveredUrls: new Set(),
     });
   }
 
@@ -79,18 +83,18 @@ function createOAuthLoginTracker({ normalizeProviderId, openExternal, logInfo, l
       const authLike = shouldAutoOpenOAuthUrl(normalizeProviderId, meta.provider, url);
       if (authLike) meta.authUrls.add(url);
 
-      logInfo("oauth-login", "Captured OAuth URL from terminal output", {
+      logInfo('oauth-login', 'Captured OAuth URL from terminal output', {
         provider: meta.provider,
         sessionId,
         url,
-        authLike
+        authLike,
       });
 
       if (!authLike) {
-        logInfo("oauth-login", "Captured URL is not recognized as OAuth auth URL, skip auto-open", {
+        logInfo('oauth-login', 'Captured URL is not recognized as OAuth auth URL, skip auto-open', {
           provider: meta.provider,
           sessionId,
-          url
+          url,
         });
         continue;
       }
@@ -100,27 +104,27 @@ function createOAuthLoginTracker({ normalizeProviderId, openExternal, logInfo, l
         meta.autoOpenedUrl = url;
         void openExternal(url)
           .then(() => {
-            logInfo("oauth-login", "Opened OAuth URL in browser", {
+            logInfo('oauth-login', 'Opened OAuth URL in browser', {
               provider: meta.provider,
               sessionId,
-              url
+              url,
             });
           })
           .catch((error) => {
             meta.opened = false;
-            meta.autoOpenedUrl = "";
-            logWarn("oauth-login", "Failed to open OAuth URL in browser", {
+            meta.autoOpenedUrl = '';
+            logWarn('oauth-login', 'Failed to open OAuth URL in browser', {
               provider: meta.provider,
               sessionId,
               url,
-              error: error instanceof Error ? error.message : String(error)
+              error: error instanceof Error ? error.message : String(error),
             });
           });
       }
     }
   }
 
-  function getProviderOAuthLinks({ provider, profileId = "", sessionId = "" }) {
+  function getProviderOAuthLinks({ provider, profileId = '', sessionId = '' }) {
     const normalizedProvider = normalizeProviderId(provider);
     const direct = sessionId ? sessionMeta.get(sessionId) : null;
     if (direct) {
@@ -131,14 +135,14 @@ function createOAuthLoginTracker({ normalizeProviderId, openExternal, logInfo, l
     for (const [sid, meta] of sessionMeta.entries()) {
       if (!meta) continue;
       if (normalizeProviderId(meta.provider) !== normalizedProvider) continue;
-      if (profileId && String(meta.profileId || "") !== String(profileId)) continue;
+      if (profileId && String(meta.profileId || '') !== String(profileId)) continue;
       candidates.push({ sid, meta });
     }
 
     candidates.sort((a, b) => Number(b.meta?.createdAt || 0) - Number(a.meta?.createdAt || 0));
     const latest = candidates[0];
     if (!latest) {
-      return { ok: true, allUrls: [], authUrls: [], autoOpenedUrl: "" };
+      return { ok: true, allUrls: [], authUrls: [], autoOpenedUrl: '' };
     }
 
     return toLinksPayload(latest.meta, latest.sid);
@@ -148,10 +152,10 @@ function createOAuthLoginTracker({ normalizeProviderId, openExternal, logInfo, l
     registerSession,
     unregisterSession,
     handleOutput,
-    getProviderOAuthLinks
+    getProviderOAuthLinks,
   };
 }
 
 module.exports = {
-  createOAuthLoginTracker
+  createOAuthLoginTracker,
 };

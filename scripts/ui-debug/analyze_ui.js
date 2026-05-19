@@ -2,7 +2,7 @@ const { chromium } = require('@playwright/test');
 
 async function run() {
   const browser = await chromium.launch({
-    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   });
   const page = await browser.newPage();
 
@@ -11,13 +11,18 @@ async function run() {
 
   const results = await page.evaluate(() => {
     const switches = Array.from(document.querySelectorAll('button[role="switch"]'));
-    return switches.map(sw => {
+    return switches.map((sw) => {
       const track = sw.getBoundingClientRect();
       const thumb = sw.querySelector('span').getBoundingClientRect();
       return {
         checked: sw.getAttribute('data-state') === 'checked',
         track: { width: track.width, height: track.height },
-        thumb: { width: thumb.width, height: thumb.height, left: thumb.left - track.left, top: thumb.top - track.top }
+        thumb: {
+          width: thumb.width,
+          height: thumb.height,
+          left: thumb.left - track.left,
+          top: thumb.top - track.top,
+        },
       };
     });
   });

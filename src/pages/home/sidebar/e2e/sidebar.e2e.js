@@ -1,14 +1,14 @@
-const path = require("node:path");
-const { test, launchApp, closeApp } = require(path.resolve(__dirname, "../../../../tests/e2e"));
+const path = require('node:path');
+const { test, launchApp, closeApp } = require('../../../../tests/e2e');
 
-test.describe("@sidebar", () => {
+test.describe('@sidebar', () => {
   /** @type {import('playwright').ElectronApplication} */
   let electronApp;
   /** @type {import('playwright').Page} */
   let window;
 
   test.beforeAll(async () => {
-    const cwd = path.resolve(__dirname, "../../../../../");
+    const cwd = path.resolve(__dirname, '../../../../../');
     const result = await launchApp({ cwd });
     electronApp = result.electronApp;
     window = result.window;
@@ -18,5 +18,5 @@ test.describe("@sidebar", () => {
     await closeApp({ electronApp });
   });
 
-  test.todo("project CRUD and session list interactions");
+  test.todo('project CRUD and session list interactions');
 });

@@ -1,13 +1,14 @@
-import React from "react";
-import { Button } from "../../../../ui/button";
+import React from 'react';
+
+import { Button } from '../../../../ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle
-} from "../../../../ui/dialog";
-import { Input } from "../../../../ui/input";
+  DialogTitle,
+} from '../../../../ui/dialog';
+import { Input } from '../../../../ui/input';
 
 export function RenameSessionDialog({
   open,
@@ -20,7 +21,7 @@ export function RenameSessionDialog({
   suggesting,
   suggestedTitle,
   suggestSource,
-  onUseSuggestedTitle
+  onUseSuggestedTitle,
 }) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
@@ -29,7 +30,9 @@ export function RenameSessionDialog({
           <div className="rename-modal-title-wrap">
             <DialogHeader>
               <DialogTitle className="rename-modal-title">重命名会话</DialogTitle>
-              <DialogDescription className="rename-modal-subtitle">保持简短且易于识别。</DialogDescription>
+              <DialogDescription className="rename-modal-subtitle">
+                保持简短且易于识别。
+              </DialogDescription>
             </DialogHeader>
           </div>
           <Button
@@ -53,12 +56,12 @@ export function RenameSessionDialog({
             value={draft}
             onChange={(e) => onDraftChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === 'Enter') {
                 e.preventDefault();
                 onSubmit();
                 return;
               }
-              if (e.key === "Escape") {
+              if (e.key === 'Escape') {
                 e.preventDefault();
                 onClose();
               }
@@ -75,7 +78,7 @@ export function RenameSessionDialog({
                 size="sm"
                 className="rename-suggest-chip"
                 onClick={() => onUseSuggestedTitle(suggestedTitle)}
-                title={suggestSource === "llm" ? "模型生成，点击使用" : "本地回退生成，点击使用"}
+                title={suggestSource === 'llm' ? '模型生成，点击使用' : '本地回退生成，点击使用'}
               >
                 {suggestedTitle}
               </Button>

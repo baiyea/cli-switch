@@ -11,16 +11,12 @@
     {
       "from": "dist",
       "to": "dist",
-      "filter": [
-        "**/*"
-      ]
+      "filter": ["**/*"]
     },
     {
       "from": "src",
       "to": "src",
-      "filter": [
-        "**/*"
-      ]
+      "filter": ["**/*"]
     },
     "!**/*.map",
     "!**/*.d.ts",
@@ -32,20 +28,17 @@
     {
       "from": "build/cli-runtime",
       "to": "cli-runtime",
-      "filter": [
-        "**/*"
-      ]
+      "filter": ["**/*"]
     }
   ],
   "mac": {
-    "target": [
-      "dmg"
-    ],
+    "target": ["dmg"],
     "icon": "src/assets/app-icons/mac/app.icns",
     "category": "public.app-category.developer-tools",
     "hardenedRuntime": true,
     "gatekeeperAssess": false,
     "extendInfo": {
+      "CFBundleIconName": "app",
       "LSUIElement": true
     },
     "entitlements": "build/entitlements.mac.plist",
@@ -57,9 +50,7 @@
   },
   "afterSign": "scripts/notarize.js",
   "win": {
-    "target": [
-      "nsis"
-    ],
+    "target": ["nsis"],
     "icon": "src/assets/app-icons/win/app.ico",
     "requestedExecutionLevel": "asInvoker"
   },

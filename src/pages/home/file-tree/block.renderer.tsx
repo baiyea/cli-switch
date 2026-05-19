@@ -1,4 +1,4 @@
-import { ExplorerPane } from "./renderer/ExplorerPane";
+import { ExplorerPane } from './renderer/ExplorerPane';
 
 export { ExplorerPane };
 

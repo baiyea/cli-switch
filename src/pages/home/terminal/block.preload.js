@@ -1,4 +1,4 @@
-const { createTerminalApi } = require("./preload/terminal.api");
+const { createTerminalApi } = require('./preload/terminal.api');
 
 function createTerminalPreloadApi() {
   return createTerminalApi();

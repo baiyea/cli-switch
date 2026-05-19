@@ -1,4 +1,4 @@
-import { ArchiveSettingsSection } from "./renderer/ArchiveSettingsSection";
+import { ArchiveSettingsSection } from './renderer/ArchiveSettingsSection';
 
 export const archiveRenderer = {
   panels: {

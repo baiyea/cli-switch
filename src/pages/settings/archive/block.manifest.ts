@@ -1,15 +1,15 @@
 export const archiveManifest = {
-  name: "archive",
-  title: "Archive",
-  description: "归档会话列表、恢复、删除",
+  name: 'archive',
+  title: 'Archive',
+  description: '归档会话列表、恢复、删除',
 
-  apiNamespace: "archive",
+  apiNamespace: 'archive',
 
   panels: {
-    settings: "archive.settings",
+    settings: 'archive.settings',
   },
 
   e2e: {
-    tag: "@archive",
+    tag: '@archive',
   },
 } as const;

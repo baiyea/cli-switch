@@ -104,21 +104,21 @@ src/pages/home/terminal/
 
 ### 文件命名规则
 
-| 文件角色 | 命名格式 | 示例 |
-|---------|---------|------|
-| Block 主进程入口 | `block.main.js` | `terminal/block.main.js` |
-| Block 预加载入口 | `block.preload.js` | `terminal/block.preload.js` |
-| Block 渲染入口 | `block.renderer.tsx` | `terminal/block.renderer.tsx` |
-| IPC 处理器 | `{block}.ipc.js`，放在 `main/` | `main/terminal.ipc.js` |
-| Preload API | `{block}.api.js`，放在 `preload/` | `preload/terminal.api.js` |
-| IPC Channel 定义 | `{block}.channels.js`，放在 `shared/` | `shared/terminal.channels.js` |
-| Bridge（渲染端） | `{block}.bridge.ts`，放在 `renderer/` | `renderer/terminal.bridge.ts` |
-| 类型定义 | `{block}.types.ts`，放在 `shared/` | `shared/terminal.types.ts` |
-| E2E 测试 | `{name}.e2e.js`，放在 `e2e/` | `e2e/terminal.e2e.js` |
-| Store | `{scope}.store.ts` | `pages.store.ts`、`home.store.ts` |
-| 页面组件 | `{PageName}Page.tsx` | `HomePage.tsx` |
-| Manifest | `{block}.manifest.ts` | `terminal.manifest.ts` |
-| README | `README.md` | 每个 block 根目录必备 |
+| 文件角色         | 命名格式                              | 示例                              |
+| ---------------- | ------------------------------------- | --------------------------------- |
+| Block 主进程入口 | `block.main.js`                       | `terminal/block.main.js`          |
+| Block 预加载入口 | `block.preload.js`                    | `terminal/block.preload.js`       |
+| Block 渲染入口   | `block.renderer.tsx`                  | `terminal/block.renderer.tsx`     |
+| IPC 处理器       | `{block}.ipc.js`，放在 `main/`        | `main/terminal.ipc.js`            |
+| Preload API      | `{block}.api.js`，放在 `preload/`     | `preload/terminal.api.js`         |
+| IPC Channel 定义 | `{block}.channels.js`，放在 `shared/` | `shared/terminal.channels.js`     |
+| Bridge（渲染端） | `{block}.bridge.ts`，放在 `renderer/` | `renderer/terminal.bridge.ts`     |
+| 类型定义         | `{block}.types.ts`，放在 `shared/`    | `shared/terminal.types.ts`        |
+| E2E 测试         | `{name}.e2e.js`，放在 `e2e/`          | `e2e/terminal.e2e.js`             |
+| Store            | `{scope}.store.ts`                    | `pages.store.ts`、`home.store.ts` |
+| 页面组件         | `{PageName}Page.tsx`                  | `HomePage.tsx`                    |
+| Manifest         | `{block}.manifest.ts`                 | `terminal.manifest.ts`            |
+| README           | `README.md`                           | 每个 block 根目录必备             |
 
 - **目录和文件一律使用 kebab-case**（如 `top-toolbar`、`file-tree`）。
 - **组件文件使用 PascalCase**（如 `TopToolbar.jsx`、`TerminalPanel.tsx`）。
@@ -170,12 +170,12 @@ src/pages/home/terminal/
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | 启动开发环境 |
-| `pnpm build` | 生产构建 |
-| `pnpm start` | 启动 Electron |
-| `pnpm test` | 运行单元测试 |
+| Command         | Description         |
+| --------------- | ------------------- |
+| `pnpm dev`      | 启动开发环境        |
+| `pnpm build`    | 生产构建            |
+| `pnpm start`    | 启动 Electron       |
+| `pnpm test`     | 运行单元测试        |
 | `pnpm test:e2e` | 运行 Playwright E2E |
 
 ## 验收重点

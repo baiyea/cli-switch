@@ -1,7 +1,7 @@
 export interface ArchivedSessionItem {
   archiveId: string;
   sessionId: string;
-  provider: "claude" | "codex" | "gemini";
+  provider: 'claude' | 'codex' | 'gemini';
   projectId: string | null;
   name: string;
   cwd: string;
@@ -14,5 +14,5 @@ export const archiveBridge = {
   },
   restore(payload: { archiveId: string }): Promise<{ ok: boolean }> {
     return window.electronAPI.sessions.restore(payload.archiveId);
-  }
+  },
 };

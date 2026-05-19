@@ -1,4 +1,4 @@
-const { createProvidersApi } = require("./preload/providers.api");
+const { createProvidersApi } = require('./preload/providers.api');
 
 function createProvidersPreloadApi() {
   return createProvidersApi();

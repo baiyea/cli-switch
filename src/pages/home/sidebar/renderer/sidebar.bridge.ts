@@ -13,11 +13,11 @@ export const projectBridge = {
   },
   remove(id: string): Promise<void> {
     return window.electronAPI.projects.remove(id);
-  }
+  },
 };
 
 export const sidebarSessionBridge = {
   syncProject(payload: { projectId: string }): Promise<{ ok: boolean; count: number }> {
     return window.electronAPI.sessions.syncProject(payload);
-  }
+  },
 };

@@ -1,60 +1,65 @@
-import { useEffect, useRef, useState } from "react";
-import { terminalSessionBridge } from "./terminal.bridge";
+import { useEffect, useRef, useState } from 'react';
+
+import { terminalSessionBridge } from './terminal.bridge';
 
 export function useSessionRename({ sessions, renameSession, setAppError }) {
   const [renameModalOpen, setRenameModalOpen] = useState(false);
-  const [renameSessionId, setRenameSessionId] = useState("");
-  const [renameDraft, setRenameDraft] = useState("");
+  const [renameSessionId, setRenameSessionId] = useState('');
+  const [renameDraft, setRenameDraft] = useState('');
   const [renameSubmitting, setRenameSubmitting] = useState(false);
-  const [renameSuggestedTitle, setRenameSuggestedTitle] = useState("");
+  const [renameSuggestedTitle, setRenameSuggestedTitle] = useState('');
   const [renameSuggesting, setRenameSuggesting] = useState(false);
-  const [renameSuggestSource, setRenameSuggestSource] = useState("");
+  const [renameSuggestSource, setRenameSuggestSource] = useState('');
   const renameInputRef = useRef(null);
 
   function openRenameModal(sessionId) {
     const target = sessions.find((item) => item.sessionId === sessionId);
     if (!target) return;
-    setAppError?.("");
+    setAppError?.('');
     setRenameSessionId(target.sessionId);
-    setRenameDraft(target.name || "");
+    setRenameDraft(target.name || '');
     setRenameSubmitting(false);
-    setRenameSuggestedTitle("");
+    setRenameSuggestedTitle('');
     setRenameSuggesting(true);
-    setRenameSuggestSource("");
+    setRenameSuggestSource('');
     setRenameModalOpen(true);
-    void terminalSessionBridge.suggestTitle({
-      sessionId: target.sessionId,
-      provider: target.provider,
-      providerSessionId: target.providerSessionId
-    }).then((result) => {
-      if (!result?.ok) return;
-      setRenameSuggestedTitle(result.title || "");
-      setRenameSuggestSource(result.source || "");
-    }).catch(() => {
-      setRenameSuggestSource("fallback");
-    }).finally(() => {
-      setRenameSuggesting(false);
-    });
+    void terminalSessionBridge
+      .suggestTitle({
+        sessionId: target.sessionId,
+        provider: target.provider,
+        providerSessionId: target.providerSessionId,
+      })
+      .then((result) => {
+        if (!result?.ok) return;
+        setRenameSuggestedTitle(result.title || '');
+        setRenameSuggestSource(result.source || '');
+      })
+      .catch(() => {
+        setRenameSuggestSource('fallback');
+      })
+      .finally(() => {
+        setRenameSuggesting(false);
+      });
   }
 
   function closeRenameModal(forceClose = false) {
     if (renameSubmitting && !forceClose) return;
     setRenameModalOpen(false);
-    setRenameSessionId("");
-    setRenameDraft("");
+    setRenameSessionId('');
+    setRenameDraft('');
     setRenameSubmitting(false);
-    setRenameSuggestedTitle("");
+    setRenameSuggestedTitle('');
     setRenameSuggesting(false);
-    setRenameSuggestSource("");
+    setRenameSuggestSource('');
   }
 
   async function submitRenameModal() {
     if (!renameModalOpen || !renameSessionId || renameSubmitting) return;
     const targetSession = sessions.find((item) => item.sessionId === renameSessionId);
-    const originalTitle = targetSession?.name || "";
-    const nextTitle = String(renameDraft || "").trim();
+    const originalTitle = targetSession?.name || '';
+    const nextTitle = String(renameDraft || '').trim();
     if (!nextTitle) {
-      setAppError?.("会话标题不能为空");
+      setAppError?.('会话标题不能为空');
       return;
     }
 
@@ -65,7 +70,7 @@ export function useSessionRename({ sessions, renameSession, setAppError }) {
       }
       closeRenameModal(true);
     } catch (e) {
-      setAppError?.(`重命名会话失败：${e?.message || "未知错误"}`);
+      setAppError?.(`重命名会话失败：${e?.message || '未知错误'}`);
       setRenameSubmitting(false);
     }
   }
@@ -97,7 +102,7 @@ export function useSessionRename({ sessions, renameSession, setAppError }) {
       suggesting: renameSuggesting,
       suggestedTitle: renameSuggestedTitle,
       suggestSource: renameSuggestSource,
-      onUseSuggestedTitle: setRenameDraft
-    }
+      onUseSuggestedTitle: setRenameDraft,
+    },
   };
 }

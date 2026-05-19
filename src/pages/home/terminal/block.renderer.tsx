@@ -1,7 +1,7 @@
-import { TerminalPanel } from "./renderer/TerminalPanel";
-import { RenameSessionDialog } from "./renderer/RenameSessionDialog";
+import { RenameSessionDialog } from './renderer/RenameSessionDialog';
+import { TerminalPanel } from './renderer/TerminalPanel';
 
-export { TerminalPanel, RenameSessionDialog };
+export { RenameSessionDialog, TerminalPanel };
 
 export const terminalRenderer = {
   panels: {

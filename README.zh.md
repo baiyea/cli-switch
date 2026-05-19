@@ -10,13 +10,13 @@
 
 ## 为什么选择 Cli-Switch？
 
-| 痛点 | Cli-Switch |
-|------|------------|
-| 三套 CLI 分别安装和升级 | 运行时预打包，随应用一起更新 |
-| 每个工具单独管理环境变量和认证 | 可视化配置界面，支持 API Key / OAuth / 代理 |
-| 项目中途切换供应商 | 一键点击侧栏供应商标签 |
-| 跨工具的会话历史难以追溯 | SQLite 持久化，支持归档与恢复 |
-| 无法复用成功的工作模式 | AI 驱动的技能萃取，从会话记录中提炼可复用技能，实现自进化 |
+| 痛点                           | Cli-Switch                                                |
+| ------------------------------ | --------------------------------------------------------- |
+| 三套 CLI 分别安装和升级        | 运行时预打包，随应用一起更新                              |
+| 每个工具单独管理环境变量和认证 | 可视化配置界面，支持 API Key / OAuth / 代理               |
+| 项目中途切换供应商             | 一键点击侧栏供应商标签                                    |
+| 跨工具的会话历史难以追溯       | SQLite 持久化，支持归档与恢复                             |
+| 无法复用成功的工作模式         | AI 驱动的技能萃取，从会话记录中提炼可复用技能，实现自进化 |
 
 ---
 
@@ -34,14 +34,14 @@
 
 除默认供应商外，Cli-Switch 通过 Profile 机制支持几乎所有大模型接口：
 
-| 供应商 | Profile 类型 | 可用模型示例 |
-|--------|-------------|-------------|
-| Anthropic（Claude）| API Key / OAuth | Claude Opus、Sonnet |
-| OpenAI（Codex）| API Key / OAuth | GPT-4o、GPT-5 |
-| Google（Gemini）| API Key / OAuth | Gemini 2.5、2.8 |
-| Kimi（月之暗面）| Code Plan（基于 Claude）| kimi-for-coding |
-| MiniMax | Code Plan（基于 Claude）| MiniMax-M2.5 |
-| DeepSeek | Code Plan（基于 Claude）| deepseek-v4-pro |
+| 供应商              | Profile 类型             | 可用模型示例        |
+| ------------------- | ------------------------ | ------------------- |
+| Anthropic（Claude） | API Key / OAuth          | Claude Opus、Sonnet |
+| OpenAI（Codex）     | API Key / OAuth          | GPT-4o、GPT-5       |
+| Google（Gemini）    | API Key / OAuth          | Gemini 2.5、2.8     |
+| Kimi（月之暗面）    | Code Plan（基于 Claude） | kimi-for-coding     |
+| MiniMax             | Code Plan（基于 Claude） | MiniMax-M2.5        |
+| DeepSeek            | Code Plan（基于 Claude） | deepseek-v4-pro     |
 
 每个 Profile 支持**自定义 Base URL**、**自定义模型名称**和**代理配置** —— 任何兼容 OpenAI/Anthropic 协议的接口均可开箱即用。
 
@@ -129,15 +129,15 @@ pnpm dist:win         # Windows x64
 
 ### 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| 桌面框架 | Electron 35 |
-| UI | React 18 + Tailwind CSS + Radix UI |
-| 终端 | xterm.js + node-pty |
-| 数据库 | SQLite（better-sqlite3）|
-| 状态管理 | Zustand |
-| 构建 | Vite + electron-builder |
-| 测试 | Playwright（E2E）|
+| 层级     | 技术                               |
+| -------- | ---------------------------------- |
+| 桌面框架 | Electron 35                        |
+| UI       | React 18 + Tailwind CSS + Radix UI |
+| 终端     | xterm.js + node-pty                |
+| 数据库   | SQLite（better-sqlite3）           |
+| 状态管理 | Zustand                            |
+| 构建     | Vite + electron-builder            |
+| 测试     | Playwright（E2E）                  |
 
 ---
 

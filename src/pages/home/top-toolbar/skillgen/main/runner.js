@@ -1,35 +1,37 @@
-"use strict";
+'use strict';
 
-const fs = require("node:fs");
-const path = require("node:path");
-const { readSessionFile } = require("./ingest");
-const { normalizeMessages } = require("./normalize");
-const { extractSuccessfulCommands, groupRecordsToCandidates } = require("./extractor");
-const { scoreCandidate } = require("./scorer");
-const { classifyCandidates } = require("./dedup");
-const { writeSkillFile } = require("./writer");
-const { openStateDb } = require("./index");
-const SKILLGEN_STATE_VERSION = "v3-llm-extractor-1";
+const fs = require('node:fs');
+const path = require('node:path');
+const { readSessionFile } = require('./ingest');
+const { normalizeMessages } = require('./normalize');
+const { extractSuccessfulCommands, groupRecordsToCandidates } = require('./extractor');
+const { scoreCandidate } = require('./scorer');
+const { classifyCandidates } = require('./dedup');
+const { writeSkillFile } = require('./writer');
+const { openStateDb } = require('./index');
+const SKILLGEN_STATE_VERSION = 'v3-llm-extractor-1';
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
 function writeJson(filePath, payload) {
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf8");
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
 }
 
 function cleanText(text) {
-  return String(text || "").replace(/\s+/g, " ").trim();
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function slugifyText(text, fallback = "session-skill") {
+function slugifyText(text, fallback = 'session-skill') {
   const raw = cleanText(text).toLowerCase();
   const slug = raw
-    .replace(/[`"'“”‘’]/g, "")
-    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-+/g, "-")
+    .replace(/[`"'“”‘’]/g, '')
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-+/g, '-')
     .slice(0, 56);
   return slug || fallback;
 }
@@ -47,10 +49,10 @@ function compactArray(values = [], maxItems = 8, maxLen = 220) {
   return result;
 }
 
-function toModelCandidate(item, { sessionId = "", sessionFilePath = "" }) {
-  const title = cleanText(item?.title || item?.name || "");
+function toModelCandidate(item, { sessionId = '', sessionFilePath = '' }) {
+  const title = cleanText(item?.title || item?.name || '');
   if (!title) return null;
-  const slug = slugifyText(item?.slug || title, "session-skill");
+  const slug = slugifyText(item?.slug || title, 'session-skill');
   const commands = compactArray(item?.commands || [], 8, 240);
   const evidence = compactArray(item?.evidence || item?.validation || [], 10, 260);
   const contexts = compactArray(item?.contexts || item?.context || [], 6, 260);
@@ -65,14 +67,18 @@ function toModelCandidate(item, { sessionId = "", sessionFilePath = "" }) {
     sessionFilePaths: sessionFilePath ? [sessionFilePath] : [],
     llm: {
       name: cleanText(item?.name || title),
-      description: cleanText(item?.description || item?.summary || ""),
-      summary: cleanText(item?.summary || item?.description || ""),
+      description: cleanText(item?.description || item?.summary || ''),
+      summary: cleanText(item?.summary || item?.description || ''),
       tags: compactArray(item?.tags || [], 8, 40),
       steps: compactArray(item?.steps || [], 12, 260),
       whenToUse: compactArray(item?.whenToUse || item?.when_to_use || [], 10, 200),
       validation: compactArray(item?.validation || [], 10, 220),
-      antiPatterns: compactArray(item?.antiPatterns || item?.anti_patterns || item?.pitfalls || [], 10, 220)
-    }
+      antiPatterns: compactArray(
+        item?.antiPatterns || item?.anti_patterns || item?.pitfalls || [],
+        10,
+        220,
+      ),
+    },
   };
 }
 
@@ -87,7 +93,7 @@ function mergeCandidates(candidates = []) {
         evidence: new Set(candidate.evidence || []),
         contexts: new Set(candidate.contexts || []),
         sessionIds: new Set(candidate.sessionIds || []),
-        sessionFilePaths: new Set(candidate.sessionFilePaths || [])
+        sessionFilePaths: new Set(candidate.sessionFilePaths || []),
       });
       continue;
     }
@@ -97,11 +103,11 @@ function mergeCandidates(candidates = []) {
     for (const value of candidate.contexts || []) existing.contexts.add(value);
     for (const value of candidate.sessionIds || []) existing.sessionIds.add(value);
     for (const value of candidate.sessionFilePaths || []) existing.sessionFilePaths.add(value);
-    if ((candidate.title || "").length > (existing.title || "").length) {
+    if ((candidate.title || '').length > (existing.title || '').length) {
       existing.title = candidate.title;
     }
-    const oldSummaryLen = String(existing?.llm?.summary || "").length;
-    const newSummaryLen = String(candidate?.llm?.summary || "").length;
+    const oldSummaryLen = String(existing?.llm?.summary || '').length;
+    const newSummaryLen = String(candidate?.llm?.summary || '').length;
     if (newSummaryLen > oldSummaryLen) {
       existing.llm = candidate.llm;
     }
@@ -113,34 +119,47 @@ function mergeCandidates(candidates = []) {
     evidence: Array.from(item.evidence || []),
     contexts: Array.from(item.contexts || []),
     sessionIds: Array.from(item.sessionIds || []),
-    sessionFilePaths: Array.from(item.sessionFilePaths || [])
+    sessionFilePaths: Array.from(item.sessionFilePaths || []),
   }));
 }
 
 function toModelTranscript(normalizedMessages = []) {
   const lines = [];
   for (const message of normalizedMessages) {
-    const role = cleanText(message?.role || "unknown") || "unknown";
-    const command = Array.isArray(message?.commands) && message.commands.length > 0
-      ? ` command=${message.commands[0]}`
-      : "";
-    const exitCode = typeof message?.exitCode === "number" ? ` exit=${message.exitCode}` : "";
-    const content = cleanText(message?.content || "");
+    const role = cleanText(message?.role || 'unknown') || 'unknown';
+    const command =
+      Array.isArray(message?.commands) && message.commands.length > 0
+        ? ` command=${message.commands[0]}`
+        : '';
+    const exitCode = typeof message?.exitCode === 'number' ? ` exit=${message.exitCode}` : '';
+    const content = cleanText(message?.content || '');
     if (!content) continue;
     lines.push(`[${role}${command}${exitCode}] ${content}`);
   }
   return lines.slice(-180);
 }
 
-function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, logError, extractCandidatesWithModel }) {
-  async function runForProject({ projectId, trigger = "manual", rebuild = false, focusSessionId = "" }) {
+function createSkillgenRunner({
+  projectStore,
+  sessionStore,
+  logInfo,
+  logWarn,
+  logError,
+  extractCandidatesWithModel,
+}) {
+  async function runForProject({
+    projectId,
+    trigger = 'manual',
+    rebuild = false,
+    focusSessionId = '',
+  }) {
     const project = projectStore.getById(projectId);
     if (!project?.path) {
-      throw new Error("Project not found or path missing");
+      throw new Error('Project not found or path missing');
     }
 
     const workspacePath = path.resolve(project.path);
-    const skillsRoot = path.join(workspacePath, ".claude", "skills");
+    const skillsRoot = path.join(workspacePath, '.claude', 'skills');
     ensureDir(skillsRoot);
     const state = openStateDb(workspacePath);
     const runStartedAt = Date.now();
@@ -150,7 +169,7 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
       projectPath: workspacePath,
       trigger,
       rebuild,
-      focusSessionId: String(focusSessionId || "").trim(),
+      focusSessionId: String(focusSessionId || '').trim(),
       scanned: 0,
       changed: 0,
       skipped: 0,
@@ -164,7 +183,7 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
       modelExtracted: 0,
       modelAccepted: 0,
       skillPaths: [],
-      warnings: []
+      warnings: [],
     };
 
     const records = [];
@@ -172,8 +191,8 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
     let focusSessionMatched = false;
     try {
       for (const row of rows) {
-        const sessionFilePath = String(row.session_file_path || "").trim();
-        const rowSessionId = String(row.provider_session_id || row.id || "").trim();
+        const sessionFilePath = String(row.session_file_path || '').trim();
+        const rowSessionId = String(row.provider_session_id || row.id || '').trim();
         const shouldForceSession = !!stats.focusSessionId && rowSessionId === stats.focusSessionId;
         if (shouldForceSession) {
           focusSessionMatched = true;
@@ -183,7 +202,7 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
 
         const ingested = readSessionFile(sessionFilePath);
         if (!ingested.ok) {
-          if (ingested.reason === "missing" || ingested.reason === "not-file") stats.missing += 1;
+          if (ingested.reason === 'missing' || ingested.reason === 'not-file') stats.missing += 1;
           else stats.parseFailed += 1;
           stats.warnings.push(`skip ${sessionFilePath}: ${ingested.reason}`);
           continue;
@@ -200,27 +219,29 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
 
         const normalized = normalizeMessages(ingested.messages);
         sessionInputs.push({
-          provider: row.provider || "claude",
+          provider: row.provider || 'claude',
           sessionId: rowSessionId,
           sessionFilePath: ingested.absPath,
-          normalizedMessages: normalized
+          normalizedMessages: normalized,
         });
 
-        if (typeof extractCandidatesWithModel !== "function") {
+        if (typeof extractCandidatesWithModel !== 'function') {
           const extracted = extractSuccessfulCommands({
             normalizedMessages: normalized,
-            sessionId: row.provider_session_id || row.id || "",
-            sessionFilePath: ingested.absPath
+            sessionId: row.provider_session_id || row.id || '',
+            sessionFilePath: ingested.absPath,
           });
           records.push(...extracted);
         }
       }
       if (stats.focusSessionId && !focusSessionMatched) {
-        stats.warnings.push(`focus session not found in active session files: ${stats.focusSessionId}`);
+        stats.warnings.push(
+          `focus session not found in active session files: ${stats.focusSessionId}`,
+        );
       }
 
       let grouped = [];
-      if (typeof extractCandidatesWithModel === "function") {
+      if (typeof extractCandidatesWithModel === 'function') {
         const modelCandidates = [];
         for (const input of sessionInputs) {
           try {
@@ -229,16 +250,16 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
             const extracted = await extractCandidatesWithModel({
               projectId,
               projectPath: workspacePath,
-              providerHint: input.provider || "claude",
+              providerHint: input.provider || 'claude',
               sessionId: input.sessionId,
               sessionFilePath: input.sessionFilePath,
-              transcript
+              transcript,
             });
             if (!Array.isArray(extracted) || extracted.length === 0) continue;
             for (const item of extracted) {
               const candidate = toModelCandidate(item, {
                 sessionId: input.sessionId,
-                sessionFilePath: input.sessionFilePath
+                sessionFilePath: input.sessionFilePath,
               });
               if (!candidate) continue;
               modelCandidates.push(candidate);
@@ -246,10 +267,10 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
           } catch (error) {
             const reason = error instanceof Error ? error.message : String(error);
             stats.warnings.push(`model extract failed (${input.sessionId}): ${reason}`);
-            logWarn("skillgen", "Model extraction failed for session, fallback to rules", {
+            logWarn('skillgen', 'Model extraction failed for session, fallback to rules', {
               projectId,
               sessionId: input.sessionId,
-              reason
+              reason,
             });
           }
         }
@@ -257,21 +278,21 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
         grouped = mergeCandidates(modelCandidates);
       }
 
-      if (grouped.length === 0 && typeof extractCandidatesWithModel !== "function") {
+      if (grouped.length === 0 && typeof extractCandidatesWithModel !== 'function') {
         grouped = groupRecordsToCandidates(records);
       }
-      if (grouped.length === 0 && typeof extractCandidatesWithModel === "function") {
-        stats.warnings.push("model extracted 0 candidates from changed sessions");
+      if (grouped.length === 0 && typeof extractCandidatesWithModel === 'function') {
+        stats.warnings.push('model extracted 0 candidates from changed sessions');
       }
       const scored = grouped.map(scoreCandidate);
       const classified = classifyCandidates(scored, skillsRoot);
 
       for (const candidate of classified) {
-        if (candidate.status === "discarded") {
+        if (candidate.status === 'discarded') {
           stats.discarded += 1;
           continue;
         }
-        if (candidate.status === "draft") {
+        if (candidate.status === 'draft') {
           stats.drafted += 1;
           const draftPath = path.join(state.candidatesDir, `${candidate.slug}.json`);
           writeJson(draftPath, candidate);
@@ -281,8 +302,8 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
         stats.accepted += 1;
         if (candidate.llm) stats.modelAccepted += 1;
         const writeResult = writeSkillFile(skillsRoot, candidate);
-        if (writeResult.mode === "created") stats.created += 1;
-        if (writeResult.mode === "updated") stats.updated += 1;
+        if (writeResult.mode === 'created') stats.created += 1;
+        if (writeResult.mode === 'updated') stats.updated += 1;
         stats.skillPaths.push(writeResult.skillPath);
       }
 
@@ -290,22 +311,22 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
       const runSummary = {
         ...stats,
         elapsedMs,
-        finishedAt: new Date().toISOString()
+        finishedAt: new Date().toISOString(),
       };
       const logPath = path.join(state.runLogsDir, `${Date.now()}-run.json`);
       writeJson(logPath, runSummary);
-      logInfo("skillgen", "Workspace skill generation finished", runSummary);
+      logInfo('skillgen', 'Workspace skill generation finished', runSummary);
 
       return {
         ok: true,
         ...runSummary,
-        logPath
+        logPath,
       };
     } catch (error) {
-      logError("skillgen", "Workspace skill generation failed", error, {
+      logError('skillgen', 'Workspace skill generation failed', error, {
         projectId,
         projectPath: workspacePath,
-        trigger
+        trigger,
       });
       throw error;
     } finally {
@@ -314,10 +335,10 @@ function createSkillgenRunner({ projectStore, sessionStore, logInfo, logWarn, lo
   }
 
   return {
-    runForProject
+    runForProject,
   };
 }
 
 module.exports = {
-  createSkillgenRunner
+  createSkillgenRunner,
 };

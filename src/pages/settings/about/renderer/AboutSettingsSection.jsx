@@ -1,6 +1,5 @@
-import React, { useState } from "react";
-import { settingsBridge } from "../../providers/renderer/providers.bridge";
-import { Button } from "../../../../ui/button";
+import React, { useState } from 'react';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,18 +8,20 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle
-} from "../../../../ui/alert-dialog";
+  AlertDialogTitle,
+} from '../../../../ui/alert-dialog';
+import { Button } from '../../../../ui/button';
+import { settingsBridge } from '../../providers/renderer/providers.bridge';
 
 export function AboutSettingsSection({ appVersion, appLogo }) {
   const [cleaning, setCleaning] = useState(false);
   const [cleanConfirmOpen, setCleanConfirmOpen] = useState(false);
-  const [cleanResult, setCleanResult] = useState({ type: "", message: "", paths: [] });
+  const [cleanResult, setCleanResult] = useState({ type: '', message: '', paths: [] });
 
   const toDisplayPath = (value) => {
-    const raw = String(value || "");
+    const raw = String(value || '');
     if (!raw) return raw;
-    const userHome = (typeof process !== "undefined" && process?.env?.HOME) || "";
+    const userHome = (typeof process !== 'undefined' && process?.env?.HOME) || '';
     if (userHome && raw.startsWith(userHome)) {
       return `~${raw.slice(userHome.length)}`;
     }
@@ -30,23 +31,25 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
   const handleCleanRuntimeData = async () => {
     if (cleaning) return;
     setCleaning(true);
-    setCleanResult({ type: "", message: "", paths: [] });
+    setCleanResult({ type: '', message: '', paths: [] });
     try {
       const result = await settingsBridge.cleanRuntimeData();
       if (!result?.ok) {
-        throw new Error(result?.message || "运行数据清理失败");
+        throw new Error(result?.message || '运行数据清理失败');
       }
-      const uniquePaths = Array.from(new Set([...(result.runtimeDirs || []), result.dbPath].filter(Boolean)));
+      const uniquePaths = Array.from(
+        new Set([...(result.runtimeDirs || []), result.dbPath].filter(Boolean)),
+      );
       setCleanResult({
-        type: "success",
-        message: "运行数据已清理完成",
-        paths: uniquePaths.map((item) => toDisplayPath(item))
+        type: 'success',
+        message: '运行数据已清理完成',
+        paths: uniquePaths.map((item) => toDisplayPath(item)),
       });
     } catch (error) {
       setCleanResult({
-        type: "error",
+        type: 'error',
         message: error instanceof Error ? error.message : String(error),
-        paths: []
+        paths: [],
       });
     } finally {
       setCleaning(false);
@@ -58,15 +61,23 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
       <div className="flex-1 flex flex-col gap-3.5">
         <div className="flex items-center gap-3.5">
           {appLogo ? (
-            <img src={appLogo} alt="Cli-Switch logo" className="h-20 w-20 rounded-lg object-cover" />
+            <img
+              src={appLogo}
+              alt="Cli-Switch logo"
+              className="h-20 w-20 rounded-lg object-cover"
+            />
           ) : (
             <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-[#565e74]">
               <span className="text-[30px] text-white">▣</span>
             </div>
           )}
           <div className="flex flex-col gap-1">
-            <div className="text-[22px] font-extrabold tracking-tight text-[#EDEDEF]">Cli-Switch</div>
-            <div className="text-[12px] text-[#8A8A90]">Seamlessly switch between AI coding assistants.</div>
+            <div className="text-[22px] font-extrabold tracking-tight text-[#EDEDEF]">
+              Cli-Switch
+            </div>
+            <div className="text-[12px] text-[#8A8A90]">
+              Seamlessly switch between AI coding assistants.
+            </div>
           </div>
         </div>
 
@@ -75,7 +86,9 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
         <div className="flex flex-col gap-2.5">
           <div className="flex justify-between items-center">
             <span className="text-[12px] text-[#8A8A90]">Platform</span>
-            <span className="text-[12px] font-semibold text-[#EDEDEF]">Electron + React + TypeScript</span>
+            <span className="text-[12px] font-semibold text-[#EDEDEF]">
+              Electron + React + TypeScript
+            </span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-[12px] text-[#8A8A90]">Terminal Core</span>
@@ -103,26 +116,40 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
               disabled={cleaning}
               className="h-7 rounded-[4px] border border-white/10 bg-white/[0.08] px-3 text-[12px] font-semibold text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]"
             >
-              {cleaning ? "清理中..." : "一键清理"}
+              {cleaning ? '清理中...' : '一键清理'}
             </Button>
           </div>
           {cleanResult.message ? (
-            <div className={`text-xs ${cleanResult.type === "error" ? "text-[#f6a3ad]" : "text-[#8A8A90]"}`}>
+            <div
+              className={`text-xs ${cleanResult.type === 'error' ? 'text-[#f6a3ad]' : 'text-[#8A8A90]'}`}
+            >
               {cleanResult.message}
-              {cleanResult.paths.length > 0 ? `：${cleanResult.paths.join("、")}` : ""}
+              {cleanResult.paths.length > 0 ? `：${cleanResult.paths.join('、')}` : ''}
             </div>
           ) : null}
           <div className="h-px w-full bg-white/[0.08]" />
         </div>
 
         <div className="mt-auto flex justify-center gap-4 pt-5">
-          <Button variant="ghost" size="sm" className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#5E6AD2] hover:bg-transparent hover:text-[#5E6AD2] hover:opacity-80">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#5E6AD2] hover:bg-transparent hover:text-[#5E6AD2] hover:opacity-80"
+          >
             Check for Updates
           </Button>
-          <Button variant="ghost" size="sm" className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#8A8A90] hover:bg-transparent hover:text-[#EDEDEF]">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#8A8A90] hover:bg-transparent hover:text-[#EDEDEF]"
+          >
             Documentation
           </Button>
-          <Button variant="ghost" size="sm" className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#8A8A90] hover:bg-transparent hover:text-[#EDEDEF]">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#8A8A90] hover:bg-transparent hover:text-[#EDEDEF]"
+          >
             GitHub
           </Button>
         </div>

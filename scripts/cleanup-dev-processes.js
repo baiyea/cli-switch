@@ -1,9 +1,9 @@
-const { execFileSync } = require("node:child_process");
-const path = require("node:path");
+const { execFileSync } = require('node:child_process');
+const path = require('node:path');
 
-const repoRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(__dirname, '..');
 
-if (process.platform !== "win32") {
+if (process.platform !== 'win32') {
   process.exit(0);
 }
 
@@ -54,13 +54,9 @@ exit 0
 `;
 
 try {
-  execFileSync("powershell.exe", [
-    "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
-    "-Command",
-    script
-  ], { stdio: "inherit" });
+  execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], {
+    stdio: 'inherit',
+  });
 } catch (error) {
   console.warn(`[cleanup-dev] failed: ${error.message}`);
 }

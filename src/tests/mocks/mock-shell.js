@@ -1,13 +1,13 @@
-const { EventEmitter } = require("node:events");
+const { EventEmitter } = require('node:events');
 
 class MockPtyProcess extends EventEmitter {
-  constructor({ cols = 120, rows = 36, cwd = "/test/project" } = {}) {
+  constructor({ cols = 120, rows = 36, cwd = '/test/project' } = {}) {
     super();
     this.cols = cols;
     this.rows = rows;
     this.cwd = cwd;
     this._killed = false;
-    this._buffer = "";
+    this._buffer = '';
   }
 
   write(data) {
@@ -15,18 +15,18 @@ class MockPtyProcess extends EventEmitter {
 
     const input = String(data).trim();
 
-    if (input === "echo hello") {
-      this._emitData("hello\r\n");
-    } else if (input === "pwd") {
+    if (input === 'echo hello') {
+      this._emitData('hello\r\n');
+    } else if (input === 'pwd') {
       this._emitData(`${this.cwd}\r\n`);
-    } else if (input === "slow") {
-      setTimeout(() => this._emitData("slow response\r\n"), 2000);
-    } else if (input === "error") {
-      this._emitData("error message\r\n");
-    } else if (input === "exit") {
-      this._emitData("\r\n[process exited with code 0]\r\n");
+    } else if (input === 'slow') {
+      setTimeout(() => this._emitData('slow response\r\n'), 2000);
+    } else if (input === 'error') {
+      this._emitData('error message\r\n');
+    } else if (input === 'exit') {
+      this._emitData('\r\n[process exited with code 0]\r\n');
       this._killed = true;
-      this.emit("exit", { exitCode: 0 });
+      this.emit('exit', { exitCode: 0 });
     } else if (input) {
       this._emitData(`${input}\r\n`);
     }
@@ -39,12 +39,12 @@ class MockPtyProcess extends EventEmitter {
 
   kill() {
     this._killed = true;
-    this.emit("exit", { exitCode: 0 });
+    this.emit('exit', { exitCode: 0 });
   }
 
   _emitData(data) {
     this._buffer += data;
-    this.emit("data", data);
+    this.emit('data', data);
   }
 
   getBuffer() {

@@ -1,10 +1,9 @@
-const { test, expect } = require("@playwright/test");
-const { _electron: electron } = require("playwright");
-const path = require("node:path");
-const os = require("node:os");
-const fs = require("node:fs");
-const { DatabaseSync } = require("node:sqlite");
-const { buildProviderSettings } = require(path.resolve(__dirname, "../../../../tests/e2e/provider-fixture"));
+const { test, expect } = require('@playwright/test');
+const { _electron: electron } = require('playwright');
+const path = require('node:path');
+const os = require('node:os');
+const fs = require('node:fs');
+const { DatabaseSync } = require('node:sqlite');
 
 function setupDb(dbPath, projectDir) {
   const db = new DatabaseSync(dbPath);
@@ -24,22 +23,46 @@ function setupDb(dbPath, projectDir) {
     );
   `);
   const now = new Date().toISOString();
-  const providerSettings = buildProviderSettings();
+  const providerSettings = {
+    providers: {
+      claude: {
+        defaultProfileId: 'deepseek-api',
+        enabledProfileId: 'deepseek-api',
+        profiles: [
+          {
+            id: 'deepseek-api',
+            name: 'DeepSeek API',
+            envVars: [{ key: 'ANTHROPIC_AUTH_TOKEN', value: 'e2e-dummy-token' }],
+          },
+        ],
+      },
+      codex: {
+        defaultProfileId: 'oauth-login',
+        enabledProfileId: '',
+        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+      },
+      gemini: {
+        defaultProfileId: 'oauth-login',
+        enabledProfileId: '',
+        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+      },
+    },
+  };
   db.prepare(
     `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'claude', ?, ?)`
-  ).run("p1", "DemoProject", projectDir, now, now);
+     VALUES (?, ?, ?, 'claude', ?, ?)`,
+  ).run('p1', 'DemoProject', projectDir, now, now);
   db.prepare(
     `INSERT INTO app_settings (key, value, updated_at)
-     VALUES (?, ?, ?)`
-  ).run("provider_startup_settings", JSON.stringify(providerSettings), now);
+     VALUES (?, ?, ?)`,
+  ).run('provider_startup_settings', JSON.stringify(providerSettings), now);
   db.close();
 }
 
 async function launchApp() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-window-controls-"));
-  const dbPath = path.join(root, "e2e.db");
-  const projectDir = path.join(root, "project-a");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-window-controls-'));
+  const dbPath = path.join(root, 'e2e.db');
+  const projectDir = path.join(root, 'project-a');
   fs.mkdirSync(projectDir, { recursive: true });
   setupDb(dbPath, projectDir);
 
@@ -48,21 +71,23 @@ async function launchApp() {
     HOME: root,
     USERPROFILE: root,
     ZEELIN_DB_PATH: dbPath,
-    SHELL: "/bin/bash"
+    SHELL: '/bin/bash',
+    APP_E2E: '1',
+    APP_E2E_SHOW_WINDOW: process.env.APP_E2E_SHOW_WINDOW || '0',
   };
   delete launchEnv.ELECTRON_RUN_AS_NODE;
 
   const app = await electron.launch({
-    args: [path.resolve(__dirname, "../../../../../")],
-    env: launchEnv
+    args: [path.resolve(__dirname, '../../../../../')],
+    env: launchEnv,
   });
 
   const win = await app.firstWindow();
-  await win.waitForLoadState("domcontentloaded");
+  await win.waitForLoadState('domcontentloaded');
   return { app, win };
 }
 
-test("window minimize button reduces window to taskbar", async () => {
+test('window minimize button reduces window to taskbar', async () => {
   const { app, win } = await launchApp();
 
   // 只在 Windows 上测试窗口控制按钮
@@ -72,7 +97,7 @@ test("window minimize button reduces window to taskbar", async () => {
     return;
   }
 
-  await win.locator(".project-create-main").first().click({ force: true });
+  await win.locator('.project-create-main').first().click({ force: true });
 
   const minimizeBtn = win.locator('[aria-label="最小化"]').first();
   await expect(minimizeBtn).toBeVisible();
@@ -82,7 +107,7 @@ test("window minimize button reduces window to taskbar", async () => {
     isMinimized: false,
     isMaximized: false,
     width: window.innerWidth,
-    height: window.innerHeight
+    height: window.innerHeight,
   }));
 
   await minimizeBtn.click();
@@ -100,7 +125,7 @@ test("window minimize button reduces window to taskbar", async () => {
   await app.close();
 });
 
-test("window maximize button toggles window size", async () => {
+test('window maximize button toggles window size', async () => {
   const { app, win } = await launchApp();
 
   const isWindows = await win.evaluate(() => /Win32|Win64/.test(navigator.platform));
@@ -109,7 +134,7 @@ test("window maximize button toggles window size", async () => {
     return;
   }
 
-  await win.locator(".project-create-main").first().click({ force: true });
+  await win.locator('.project-create-main').first().click({ force: true });
 
   const maximizeBtn = win.locator('[aria-label="最大化"]').first();
   await expect(maximizeBtn).toBeVisible();
@@ -148,7 +173,7 @@ test("window maximize button toggles window size", async () => {
   await app.close();
 });
 
-test("window close button closes the application window", async () => {
+test('window close button closes the application window', async () => {
   const { app, win } = await launchApp();
 
   const isWindows = await win.evaluate(() => /Win32|Win64/.test(navigator.platform));
@@ -157,13 +182,15 @@ test("window close button closes the application window", async () => {
     return;
   }
 
-  await win.locator(".project-create-main").first().click({ force: true });
+  await win.locator('.project-create-main').first().click({ force: true });
 
   const closeBtn = win.locator('[aria-label="关闭"]').first();
   await expect(closeBtn).toBeVisible();
 
   // 记录关闭前窗口数量
-  const windowsBefore = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length);
+  const windowsBefore = await app.evaluate(
+    ({ BrowserWindow }) => BrowserWindow.getAllWindows().length,
+  );
   expect(windowsBefore).toBeGreaterThan(0);
 
   // 点击关闭按钮
@@ -177,7 +204,7 @@ test("window close button closes the application window", async () => {
 
   // 等待应用退出（close 会触发 before-quit）
   try {
-    await app.waitForEvent("window", { timeout: 3000 });
+    await app.waitForEvent('window', { timeout: 3000 });
   } catch {
     // 没有新窗口打开，这是预期的
   }
@@ -190,7 +217,7 @@ test("window close button closes the application window", async () => {
   }
 });
 
-test("window controls are not rendered on macOS", async () => {
+test('window controls are not rendered on macOS', async () => {
   const { app, win } = await launchApp();
 
   const isMac = await win.evaluate(() => /Mac/.test(navigator.platform));
@@ -199,7 +226,7 @@ test("window controls are not rendered on macOS", async () => {
     return;
   }
 
-  await win.locator(".project-create-main").first().click({ force: true });
+  await win.locator('.project-create-main').first().click({ force: true });
 
   // macOS 上不应该有窗口控制按钮
   const minimizeBtn = win.locator('[aria-label="最小化"]');

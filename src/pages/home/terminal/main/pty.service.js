@@ -1,7 +1,7 @@
-const crypto = require("node:crypto");
-const { spawnSync } = require("node:child_process");
-const pty = require("node-pty");
-const { getDefaultShell, getPtyEnv } = require("./shell");
+const crypto = require('node:crypto');
+const { spawnSync } = require('node:child_process');
+const pty = require('node-pty');
+const { getDefaultShell, getPtyEnv } = require('./shell');
 
 class PtyService {
   constructor({ onData, onExit, getStartupEnv, logWarn } = {}) {
@@ -14,7 +14,7 @@ class PtyService {
   }
 
   appendBuffer(sessionId, chunk) {
-    const prev = this.buffers.get(sessionId) || "";
+    const prev = this.buffers.get(sessionId) || '';
     const merged = prev + chunk;
     const limit = 300000;
     this.buffers.set(sessionId, merged.length > limit ? merged.slice(-limit) : merged);
@@ -25,25 +25,25 @@ class PtyService {
     if (this.sessions.has(sessionId)) {
       return { sessionId, name: this.sessions.get(sessionId).name };
     }
-    this.buffers.set(sessionId, "");
+    this.buffers.set(sessionId, '');
     const shell = getDefaultShell();
     const proc = pty.spawn(shell.file, shell.args, {
-      name: "xterm-color",
+      name: 'xterm-color',
       cols: 120,
       rows: 36,
       cwd,
-      env: getPtyEnv(this.getStartupEnv({ provider: provider || "claude", cwd }))
+      env: getPtyEnv(this.getStartupEnv({ provider: provider || 'claude', cwd })),
     });
 
     const meta = {
       sessionId,
       name: name || `shell-${sessionId.slice(0, 4)}`,
       cwd,
-      provider: provider || "claude",
-      status: "running",
+      provider: provider || 'claude',
+      status: 'running',
       createdAt: Date.now(),
       pty: proc,
-      autoResponses: new Set()
+      autoResponses: new Set(),
     };
 
     proc.onData((data) => {
@@ -55,7 +55,7 @@ class PtyService {
     proc.onExit(({ exitCode }) => {
       const current = this.sessions.get(sessionId);
       if (!current) return;
-      current.status = "exited";
+      current.status = 'exited';
       current.exitCode = exitCode;
       this.appendBuffer(sessionId, `\r\n[process exited with code ${exitCode}]\r\n`);
       this.onExit({ sessionId, exitCode });
@@ -66,43 +66,59 @@ class PtyService {
 
     return {
       sessionId,
-      name: meta.name
+      name: meta.name,
     };
   }
 
   stripAnsi(value) {
-    return String(value || "")
-      .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
-      .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-      .replace(/\r/g, "\n");
+    return String(value || '')
+      .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+      .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
+      .replace(/\r/g, '\n');
   }
 
   handleAutoResponses(meta) {
-    if (!meta || String(meta.provider || "claude").toLowerCase() !== "claude") return;
-    const text = this.stripAnsi(this.buffers.get(meta.sessionId) || "").slice(-12000);
+    if (!meta || String(meta.provider || 'claude').toLowerCase() !== 'claude') return;
+    const text = this.stripAnsi(this.buffers.get(meta.sessionId) || '').slice(-12000);
     const prompts = [
       {
-        key: "claude-theme",
+        key: 'claude-theme',
         test: /Choose the text style that looks best with your terminal/i,
-        input: "\r"
+        input: '\r',
+        repeat: true,
       },
       {
-        key: "claude-trust-workspace",
+        key: 'claude-trust-workspace',
         test: /Enter to confirm/i,
-        input: "\r"
-      }
+        input: '\r',
+        repeat: true,
+      },
+      {
+        key: 'claude-api-key-confirm',
+        test: /Detected a custom API key in your environment/i,
+        guards: [/Do you want to use this API key\?/i, /1\.\s*Yes/i, /2\.\s*No\s*\(recommended\)/i],
+        input: '\x1b[A\r',
+      },
     ];
 
     for (const prompt of prompts) {
       if (meta.autoResponses.has(prompt.key) || !prompt.test.test(text)) continue;
-      if (prompt.key === "claude-trust-workspace" && !/Quick safety check:|Yes,\s*I trust this folder|Accessing workspace:/i.test(text)) continue;
+      if (Array.isArray(prompt.guards) && prompt.guards.some((guard) => !guard.test(text)))
+        continue;
+      if (
+        prompt.key === 'claude-trust-workspace' &&
+        !/Quick safety check:|Yes,\s*I trust this folder|Accessing workspace:/i.test(text)
+      )
+        continue;
       meta.autoResponses.add(prompt.key);
       meta.pty.write(prompt.input);
-      setTimeout(() => {
-        try {
-          if (this.sessions.has(meta.sessionId)) meta.pty.write(prompt.input);
-        } catch {}
-      }, 500);
+      if (prompt.repeat) {
+        setTimeout(() => {
+          try {
+            if (this.sessions.has(meta.sessionId)) meta.pty.write(prompt.input);
+          } catch {}
+        }, 500);
+      }
       break;
     }
   }
@@ -120,7 +136,7 @@ class PtyService {
       cwd: target.cwd,
       provider: target.provider,
       status: target.status,
-      createdAt: target.createdAt
+      createdAt: target.createdAt,
     };
   }
 
@@ -141,9 +157,9 @@ class PtyService {
   killWindowsProcessTree(pid) {
     const numericPid = Number(pid);
     if (!Number.isInteger(numericPid) || numericPid <= 0) return false;
-    const result = spawnSync("taskkill.exe", ["/PID", String(numericPid), "/T", "/F"], {
-      stdio: "ignore",
-      windowsHide: true
+    const result = spawnSync('taskkill.exe', ['/PID', String(numericPid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
     });
     return result.status === 0;
   }
@@ -152,27 +168,26 @@ class PtyService {
     const target = this.sessions.get(sessionId);
     if (!target) return;
     const quiet = options?.quiet === true;
-    if (quiet && process.platform === "win32") {
+    if (quiet && process.platform === 'win32') {
       try {
         const killed = this.killWindowsProcessTree(target.pty?.pid);
         if (!killed) {
-          this.logWarn("pty", "Windows quiet PTY cleanup did not confirm taskkill success", {
+          this.logWarn('pty', 'Windows quiet PTY cleanup did not confirm taskkill success', {
             sessionId,
-            pid: target.pty?.pid || null
+            pid: target.pty?.pid || null,
           });
         }
       } catch (error) {
-        this.logWarn("pty", "Windows quiet PTY cleanup failed", {
+        this.logWarn('pty', 'Windows quiet PTY cleanup failed', {
           sessionId,
           pid: target.pty?.pid || null,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     } else {
       try {
         target.pty.kill();
-      } catch {
-      }
+      } catch {}
     }
     this.sessions.delete(sessionId);
   }
@@ -180,7 +195,7 @@ class PtyService {
   getSnapshot(sessionId) {
     return {
       sessionId,
-      data: this.buffers.get(sessionId) || ""
+      data: this.buffers.get(sessionId) || '',
     };
   }
 

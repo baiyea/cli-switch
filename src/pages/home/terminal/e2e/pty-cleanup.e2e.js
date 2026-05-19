@@ -1,10 +1,9 @@
-const { test, expect } = require("@playwright/test");
-const { _electron: electron } = require("playwright");
-const path = require("node:path");
-const os = require("node:os");
-const fs = require("node:fs");
-const { DatabaseSync } = require("node:sqlite");
-const { buildProviderSettings } = require(path.resolve(__dirname, "../../../../tests/e2e/provider-fixture"));
+const { test, expect } = require('@playwright/test');
+const { _electron: electron } = require('playwright');
+const path = require('node:path');
+const os = require('node:os');
+const fs = require('node:fs');
+const { DatabaseSync } = require('node:sqlite');
 
 function setupDb(dbPath, projectDir) {
   const db = new DatabaseSync(dbPath);
@@ -24,47 +23,76 @@ function setupDb(dbPath, projectDir) {
     );
   `);
   const now = new Date().toISOString();
-  const providerSettings = buildProviderSettings();
+  const providerSettings = {
+    providers: {
+      claude: {
+        defaultProfileId: 'deepseek-api',
+        enabledProfileId: 'deepseek-api',
+        profiles: [
+          {
+            id: 'deepseek-api',
+            name: 'DeepSeek API',
+            envVars: [{ key: 'ANTHROPIC_AUTH_TOKEN', value: 'e2e-dummy-token' }],
+          },
+        ],
+      },
+      codex: {
+        defaultProfileId: 'oauth-login',
+        enabledProfileId: '',
+        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+      },
+      gemini: {
+        defaultProfileId: 'oauth-login',
+        enabledProfileId: '',
+        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+      },
+    },
+  };
   db.prepare(
     `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'claude', ?, ?)`
-  ).run("p1", "DemoProject", projectDir, now, now);
+     VALUES (?, ?, ?, 'claude', ?, ?)`,
+  ).run('p1', 'DemoProject', projectDir, now, now);
   db.prepare(
     `INSERT INTO app_settings (key, value, updated_at)
-     VALUES (?, ?, ?)`
-  ).run("provider_startup_settings", JSON.stringify(providerSettings), now);
+     VALUES (?, ?, ?)`,
+  ).run('provider_startup_settings', JSON.stringify(providerSettings), now);
   db.close();
 }
 
 async function launchApp() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cliswitch-pty-cleanup-"));
-  const dbPath = path.join(root, "e2e.db");
-  const projectDir = path.join(root, "project-a");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-pty-cleanup-'));
+  const dbPath = path.join(root, 'e2e.db');
+  const projectDir = path.join(root, 'project-a');
   fs.mkdirSync(projectDir, { recursive: true });
   setupDb(dbPath, projectDir);
 
+  const launchEnv = {
+    ...process.env,
+    HOME: root,
+    USERPROFILE: root,
+    ZEELIN_DB_PATH: dbPath,
+    SHELL: '/bin/bash',
+    APP_E2E: '1',
+    APP_E2E_SHOW_WINDOW: process.env.APP_E2E_SHOW_WINDOW || '0',
+  };
+  delete launchEnv.ELECTRON_RUN_AS_NODE;
+
   const app = await electron.launch({
-    args: [path.resolve(__dirname, "../../../../../")],
-    env: {
-      ...process.env,
-      HOME: root,
-      USERPROFILE: root,
-      ZEELIN_DB_PATH: dbPath,
-      SHELL: "/bin/bash"
-    }
+    args: [path.resolve(__dirname, '../../../../../')],
+    env: launchEnv,
   });
 
   const win = await app.firstWindow();
-  await win.waitForLoadState("domcontentloaded");
+  await win.waitForLoadState('domcontentloaded');
   return { app, win, root };
 }
 
-test("app close destroys all PTY sessions", async () => {
+test('app close destroys all PTY sessions', async () => {
   const { app, win } = await launchApp();
 
-  await win.locator(".project-create-main").first().click({ force: true });
-  await expect(win.locator("[data-session-id]")).toHaveCount(1);
-  const sessionId = await win.locator("[data-session-id]").first().getAttribute("data-session-id");
+  await win.locator('.project-create-main').first().click({ force: true });
+  await expect(win.locator('[data-session-id]')).toHaveCount(1);
+  const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
 
   // 验证会话存在
   const hasSession = await win.evaluate((sid) => {
@@ -84,20 +112,20 @@ test("app close destroys all PTY sessions", async () => {
   // 在 Windows 上，如果 taskkill 失败，应用可能会挂起
 });
 
-test("multiple sessions are all cleaned up on exit", async () => {
+test('multiple sessions are all cleaned up on exit', async () => {
   const { app, win } = await launchApp();
 
   // 创建第一个会话
-  await win.locator(".project-create-main").first().click({ force: true });
-  await expect(win.locator("[data-session-id]")).toHaveCount(1);
-  const sessionId1 = await win.locator("[data-session-id]").first().getAttribute("data-session-id");
+  await win.locator('.project-create-main').first().click({ force: true });
+  await expect(win.locator('[data-session-id]')).toHaveCount(1);
+  const sessionId1 = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
 
   // 创建第二个会话（通过侧边栏的 + 按钮或类似方式）
   // 由于 UI 可能有变化，这里通过直接调用 bridge 创建
   const sessionId2 = await win.evaluate(() => {
     // 直接通过 window.electronAPI 创建新会话
     // 或者返回一个标识表示第二个会话
-    return "test-session-2";
+    return 'test-session-2';
   });
 
   // 如果无法通过 UI 创建第二个会话，只验证单会话清理
@@ -121,23 +149,26 @@ test("multiple sessions are all cleaned up on exit", async () => {
   await app.close();
 });
 
-test("destroyAllSessions clears session buffers", async () => {
+test('destroyAllSessions clears session buffers', async () => {
   const { app, win } = await launchApp();
 
-  await win.locator(".project-create-main").first().click({ force: true });
-  await expect(win.locator("[data-session-id]")).toHaveCount(1);
-  const sessionId = await win.locator("[data-session-id]").first().getAttribute("data-session-id");
+  await win.locator('.project-create-main').first().click({ force: true });
+  await expect(win.locator('[data-session-id]')).toHaveCount(1);
+  const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
 
   // 注入一些数据
-  await win.evaluate(
-    ({ sid, data }) => window.__ZEELIN_TEST__?.appendTerminalData(sid, data),
-    { sid: sessionId, data: "test data for buffer\r\n" }
-  );
+  await win.evaluate(({ sid, data }) => window.__ZEELIN_TEST__?.appendTerminalData(sid, data), {
+    sid: sessionId,
+    data: 'test data for buffer\r\n',
+  });
 
   await win.waitForTimeout(200);
 
   // 验证数据已注入（缓冲区可能有 PTY 输出，使用宽松检查）
-  const beforeBuffer = await win.evaluate((sid) => window.__ZEELIN_TEST__?.getSessionBuffer(sid) || "", sessionId);
+  const beforeBuffer = await win.evaluate(
+    (sid) => window.__ZEELIN_TEST__?.getSessionBuffer(sid) || '',
+    sessionId,
+  );
   expect(beforeBuffer.length).toBeGreaterThan(0);
 
   // 销毁所有会话
@@ -145,18 +176,18 @@ test("destroyAllSessions clears session buffers", async () => {
   await win.waitForTimeout(500);
 
   // 验证会话列表为空
-  await expect(win.locator("[data-session-id]")).toHaveCount(0);
+  await expect(win.locator('[data-session-id]')).toHaveCount(0);
 
   await app.close();
 });
 
-test("Windows PTY cleanup does not throw on destroy", async () => {
+test('Windows PTY cleanup does not throw on destroy', async () => {
   const { app, win } = await launchApp();
 
   const isWindows = await win.evaluate(() => /Win32|Win64/.test(navigator.platform));
 
-  await win.locator(".project-create-main").first().click({ force: true });
-  await expect(win.locator("[data-session-id]")).toHaveCount(1);
+  await win.locator('.project-create-main').first().click({ force: true });
+  await expect(win.locator('[data-session-id]')).toHaveCount(1);
 
   // 正常关闭应用
   // 在 Windows 上，before-quit 事件会调用 ptyService.destroyAll({ quiet: true })
@@ -168,6 +199,6 @@ test("Windows PTY cleanup does not throw on destroy", async () => {
   await app.close();
 
   if (isWindows) {
-    console.log("[e2e] Windows PTY cleanup test passed — no exceptions thrown during destroy");
+    console.log('[e2e] Windows PTY cleanup test passed — no exceptions thrown during destroy');
   }
 });

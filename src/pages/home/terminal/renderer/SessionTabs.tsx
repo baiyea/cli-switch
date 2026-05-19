@@ -1,6 +1,7 @@
-import React from "react";
-import { useSessionStore } from "../../home.store";
-import styles from "./SessionTabs.module.css";
+import React from 'react';
+
+import { useSessionStore } from '../../home.store';
+import styles from './SessionTabs.module.css';
 
 export function SessionTabs() {
   const sessions = useSessionStore((state) => state.sessions);
@@ -15,14 +16,14 @@ export function SessionTabs() {
         return (
           <button
             key={session.sessionId}
-            className={`${styles.tab} ${active ? styles.tabActive : ""}`}
+            className={`${styles.tab} ${active ? styles.tabActive : ''}`}
             onClick={() => setActiveSession(session.sessionId)}
             type="button"
             data-testid={`session-tab-${session.sessionId}`}
           >
             <span>{session.name}</span>
             <span className={styles.status}>{session.status}</span>
-            {session.status === "exited" && typeof session.exitCode === "number" && (
+            {session.status === 'exited' && typeof session.exitCode === 'number' && (
               <span className={styles.exit}>({session.exitCode})</span>
             )}
             <span

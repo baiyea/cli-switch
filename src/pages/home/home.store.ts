@@ -1,23 +1,24 @@
-import { create } from "zustand";
-import { homeRuntime, type PersistedSessionItem } from "./renderer/home-session-runtime";
+import { create } from 'zustand';
+
+import { homeRuntime, type PersistedSessionItem } from './renderer/home-session-runtime';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type SessionStatus = "creating" | "running" | "exited";
+export type SessionStatus = 'creating' | 'running' | 'exited';
 export type SessionRuntimeStatus =
-  | "starting"
-  | "streaming"
-  | "awaiting_input"
-  | "awaiting_confirmation"
-  | "error"
-  | "exited";
+  | 'starting'
+  | 'streaming'
+  | 'awaiting_input'
+  | 'awaiting_confirmation'
+  | 'error'
+  | 'exited';
 
 export interface TerminalSession {
   sessionId: string;
   projectId: string;
-  provider: "claude" | "codex" | "gemini";
+  provider: 'claude' | 'codex' | 'gemini';
   providerSessionId: string;
   name: string;
   cwd: string;
@@ -30,7 +31,7 @@ export interface TerminalSession {
   exitCode?: number;
 }
 
-type ProviderId = "claude" | "codex" | "gemini" | "shell";
+type ProviderId = 'claude' | 'codex' | 'gemini' | 'shell';
 
 // ---------------------------------------------------------------------------
 // Combined store interface
@@ -54,7 +55,7 @@ interface HomeStoreState {
   renameSession: (sessionId: string, title: string) => Promise<void>;
   reorderSessions: (
     projectId: string,
-    orderedSessions: Array<{ provider: "claude" | "codex" | "gemini"; providerSessionId: string }>
+    orderedSessions: Array<{ provider: 'claude' | 'codex' | 'gemini'; providerSessionId: string }>,
   ) => Promise<void>;
   setActiveSession: (sessionId: string) => void;
   destroySession: (sessionId: string) => Promise<void>;
@@ -84,33 +85,34 @@ const startInFlightSessionIds = new Set<string>();
 const startedSessionIds = new Set<string>();
 
 function getPrefix(toolId?: string): string {
-  if (!toolId || toolId === "shell") return "shell";
+  if (!toolId || toolId === 'shell') return 'shell';
   const normalized = toolId.toLowerCase();
-  if (normalized.includes("claude")) return "claude";
-  if (normalized.includes("codex")) return "codex";
-  if (normalized.includes("gemini")) return "gemini";
-  return "shell";
+  if (normalized.includes('claude')) return 'claude';
+  if (normalized.includes('codex')) return 'codex';
+  if (normalized.includes('gemini')) return 'gemini';
+  return 'shell';
 }
 
 function toTerminalSession(item: PersistedSessionItem): TerminalSession {
-  const runtimeStatus: SessionRuntimeStatus = item.status === "exited" ? "exited" : "awaiting_input";
+  const runtimeStatus: SessionRuntimeStatus =
+    item.status === 'exited' ? 'exited' : 'awaiting_input';
   return {
     sessionId: item.sessionId,
     projectId: item.projectId,
-    provider: item.provider || "claude",
-    providerSessionId: item.providerSessionId || "",
+    provider: item.provider || 'claude',
+    providerSessionId: item.providerSessionId || '',
     name: item.name,
     cwd: item.cwd,
     status: item.status,
     runtimeStatus,
     sortOrder: Number(item.sortOrder || 0),
     createdAt: item.createdAt,
-    updatedAt: item.updatedAt || item.createdAt
+    updatedAt: item.updatedAt || item.createdAt,
   };
 }
 
-function sessionIdentity(session: Pick<TerminalSession, "provider" | "sessionId">): string {
-  return `${String(session.provider || "claude").toLowerCase()}:${session.sessionId}`;
+function sessionIdentity(session: Pick<TerminalSession, 'provider' | 'sessionId'>): string {
+  return `${String(session.provider || 'claude').toLowerCase()}:${session.sessionId}`;
 }
 
 function dedupeSessions(items: TerminalSession[]): TerminalSession[] {
@@ -159,7 +161,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
 
   hydrateSessions(items) {
     const sessions = dedupeSessions(items.map(toTerminalSession));
-    const liveIds = new Set(sessions.filter((s) => s.status === "running").map((s) => s.sessionId));
+    const liveIds = new Set(sessions.filter((s) => s.status === 'running').map((s) => s.sessionId));
     for (const sid of Array.from(startedSessionIds.values())) {
       if (!liveIds.has(sid)) startedSessionIds.delete(sid);
     }
@@ -171,8 +173,8 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
           : sessions[0]?.sessionId || null,
       nextIndexByPrefix: {
         ...state.nextIndexByPrefix,
-        ...deriveCounters(sessions)
-      }
+        ...deriveCounters(sessions),
+      },
     }));
   },
 
@@ -181,27 +183,27 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     get().hydrateSessions(items);
   },
 
-  async createSession(projectId: string, cwd: string, toolId: ProviderId | string = "claude") {
+  async createSession(projectId: string, cwd: string, toolId: ProviderId | string = 'claude') {
     const prefix = getPrefix(toolId);
     const current = get().nextIndexByPrefix[prefix] || 1;
-    const name = `${prefix}-${String(current).padStart(2, "0")}`;
+    const name = `${prefix}-${String(current).padStart(2, '0')}`;
 
     set((state) => ({
       nextIndexByPrefix: {
         ...state.nextIndexByPrefix,
-        [prefix]: current + 1
-      }
+        [prefix]: current + 1,
+      },
     }));
 
     const created = await homeRuntime.sessions.create({
       projectId,
       cwd,
       title: name,
-      provider: toolId
+      provider: toolId,
     });
 
     const mapped = toTerminalSession({ ...created, cwd });
-    mapped.runtimeStatus = "starting";
+    mapped.runtimeStatus = 'starting';
     startedSessionIds.add(mapped.sessionId);
 
     set((state) => {
@@ -210,7 +212,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
         sessions: exists
           ? state.sessions.map((s) => (sessionIdentity(s) === sessionIdentity(mapped) ? mapped : s))
           : dedupeSessions([...state.sessions, mapped]),
-        activeSessionId: mapped.sessionId
+        activeSessionId: mapped.sessionId,
       };
     });
 
@@ -222,16 +224,14 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     if (startedSessionIds.has(sessionId)) return;
     const session = get().sessions.find((s) => s.sessionId === sessionId);
     if (!session) return;
-    if (session.runtimeStatus === "starting") return;
+    if (session.runtimeStatus === 'starting') return;
 
     startInFlightSessionIds.add(sessionId);
     try {
       set((state) => ({
         sessions: state.sessions.map((s) =>
-          s.sessionId === sessionId
-            ? { ...s, runtimeStatus: "starting" }
-            : s
-        )
+          s.sessionId === sessionId ? { ...s, runtimeStatus: 'starting' } : s,
+        ),
       }));
 
       const started = await homeRuntime.sessions.start({
@@ -239,10 +239,10 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
         provider: session.provider,
         providerSessionId: session.providerSessionId,
         cwd: session.cwd,
-        name: session.name
+        name: session.name,
       });
       const mapped = toTerminalSession(started);
-      mapped.runtimeStatus = "starting";
+      mapped.runtimeStatus = 'starting';
       const canonicalSessionId = mapped.sessionId || sessionId;
       startedSessionIds.add(canonicalSessionId);
       if (canonicalSessionId !== sessionId) {
@@ -253,27 +253,23 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
         sessions: state.sessions.map((s) =>
           s.sessionId === sessionId
             ? {
-              ...s,
-              ...mapped,
-              projectId: mapped.projectId || s.projectId,
-              status: "running",
-              runtimeStatus: "starting"
-            }
-            : s
+                ...s,
+                ...mapped,
+                projectId: mapped.projectId || s.projectId,
+                status: 'running',
+                runtimeStatus: 'starting',
+              }
+            : s,
         ),
         activeSessionId:
-          state.activeSessionId === sessionId
-            ? canonicalSessionId
-            : state.activeSessionId
+          state.activeSessionId === sessionId ? canonicalSessionId : state.activeSessionId,
       }));
     } catch (error) {
       startedSessionIds.delete(sessionId);
       set((state) => ({
         sessions: state.sessions.map((s) =>
-          s.sessionId === sessionId
-            ? { ...s, runtimeStatus: "error" }
-            : s
-        )
+          s.sessionId === sessionId ? { ...s, runtimeStatus: 'error' } : s,
+        ),
       }));
       throw error;
     } finally {
@@ -282,7 +278,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
   },
 
   async renameSession(sessionId: string, title: string) {
-    const trimmed = String(title || "").trim();
+    const trimmed = String(title || '').trim();
     if (!trimmed) return;
     const target = get().sessions.find((s) => s.sessionId === sessionId);
     if (!target) return;
@@ -291,13 +287,13 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
       sessionId: target.sessionId,
       title: trimmed,
       provider: target.provider,
-      providerSessionId: target.providerSessionId || target.sessionId
+      providerSessionId: target.providerSessionId || target.sessionId,
     });
 
     set((state) => ({
       sessions: state.sessions.map((s) =>
-        s.sessionId === sessionId ? { ...s, name: trimmed } : s
-      )
+        s.sessionId === sessionId ? { ...s, name: trimmed } : s,
+      ),
     }));
   },
 
@@ -305,8 +301,8 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     const normalized = (orderedSessions || [])
       .filter((item) => item?.providerSessionId)
       .map((item) => ({
-        provider: item.provider || "claude",
-        providerSessionId: item.providerSessionId
+        provider: item.provider || 'claude',
+        providerSessionId: item.providerSessionId,
       }));
     if (!projectId || normalized.length === 0) return;
 
@@ -321,17 +317,20 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     set((state) => ({
       sessions: state.sessions.map((session) => {
         if (session.projectId !== projectId) return session;
-        const key = sessionIdentity({ provider: session.provider, sessionId: session.providerSessionId || session.sessionId });
+        const key = sessionIdentity({
+          provider: session.provider,
+          sessionId: session.providerSessionId || session.sessionId,
+        });
         const nextOrder = orderMap.get(key);
         if (!nextOrder) return session;
         return { ...session, sortOrder: nextOrder };
-      })
+      }),
     }));
 
     try {
       await homeRuntime.sessions.reorder({
         projectId,
-        orderedSessions: normalized
+        orderedSessions: normalized,
       });
     } catch (error) {
       set({ sessions: previous });
@@ -340,11 +339,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
   },
 
   setActiveSession(sessionId: string) {
-    set((state) => (
-      state.activeSessionId === sessionId
-        ? state
-        : { activeSessionId: sessionId }
-    ));
+    set((state) => (state.activeSessionId === sessionId ? state : { activeSessionId: sessionId }));
   },
 
   async destroySession(sessionId: string) {
@@ -353,7 +348,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     await homeRuntime.sessions.archive({
       sessionId: target.sessionId,
       provider: target.provider,
-      providerSessionId: target.providerSessionId || target.sessionId
+      providerSessionId: target.providerSessionId || target.sessionId,
     });
     startedSessionIds.delete(sessionId);
     startInFlightSessionIds.delete(sessionId);
@@ -380,10 +375,10 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
   ingestOutput(sessionId, chunk) {
     const now = Date.now();
     const runtimeStatus: SessionRuntimeStatus = AWAITING_CONFIRMATION_PATTERN.test(chunk)
-      ? "awaiting_confirmation"
+      ? 'awaiting_confirmation'
       : ERROR_PATTERN.test(chunk)
-        ? "error"
-        : "streaming";
+        ? 'error'
+        : 'streaming';
     startedSessionIds.add(sessionId);
 
     set((state) => {
@@ -391,8 +386,9 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
       const sessions = state.sessions.map((s) => {
         if (s.sessionId !== sessionId) return s;
         const lastOutputAt = Number(s.lastOutputAt || 0);
-        const status = s.status === "exited" ? "running" : s.status;
-        const shouldBumpOutputTime = (now - lastOutputAt) >= OUTPUT_STATUS_THROTTLE_MS || lastOutputAt <= 0;
+        const status = s.status === 'exited' ? 'running' : s.status;
+        const shouldBumpOutputTime =
+          now - lastOutputAt >= OUTPUT_STATUS_THROTTLE_MS || lastOutputAt <= 0;
         const runtimeChanged = s.runtimeStatus !== runtimeStatus;
         const statusChanged = s.status !== status;
         if (!runtimeChanged && !statusChanged && !shouldBumpOutputTime) {
@@ -404,7 +400,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
           status,
           runtimeStatus,
           lastOutputAt: now,
-          updatedAt: now
+          updatedAt: now,
         };
       });
       return changed ? { sessions } : state;
@@ -416,14 +412,19 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     set((state) => {
       let changed = false;
       const sessions = state.sessions.map((s) => {
-        if (s.status === "exited" || s.runtimeStatus === "exited" || s.runtimeStatus === "awaiting_confirmation" || s.runtimeStatus === "error") {
+        if (
+          s.status === 'exited' ||
+          s.runtimeStatus === 'exited' ||
+          s.runtimeStatus === 'awaiting_confirmation' ||
+          s.runtimeStatus === 'error'
+        ) {
           return s;
         }
         const lastOutputAt = s.lastOutputAt || 0;
         if (lastOutputAt > 0 && now - lastOutputAt > IDLE_AFTER_MS) {
-          if (s.runtimeStatus === "awaiting_input") return s;
+          if (s.runtimeStatus === 'awaiting_input') return s;
           changed = true;
-          return { ...s, runtimeStatus: "awaiting_input" };
+          return { ...s, runtimeStatus: 'awaiting_input' };
         }
         return s;
       });
@@ -438,9 +439,9 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.sessionId === sessionId
-          ? { ...s, status: "exited", runtimeStatus: "exited", exitCode, updatedAt: now }
-          : s
-      )
+          ? { ...s, status: 'exited', runtimeStatus: 'exited', exitCode, updatedAt: now }
+          : s,
+      ),
     }));
   },
 
@@ -450,7 +451,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     set({
       activeProjectId: projectId,
       activeSessionId: null,
-      activeCwd: cwd ?? null
+      activeCwd: cwd ?? null,
     });
   },
 
@@ -458,7 +459,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     set((state) => ({
       activeSessionId: sessionId,
       activeProjectId: projectId ?? state.activeProjectId,
-      activeCwd: cwd ?? state.activeCwd
+      activeCwd: cwd ?? state.activeCwd,
     }));
   },
 
@@ -470,9 +471,9 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     set({
       activeProjectId: null,
       activeSessionId: null,
-      activeCwd: null
+      activeCwd: null,
     });
-  }
+  },
 }));
 
 // ---------------------------------------------------------------------------

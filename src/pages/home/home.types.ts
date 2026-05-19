@@ -4,4 +4,4 @@ export interface HomeWorkspaceState {
   activeCwd: string | null;
 }
 
-export type HomeProviderId = "claude" | "codex" | "gemini" | "shell";
+export type HomeProviderId = 'claude' | 'codex' | 'gemini' | 'shell';

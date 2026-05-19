@@ -1,6 +1,7 @@
-import React from "react";
-import { FolderCodeIcon, PlusIcon, DownloadIcon, ExternalLinkIcon } from "../../ui/icon-registry";
-import { Button } from "../../ui/button";
+import React from 'react';
+
+import { Button } from '../../ui/button';
+import { DownloadIcon, ExternalLinkIcon, FolderCodeIcon, PlusIcon } from '../../ui/icon-registry';
 
 export function WelcomeView({ onCreateProject, onImportProject, onLearnMore }) {
   return (
@@ -18,7 +19,12 @@ export function WelcomeView({ onCreateProject, onImportProject, onLearnMore }) {
             <PlusIcon size={14} />
             <span>创建项目</span>
           </Button>
-          <Button type="button" variant="ghost" className="welcome-btn-secondary" onClick={onImportProject}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="welcome-btn-secondary"
+            onClick={onImportProject}
+          >
             <DownloadIcon size={14} />
             <span>导入项目</span>
           </Button>

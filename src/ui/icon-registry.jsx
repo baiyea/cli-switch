@@ -1,30 +1,32 @@
-import React from "react";
-import claudeIcon from "../assets/provider-icons/claude.svg";
-import codexIcon from "../assets/provider-icons/codex.svg";
-import geminiIcon from "../assets/provider-icons/gemini.svg";
+import React from 'react';
+
+import claudeIcon from '../assets/provider-icons/claude.svg';
+import codexIcon from '../assets/provider-icons/codex.svg';
+import geminiIcon from '../assets/provider-icons/gemini.svg';
 
 function mergeClassName(...classes) {
-  return classes.filter(Boolean).join(" ");
+  return classes.filter(Boolean).join(' ');
 }
 
 const PROVIDER_META = {
-  claude: { title: "Claude Code", icon: claudeIcon },
-  codex: { title: "Codex CLI", icon: codexIcon },
-  gemini: { title: "Gemini CLI", icon: geminiIcon }
+  claude: { title: 'Claude Code', icon: claudeIcon },
+  codex: { title: 'Codex CLI', icon: codexIcon },
+  gemini: { title: 'Gemini CLI', icon: geminiIcon },
 };
 
 export function ProviderIcon({
-  provider = "claude",
-  className = "",
-  variant = "default",
+  provider = 'claude',
+  className = '',
+  variant = 'default',
   size = 14,
   ...rest
 }) {
-  const key = PROVIDER_META[provider] ? provider : "claude";
+  const key = PROVIDER_META[provider] ? provider : 'claude';
   const style = { width: size, height: size };
-  const imageStyle = variant === "muted"
-    ? { filter: "grayscale(1) saturate(0.15) brightness(1.1)", opacity: 0.88 }
-    : undefined;
+  const imageStyle =
+    variant === 'muted'
+      ? { filter: 'grayscale(1) saturate(0.15) brightness(1.1)', opacity: 0.88 }
+      : undefined;
   const mergedStyle = imageStyle ? { ...style, ...imageStyle } : style;
   const providerClassName = `provider-icon-${key}`;
 
@@ -34,7 +36,7 @@ export function ProviderIcon({
       alt=""
       aria-hidden="true"
       draggable="false"
-      className={mergeClassName("icon provider-icon", providerClassName, className)}
+      className={mergeClassName('icon provider-icon', providerClassName, className)}
       style={mergedStyle}
       title={PROVIDER_META[key].title}
       role="presentation"
@@ -45,10 +47,10 @@ export function ProviderIcon({
   );
 }
 
-export function ArchiveIcon({ className = "", size = 12 }) {
+export function ArchiveIcon({ className = '', size = 12 }) {
   return (
     <svg
-      className={mergeClassName("icon archive-icon", className)}
+      className={mergeClassName('icon archive-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
@@ -56,16 +58,20 @@ export function ArchiveIcon({ className = "", size = 12 }) {
       aria-hidden="true"
     >
       <rect x="2" y="3" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M3.5 6.5V12.5C3.5 13.05 3.95 13.5 4.5 13.5H11.5C12.05 13.5 12.5 13.05 12.5 12.5V6.5" stroke="currentColor" strokeWidth="1.2" />
+      <path
+        d="M3.5 6.5V12.5C3.5 13.05 3.95 13.5 4.5 13.5H11.5C12.05 13.5 12.5 13.05 12.5 12.5V6.5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
       <path d="M6 9H10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   );
 }
 
-export function SkillExtractIcon({ className = "", size = 14 }) {
+export function SkillExtractIcon({ className = '', size = 14 }) {
   return (
     <svg
-      className={mergeClassName("icon skill-extract-icon", className)}
+      className={mergeClassName('icon skill-extract-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
@@ -91,10 +97,10 @@ export function SkillExtractIcon({ className = "", size = 14 }) {
   );
 }
 
-export function SmartAiIcon({ className = "", size = 14 }) {
+export function SmartAiIcon({ className = '', size = 14 }) {
   return (
     <svg
-      className={mergeClassName("icon smart-ai-icon", className)}
+      className={mergeClassName('icon smart-ai-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
@@ -107,81 +113,117 @@ export function SmartAiIcon({ className = "", size = 14 }) {
         strokeWidth="1.2"
         strokeLinejoin="round"
       />
-      <path d="M6.45 11.1C6.62 11.81 7.26 12.3 8 12.3C8.74 12.3 9.38 11.81 9.55 11.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path
+        d="M6.45 11.1C6.62 11.81 7.26 12.3 8 12.3C8.74 12.3 9.38 11.81 9.55 11.1"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
       <circle cx="6.65" cy="7.15" r="0.72" fill="currentColor" />
       <circle cx="9.35" cy="7.15" r="0.72" fill="currentColor" />
-      <path d="M12.8 2.3L13.15 3.3L14.15 3.65L13.15 4L12.8 5L12.45 4L11.45 3.65L12.45 3.3L12.8 2.3Z" fill="currentColor" />
-      <path d="M2.9 2.95L3.12 3.58L3.75 3.8L3.12 4.02L2.9 4.65L2.68 4.02L2.05 3.8L2.68 3.58L2.9 2.95Z" fill="currentColor" />
+      <path
+        d="M12.8 2.3L13.15 3.3L14.15 3.65L13.15 4L12.8 5L12.45 4L11.45 3.65L12.45 3.3L12.8 2.3Z"
+        fill="currentColor"
+      />
+      <path
+        d="M2.9 2.95L3.12 3.58L3.75 3.8L3.12 4.02L2.9 4.65L2.68 4.02L2.05 3.8L2.68 3.58L2.9 2.95Z"
+        fill="currentColor"
+      />
     </svg>
   );
 }
 
-export function ExplorerToggleIcon({ className = "", size = 16 }) {
+export function ExplorerToggleIcon({ className = '', size = 16 }) {
   return (
     <svg
-      className={mergeClassName("icon explorer-toggle-icon", className)}
+      className={mergeClassName('icon explorer-toggle-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <rect x="1.75" y="2" width="12.5" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.3" />
+      <rect
+        x="1.75"
+        y="2"
+        width="12.5"
+        height="12"
+        rx="2.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
       <path d="M9 2.7V13.3" stroke="currentColor" strokeWidth="1.3" />
     </svg>
   );
 }
 
-export function ChevronDownIcon({ className = "", size = 14 }) {
+export function ChevronDownIcon({ className = '', size = 14 }) {
   return (
     <svg
-      className={mergeClassName("icon chevron-down-icon", className)}
+      className={mergeClassName('icon chevron-down-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path d="M4 6.5L8 10L12 6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4 6.5L8 10L12 6.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-export function ChevronRightIcon({ className = "", size = 14 }) {
+export function ChevronRightIcon({ className = '', size = 14 }) {
   return (
     <svg
-      className={mergeClassName("icon chevron-right-icon", className)}
+      className={mergeClassName('icon chevron-right-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M6 4L10 8L6 12"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-export function FolderOpenIcon({ className = "", size = 14 }) {
+export function FolderOpenIcon({ className = '', size = 14 }) {
   return (
     <svg
-      className={mergeClassName("icon folder-open-icon", className)}
+      className={mergeClassName('icon folder-open-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path d="M2.5 4.5C2.5 3.95 2.95 3.5 3.5 3.5H6L7.2 5H12.5C13.05 5 13.5 5.45 13.5 6V11.5C13.5 12.05 13.05 12.5 12.5 12.5H3.5C2.95 12.5 2.5 12.05 2.5 11.5V4.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path
+        d="M2.5 4.5C2.5 3.95 2.95 3.5 3.5 3.5H6L7.2 5H12.5C13.05 5 13.5 5.45 13.5 6V11.5C13.5 12.05 13.05 12.5 12.5 12.5H3.5C2.95 12.5 2.5 12.05 2.5 11.5V4.5Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
       <path d="M2.8 7.5H13.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   );
 }
 
-export function PlusIcon({ className = "", size = 14 }) {
+export function PlusIcon({ className = '', size = 14 }) {
   return (
     <svg
-      className={mergeClassName("icon plus-icon", className)}
+      className={mergeClassName('icon plus-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
@@ -194,10 +236,10 @@ export function PlusIcon({ className = "", size = 14 }) {
   );
 }
 
-export function DownloadIcon({ className = "", size = 14 }) {
+export function DownloadIcon({ className = '', size = 14 }) {
   return (
     <svg
-      className={mergeClassName("icon download-icon", className)}
+      className={mergeClassName('icon download-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
@@ -205,51 +247,91 @@ export function DownloadIcon({ className = "", size = 14 }) {
       aria-hidden="true"
     >
       <path d="M8 2.8V9.3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M5.5 7.3L8 9.8L10.5 7.3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M5.5 7.3L8 9.8L10.5 7.3"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <path d="M3 12.2H13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }
 
-export function FolderCodeIcon({ className = "", size = 24 }) {
+export function FolderCodeIcon({ className = '', size = 24 }) {
   return (
     <svg
-      className={mergeClassName("icon folder-code-icon", className)}
+      className={mergeClassName('icon folder-code-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path d="M3.5 7.2C3.5 6.1 4.4 5.2 5.5 5.2H10.1L12 7.5H18.5C19.6 7.5 20.5 8.4 20.5 9.5V17.7C20.5 18.8 19.6 19.7 18.5 19.7H5.5C4.4 19.7 3.5 18.8 3.5 17.7V7.2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M9 11.1L6.8 12.9L9 14.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M15 11.1L17.2 12.9L15 14.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M3.5 7.2C3.5 6.1 4.4 5.2 5.5 5.2H10.1L12 7.5H18.5C19.6 7.5 20.5 8.4 20.5 9.5V17.7C20.5 18.8 19.6 19.7 18.5 19.7H5.5C4.4 19.7 3.5 18.8 3.5 17.7V7.2Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 11.1L6.8 12.9L9 14.7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M15 11.1L17.2 12.9L15 14.7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <path d="M12.9 10.8L11.1 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
 
-export function ExternalLinkIcon({ className = "", size = 16 }) {
+export function ExternalLinkIcon({ className = '', size = 16 }) {
   return (
     <svg
-      className={mergeClassName("icon external-link-icon", className)}
+      className={mergeClassName('icon external-link-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path d="M6.25 4.25H4.2C3.54 4.25 3 4.79 3 5.45V11.8C3 12.46 3.54 13 4.2 13H10.55C11.21 13 11.75 12.46 11.75 11.8V9.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M8.25 3H13V7.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M7.5 8.5L12.65 3.35" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+      <path
+        d="M6.25 4.25H4.2C3.54 4.25 3 4.79 3 5.45V11.8C3 12.46 3.54 13 4.2 13H10.55C11.21 13 11.75 12.46 11.75 11.8V9.75"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8.25 3H13V7.75"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.5 8.5L12.65 3.35"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
-export function SettingsIcon({ className = "", size = 14 }) {
+export function SettingsIcon({ className = '', size = 14 }) {
   return (
     <svg
-      className={mergeClassName("icon settings-icon", className)}
+      className={mergeClassName('icon settings-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
@@ -267,10 +349,10 @@ export function SettingsIcon({ className = "", size = 14 }) {
   );
 }
 
-export function MousePointerIcon({ className = "", size = 14 }) {
+export function MousePointerIcon({ className = '', size = 14 }) {
   return (
     <svg
-      className={mergeClassName("icon mouse-pointer-icon", className)}
+      className={mergeClassName('icon mouse-pointer-icon', className)}
       style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"

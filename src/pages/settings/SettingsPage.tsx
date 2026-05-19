@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "../../ui/button";
-import { ProviderSettingsSection } from "./providers/renderer/ProviderSettingsSection";
-import { ArchiveSettingsSection } from "./archive/renderer/ArchiveSettingsSection";
-import { AboutSettingsSection } from "./about/renderer/AboutSettingsSection";
+import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
 
-type SettingsSection = "providers" | "archive" | "about";
+import { Button } from '../../ui/button';
+import { AboutSettingsSection } from './about/renderer/AboutSettingsSection';
+import { ArchiveSettingsSection } from './archive/renderer/ArchiveSettingsSection';
+import { ProviderSettingsSection } from './providers/renderer/ProviderSettingsSection';
+
+type SettingsSection = 'providers' | 'archive' | 'about';
 
 export interface SettingsPageProps {
   onBack: () => void;
@@ -61,9 +62,9 @@ export function SettingsPage({
   providerLabel,
   onRestoreArchivedSession,
   appVersion,
-  appLogo
+  appLogo,
 }: SettingsPageProps) {
-  const [section, setSection] = useState<SettingsSection>(initialSection || "providers");
+  const [section, setSection] = useState<SettingsSection>(initialSection || 'providers');
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -88,17 +89,17 @@ export function SettingsPage({
         {/* Left sidebar navigation */}
         <nav className="flex w-[180px] shrink-0 flex-col gap-1 border-r border-white/[0.08] bg-white/[0.04] p-2">
           {[
-            { id: "providers" as const, label: "Providers" },
-            { id: "archive" as const, label: "Archive" },
-            { id: "about" as const, label: "About" }
+            { id: 'providers' as const, label: 'Providers' },
+            { id: 'archive' as const, label: 'Archive' },
+            { id: 'about' as const, label: 'About' },
           ].map((item) => (
             <button
               key={item.id}
               type="button"
               className={`flex items-center gap-2 rounded-[4px] px-3 py-2 text-left text-[13px] transition-colors duration-150 ${
                 section === item.id
-                  ? "bg-white/[0.1] font-semibold text-[#EDEDEF]"
-                  : "font-normal text-[#8A8A90] hover:bg-white/[0.06] hover:text-[#EDEDEF]"
+                  ? 'bg-white/[0.1] font-semibold text-[#EDEDEF]'
+                  : 'font-normal text-[#8A8A90] hover:bg-white/[0.06] hover:text-[#EDEDEF]'
               }`}
               onClick={() => setSection(item.id)}
             >
@@ -109,21 +110,16 @@ export function SettingsPage({
 
         {/* Right content area */}
         <div className="flex-1 overflow-y-auto p-6">
-          {section === "providers" && (
-            <ProviderSettingsSection {...providerSectionProps} />
-          )}
-          {section === "archive" && (
+          {section === 'providers' && <ProviderSettingsSection {...providerSectionProps} />}
+          {section === 'archive' && (
             <ArchiveSettingsSection
               archivedSessions={archivedSessions}
               providerLabel={providerLabel}
               onRestoreArchivedSession={onRestoreArchivedSession}
             />
           )}
-          {section === "about" && (
-            <AboutSettingsSection
-              appVersion={appVersion}
-              appLogo={appLogo}
-            />
+          {section === 'about' && (
+            <AboutSettingsSection appVersion={appVersion} appLogo={appLogo} />
           )}
         </div>
       </div>

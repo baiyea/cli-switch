@@ -1,6 +1,7 @@
-import React from "react";
-import { Minus, Square, X } from "lucide-react";
-import { topToolbarBridge } from "./top-toolbar.bridge";
+import { Minus, Square, X } from 'lucide-react';
+import React from 'react';
+
+import { topToolbarBridge } from './top-toolbar.bridge';
 
 export function WindowControls() {
   function onMinimize() {

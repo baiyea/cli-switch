@@ -1,5 +1,5 @@
-const { ipcRenderer } = require("electron");
-const { TERMINAL_CHANNELS } = require("../shared/terminal.channels");
+const { ipcRenderer } = require('electron');
+const { TERMINAL_CHANNELS } = require('../shared/terminal.channels');
 
 function createTerminalApi() {
   const pty = {

@@ -1,5 +1,5 @@
-const { DB_MODELS } = require("../models");
-const { ensureColumn } = require("./legacy-columns");
+const { DB_MODELS } = require('../models');
+const { ensureColumn } = require('./legacy-columns');
 
 function ensureSessionUniqueIndex(conn) {
   conn.exec(`
@@ -26,11 +26,13 @@ function ensureSessionUniqueIndex(conn) {
     );
   `);
 
-  conn.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_provider_sid_unique ON sessions(provider, provider_session_id);");
+  conn.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_provider_sid_unique ON sessions(provider, provider_session_id);',
+  );
 }
 
 function ensureSessionSortOrder(conn) {
-  ensureColumn(conn, DB_MODELS.sessions.tableName, "sort_order", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(conn, DB_MODELS.sessions.tableName, 'sort_order', 'INTEGER NOT NULL DEFAULT 0');
   conn.exec(`
     WITH ranked AS (
       SELECT
@@ -54,5 +56,5 @@ function ensureSessionSortOrder(conn) {
 
 module.exports = {
   ensureSessionUniqueIndex,
-  ensureSessionSortOrder
+  ensureSessionSortOrder,
 };

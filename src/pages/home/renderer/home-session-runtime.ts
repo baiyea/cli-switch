@@ -1,12 +1,17 @@
-type ElectronApi = Window["electronAPI"];
-type SessionApi = ElectronApi["sessions"];
+type ElectronApi = Window['electronAPI'];
+type SessionApi = ElectronApi['sessions'];
 
-export type PersistedSessionItem = Awaited<ReturnType<SessionApi["create"]>>;
-export type SessionProvider = PersistedSessionItem["provider"];
+export type PersistedSessionItem = Awaited<ReturnType<SessionApi['create']>>;
+export type SessionProvider = PersistedSessionItem['provider'];
 
 interface HomeSessionRuntime {
   list(payload?: { projectIds?: string[]; providers?: string[] }): Promise<PersistedSessionItem[]>;
-  create(payload: { projectId: string; cwd?: string; title?: string; provider?: string }): Promise<PersistedSessionItem>;
+  create(payload: {
+    projectId: string;
+    cwd?: string;
+    title?: string;
+    provider?: string;
+  }): Promise<PersistedSessionItem>;
   start(payload: {
     sessionId: string;
     cwd?: string;
@@ -14,12 +19,21 @@ interface HomeSessionRuntime {
     provider?: string;
     providerSessionId?: string;
   }): Promise<PersistedSessionItem>;
-  rename(payload: { sessionId: string; title: string; provider?: string; providerSessionId?: string }): Promise<{ ok: boolean }>;
+  rename(payload: {
+    sessionId: string;
+    title: string;
+    provider?: string;
+    providerSessionId?: string;
+  }): Promise<{ ok: boolean }>;
   reorder(payload: {
     projectId: string;
     orderedSessions: Array<{ provider: SessionProvider; providerSessionId: string }>;
   }): Promise<{ ok: boolean }>;
-  archive(payload: { sessionId: string; provider?: string; providerSessionId?: string }): Promise<{ ok: boolean }>;
+  archive(payload: {
+    sessionId: string;
+    provider?: string;
+    providerSessionId?: string;
+  }): Promise<{ ok: boolean }>;
 }
 
 interface HomePtyRuntime {
@@ -51,13 +65,13 @@ export function createHomeRuntime(electronAPI: ElectronApi = window.electronAPI)
       },
       archive(payload) {
         return electronAPI.sessions.archive(payload);
-      }
+      },
     },
     pty: {
       destroy(sessionId: string) {
         electronAPI.pty.destroy({ sessionId });
-      }
-    }
+      },
+    },
   };
 }
 

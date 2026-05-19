@@ -1,15 +1,15 @@
 export const terminalManifest = {
-  name: "terminal",
-  title: "Terminal",
-  description: "终端会话管理、xterm 渲染、PTY 输入输出",
+  name: 'terminal',
+  title: 'Terminal',
+  description: '终端会话管理、xterm 渲染、PTY 输入输出',
 
-  apiNamespace: "terminal",
+  apiNamespace: 'terminal',
 
   panels: {
-    main: "terminal.main",
+    main: 'terminal.main',
   },
 
   e2e: {
-    tag: "@terminal",
+    tag: '@terminal',
   },
 } as const;

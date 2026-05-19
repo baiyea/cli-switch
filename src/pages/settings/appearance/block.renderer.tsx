@@ -1,4 +1,4 @@
-import { AppearanceSettingsSection } from "./renderer/AppearanceSettingsSection";
+import { AppearanceSettingsSection } from './renderer/AppearanceSettingsSection';
 
 export const appearanceRenderer = {
   panels: {

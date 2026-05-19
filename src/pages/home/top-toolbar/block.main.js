@@ -1,13 +1,8 @@
-const { TOP_TOOLBAR_CHANNELS } = require("./shared/top-toolbar.channels");
-const { registerTopToolbarIpc } = require("./main/top-toolbar.ipc");
+const { TOP_TOOLBAR_CHANNELS } = require('./shared/top-toolbar.channels');
+const { registerTopToolbarIpc } = require('./main/top-toolbar.ipc');
 
 function registerTopToolbarMain(context = {}) {
-  const {
-    registerIpc,
-    skillgenRunSchema,
-    skillgenRunner,
-    logWarn = () => {}
-  } = context;
+  const { registerIpc, skillgenRunSchema, skillgenRunner, logWarn = () => {} } = context;
 
   if (!registerIpc) return;
 
@@ -17,13 +12,13 @@ function registerTopToolbarMain(context = {}) {
   };
 
   registerIpc(TOP_TOOLBAR_CHANNELS.SKILLGEN_RUN, skillgenHandler);
-  if (TOP_TOOLBAR_CHANNELS.SKILLGEN_RUN !== "skillgen:run") {
+  if (TOP_TOOLBAR_CHANNELS.SKILLGEN_RUN !== 'skillgen:run') {
     try {
-      registerIpc("skillgen:run", skillgenHandler);
+      registerIpc('skillgen:run', skillgenHandler);
     } catch (error) {
-      logWarn("ipc", "Skip duplicate fallback IPC registration", {
-        channel: "skillgen:run",
-        error: error instanceof Error ? error.message : String(error)
+      logWarn('ipc', 'Skip duplicate fallback IPC registration', {
+        channel: 'skillgen:run',
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
