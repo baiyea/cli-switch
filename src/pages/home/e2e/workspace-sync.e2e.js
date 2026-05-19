@@ -37,6 +37,36 @@ function setupDb(dbPath, projectAPath, projectBPath) {
      VALUES (?, ?, ?, 'claude', ?, ?)`,
   ).run('p2', 'ProjectB', projectBPath, now, now);
 
+  const providerSettings = {
+    providers: {
+      claude: {
+        defaultProfileId: 'deepseek-api',
+        enabledProfileId: 'deepseek-api',
+        profiles: [
+          {
+            id: 'deepseek-api',
+            name: 'DeepSeek API',
+            envVars: [{ key: 'ANTHROPIC_AUTH_TOKEN', value: 'e2e-dummy-token' }],
+          },
+        ],
+      },
+      codex: {
+        defaultProfileId: 'oauth-login',
+        enabledProfileId: '',
+        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+      },
+      gemini: {
+        defaultProfileId: 'oauth-login',
+        enabledProfileId: '',
+        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+      },
+    },
+  };
+  db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES (?, ?, ?)`,
+  ).run('provider_startup_settings', JSON.stringify(providerSettings), now);
+
   db.close();
 }
 

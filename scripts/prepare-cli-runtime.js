@@ -9,6 +9,7 @@ const targetArch = String(process.env.CLI_TARGET_ARCH || process.arch).toLowerCa
 const key = `${targetPlatform}-${targetArch}`;
 
 const outputRoot = path.join(rootDir, 'build', 'cli-runtime', key);
+const outputBase = path.join(rootDir, 'build', 'cli-runtime');
 const workDir = path.join(rootDir, '.tmp', 'cli-runtime', key);
 
 const cliVersions = {
@@ -58,8 +59,29 @@ function findNpmCli() {
 }
 
 function ensureCleanDir(target) {
-  fs.rmSync(target, { recursive: true, force: true });
+  fs.rmSync(target, {
+    recursive: true,
+    force: true,
+    maxRetries: 8,
+    retryDelay: 150,
+  });
   fs.mkdirSync(target, { recursive: true });
+}
+
+function pruneOtherRuntimeTargets(baseDir, currentKey) {
+  fs.mkdirSync(baseDir, { recursive: true });
+  const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const name = String(entry.name || '');
+    if (name === currentKey) continue;
+    const full = path.join(baseDir, name);
+    fs.rmSync(full, {
+      recursive: true,
+      force: true,
+      maxRetries: 8,
+      retryDelay: 150,
+    });
+  }
 }
 
 function writePackageJson(target) {
@@ -143,6 +165,7 @@ function pruneRuntime(target) {
 
 function main() {
   console.log(`[cli-runtime] Preparing runtime for ${key}`);
+  pruneOtherRuntimeTargets(outputBase, key);
   ensureCleanDir(workDir);
   writePackageJson(workDir);
 

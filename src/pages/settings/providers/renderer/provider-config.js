@@ -1,4 +1,4 @@
-import providerEnvPresets from './provider-env-presets.json';
+import providerEnvPresets from '../shared/provider-env-presets.json';
 
 export const PROVIDER_IDS = ['claude', 'codex', 'gemini'];
 export const PROVIDER_MODEL_ENV_KEYS = {

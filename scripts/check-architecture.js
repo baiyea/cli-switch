@@ -90,7 +90,7 @@ if (fs.existsSync(appMainPath)) {
     'home/home.main',
     'settings/settings.main',
   ]);
-  const allowedPageImportPatterns = [/(?:shared|renderer)\/provider-env-presets\.json$/];
+  const allowedPageImportPatterns = [/shared\/provider-env-presets\.json$/];
   for (const imported of pageImports) {
     if (allowedPageImports.has(imported)) continue;
     if (allowedPageImportPatterns.some((pattern) => pattern.test(imported))) continue;

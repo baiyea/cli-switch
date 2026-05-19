@@ -42,7 +42,7 @@ function setupDb(dbPath, projectDir) {
       },
       codex: {
         defaultProfileId: 'oauth-login',
-        enabledProfileId: '',
+        enabledProfileId: 'oauth-login',
         profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
       },
       gemini: {
@@ -118,7 +118,8 @@ test('simulateImagePaste saves image to disk', async () => {
 test('paste event listener on textarea intercepts image paste', async () => {
   const { app, win } = await launchApp();
 
-  await win.locator('.project-create-main').first().click({ force: true });
+  await win.locator('.project-create-toggle').first().click({ force: true });
+  await win.getByRole('button', { name: 'Codex CLI' }).click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
   const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
 
