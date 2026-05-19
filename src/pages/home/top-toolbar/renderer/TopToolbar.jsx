@@ -75,7 +75,7 @@ export function TopToolbar({
             title="展开会话栏"
             onClick={onExpandSidebar}
           >
-            ▸
+            <ExplorerToggleIcon size={14} />
           </Button>
         )}
         <ProviderIcon
