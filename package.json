@@ -1,6 +1,6 @@
 {
   "name": "zee-lin-code",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Electron + React terminal-style AI workspace",
   "main": "src/app/main.js",

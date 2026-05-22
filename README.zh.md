@@ -6,6 +6,8 @@
 
 三款 AI CLI 工具已针对各平台（macOS ARM64/x64、Windows x64）预构建打包。一次配置 API Key 或 OAuth 登录，即可随时切换供应商、模型和编程计划。
 
+![Cli-Switch 主工作区：多供应商会话与文件树](docs/images/al1.png)
+
 ---
 
 ## 为什么选择 Cli-Switch？
@@ -44,6 +46,8 @@
 | DeepSeek            | Code Plan（基于 Claude） | deepseek-v4-pro     |
 
 每个 Profile 支持**自定义 Base URL**、**自定义模型名称**和**代理配置** —— 任何兼容 OpenAI/Anthropic 协议的接口均可开箱即用。
+
+![Provider 设置：OAuth 登录与代理配置](docs/images/al2.png)
 
 ### 会话管理
 
