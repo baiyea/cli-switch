@@ -62,24 +62,40 @@ async function launchApp({
   showWindow,
   shellPath = '/bin/bash',
 } = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), rootPrefix));
-  const dbPath = path.join(root, 'e2e.db');
-  const projectDir = path.join(root, projectDirName);
-  ensureDir(projectDir);
+  const externalDbPath = process.env.ZEELIN_DB_PATH;
+  const useExternalDb = externalDbPath && fs.existsSync(path.dirname(externalDbPath));
 
-  setupDb({
-    dbPath,
-    projectDir,
-    projectId,
-    projectName,
-    defaultProvider,
-    providerSettings,
-    schemaSql,
-    seedDb,
-  });
+  let root;
+  let dbPath;
+  let projectDir;
 
-  if (typeof prepareFs === 'function') {
-    prepareFs({ root, dbPath, projectDir, projectId });
+  if (useExternalDb) {
+    dbPath = externalDbPath;
+    root = path.dirname(dbPath);
+    projectDir = path.join(root, projectDirName);
+    if (!fs.existsSync(projectDir)) {
+      ensureDir(projectDir);
+    }
+  } else {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), rootPrefix));
+    dbPath = path.join(root, 'e2e.db');
+    projectDir = path.join(root, projectDirName);
+    ensureDir(projectDir);
+
+    setupDb({
+      dbPath,
+      projectDir,
+      projectId,
+      projectName,
+      defaultProvider,
+      providerSettings,
+      schemaSql,
+      seedDb,
+    });
+
+    if (typeof prepareFs === 'function') {
+      prepareFs({ root, dbPath, projectDir, projectId });
+    }
   }
 
   const launchEnv = {
@@ -106,17 +122,17 @@ async function launchApp({
   const window = await electronApp.firstWindow();
   await window.waitForLoadState('domcontentloaded');
 
-  return { electronApp, window, root, dbPath, projectDir, projectId };
+  return { electronApp, window, root, dbPath, projectDir, projectId, isExternalDb: useExternalDb };
 }
 
-async function closeApp({ electronApp, root, keepRoot = false } = {}) {
+async function closeApp({ electronApp, root, keepRoot = false, isExternalDb = false } = {}) {
   if (electronApp) {
     try {
       await electronApp.close();
     } catch {}
   }
 
-  if (!keepRoot && root) {
+  if (!keepRoot && root && !isExternalDb) {
     try {
       fs.rmSync(root, { recursive: true, force: true });
     } catch {}

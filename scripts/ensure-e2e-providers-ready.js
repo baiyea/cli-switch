@@ -111,7 +111,7 @@ function seedEnabledProvider(dbPath) {
   }
 }
 
-function runDeepSeekBootstrapTest() {
+function runDeepSeekBootstrapTest(targetDbPath) {
   log(`未检测到已启用 providers，先执行 ${BOOTSTRAP_TEST_FILE}`);
   const result = spawnSync(
     'pnpm',
@@ -121,6 +121,8 @@ function runDeepSeekBootstrapTest() {
       env: {
         ...process.env,
         APP_E2E_SHOW_WINDOW: process.env.APP_E2E_SHOW_WINDOW || '0',
+        // 让 e2e 测试写入当前检查的同一个数据库
+        ZEELIN_DB_PATH: targetDbPath,
       },
       shell: false,
     },
@@ -138,9 +140,12 @@ function main() {
     return;
   }
 
-  const bootstrapExit = runDeepSeekBootstrapTest();
+  const bootstrapExit = runDeepSeekBootstrapTest(dbPath);
   if (bootstrapExit !== 0) {
-    log(`Bootstrap 测试退出码 ${bootstrapExit}，继续执行兜底写入。`);
+    log(`Bootstrap 测试退出码 ${bootstrapExit}，不再兜底写入。`);
+    log(`请检查 ${BOOTSTRAP_TEST_FILE} 是否正确通过 UI 保存了 provider 配置。`);
+    log(`调试：设置 ZEELIN_DB_PATH=${dbPath} 后手动运行 playwright test ${BOOTSTRAP_TEST_FILE} --headed`);
+    process.exit(1);
   }
 
   const afterBootstrap = readProviderSettingsState(dbPath);
@@ -149,15 +154,9 @@ function main() {
     return;
   }
 
-  log('Bootstrap 测试未落库到当前数据库，执行兜底写入 provider 配置。');
-  seedEnabledProvider(dbPath);
-
-  const finalState = readProviderSettingsState(dbPath);
-  if (!finalState.enabled) {
-    log('兜底写入失败：仍未检测到已启用 providers。');
-    process.exit(1);
-  }
-  log('已完成 provider 兜底配置，继续执行后续 E2E。');
+  log('Bootstrap 测试执行了但未落库到目标数据库。');
+  log(`请检查 ${BOOTSTRAP_TEST_FILE} 中的 launchApp 是否正确使用了 ZEELIN_DB_PATH 环境变量。`);
+  process.exit(1);
 }
 
 main();

@@ -172,11 +172,11 @@ describe('Claude DeepSeek provider flow', () => {
 
   test('can save DeepSeek provider config in settings', async () => {
     const launched = await launchDeepSeekSettingsApp();
-    const { electronApp, window: win, root } = launched;
+    const { window: win } = launched;
     try {
       await configureDeepSeekInSettings(win, DEEPSEEK_TOKEN);
     } finally {
-      await closeApp({ electronApp, root });
+      await closeApp(launched);
     }
   });
 
@@ -184,7 +184,7 @@ describe('Claude DeepSeek provider flow', () => {
     const marker = `CLI_SWITCH_SETTINGS_LIVE_${Date.now()}`;
     const prompt = `Reply with exactly this single token and no other text: ${marker}`;
     const launched = await launchDeepSeekSettingsApp();
-    const { electronApp, window: win, root } = launched;
+    const { window: win } = launched;
 
     try {
       await configureDeepSeekInSettings(win, DEEPSEEK_TOKEN);
@@ -195,7 +195,7 @@ describe('Claude DeepSeek provider flow', () => {
       await waitForClaudeCodeReady(win, sessionId);
       await sendPromptAndWaitForReply(win, sessionId, prompt, marker);
     } finally {
-      await closeApp({ electronApp, root });
+      await closeApp(launched);
     }
   });
 });
