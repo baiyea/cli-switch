@@ -1,7 +1,10 @@
 const { execFileSync, execSync } = require('node:child_process');
 const path = require('node:path');
+const { APP_ID } = require('../src/shared/app-config');
 
 const repoRoot = path.resolve(__dirname, '..');
+const appIdRegexEscaped = String(APP_ID).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const appDataDevPattern = `\\.${appIdRegexEscaped}-dev`;
 
 function cleanupUnix() {
   const currentPid = process.pid;
@@ -63,7 +66,7 @@ $procs = Get-CimInstance Win32_Process | Where-Object {
   if ($_.ProcessId -eq $currentPid) { return $false }
   if ($_.ProcessId -eq $nodePid) { return $false }
   if (@('node.exe', 'cmd.exe') -contains $_.Name -and $cmd -match 'VITE_DEV_SERVER_URL=http://localhost:5073') { return $true }
-  if ($_.Name -eq 'electron.exe' -and $cmd -match '\\.cli-switch-dev') { return $true }
+  if ($_.Name -eq 'electron.exe' -and $cmd -match ${JSON.stringify(appDataDevPattern)}) { return $true }
   if ($_.Name -eq 'electron.exe' -and $cmd -match 'node_modules.*electron.*dist.*electron\\.exe"?\\s+\\.') { return $true }
   if ($cmd -notmatch [regex]::Escape($repo)) { return $false }
   if (@('node.exe', 'cmd.exe', 'electron.exe', 'esbuild.exe') -notcontains $_.Name) { return $false }

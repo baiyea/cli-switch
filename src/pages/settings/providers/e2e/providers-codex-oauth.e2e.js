@@ -1,58 +1,7 @@
-const { test, expect } = require('@playwright/test');
-const { _electron: electron } = require('playwright');
 const path = require('node:path');
-const os = require('node:os');
-const fs = require('node:fs');
-const { DatabaseSync } = require('node:sqlite');
+const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
 const TOTAL_TIMEOUT_MS = 15 * 60 * 1000;
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-function setupDb(dbPath, projectDir, providerSettings) {
-  const db = new DatabaseSync(dbPath);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      default_provider TEXT NOT NULL DEFAULT 'claude',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS session_archives (
-      session_id TEXT PRIMARY KEY,
-      provider TEXT NOT NULL DEFAULT 'claude',
-      project_id TEXT,
-      title TEXT,
-      cwd TEXT NOT NULL,
-      archived_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'claude', ?, ?)`,
-  ).run('p1', 'CodexOAuthProject', projectDir, now, now);
-
-  if (providerSettings) {
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at)
-       VALUES (?, ?, ?)`,
-    ).run('provider_startup_settings', JSON.stringify(providerSettings), now);
-  }
-
-  db.close();
-}
 
 function buildProviderSettings() {
   return {
@@ -97,31 +46,16 @@ function buildProviderSettings() {
 }
 
 async function launchAppWithFixtures(providerSettings) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-codex-oauth-'));
-  const dbPath = path.join(root, 'e2e.db');
-  const projectDir = path.join(root, 'project-a');
-  ensureDir(projectDir);
-  setupDb(dbPath, projectDir, providerSettings);
-
-  const launchEnv = {
-    ...process.env,
-    HOME: root,
-    USERPROFILE: root,
-    ZEELIN_DB_PATH: dbPath,
-    SHELL: '/bin/bash',
-    APP_E2E: '1',
-    APP_E2E_SHOW_WINDOW: process.env.APP_E2E_SHOW_WINDOW || '1',
-  };
-  delete launchEnv.ELECTRON_RUN_AS_NODE;
-
-  const app = await electron.launch({
-    args: [path.resolve(__dirname, '../../../../../')],
-    env: launchEnv,
+  const launched = await launchApp({
+    cwd: path.resolve(__dirname, '../../../../../'),
+    rootPrefix: 'cliswitch-codex-oauth-',
+    projectDirName: 'project-a',
+    projectId: 'p1',
+    projectName: 'CodexOAuthProject',
+    providerSettings,
+    showWindow: process.env.APP_E2E_SHOW_WINDOW || '1',
   });
-
-  const win = await app.firstWindow();
-  await win.waitForLoadState('domcontentloaded');
-  return { app, win, root };
+  return { app: launched.electronApp, win: launched.window, root: launched.root };
 }
 
 async function openProviderSettings(win) {
@@ -132,9 +66,7 @@ async function openProviderSettings(win) {
     await settingsButton.click();
   }
   await expect(settingsModal).toBeVisible({ timeout: 60000 });
-  await expect(
-    win.getByRole('heading', { name: /Providers|Model Provider Settings/i }),
-  ).toBeVisible();
+  await expect(win.getByRole('heading', { name: /Providers|Model Provider Settings/i })).toBeVisible();
 }
 
 async function waitUntilCodexEnabled(win, timeoutMs) {
@@ -188,8 +120,7 @@ test.describe('Codex OAuth interactive login', () => {
       await win.getByRole('button', { name: '保存' }).click();
       await expect(win.getByText('已保存')).toBeVisible({ timeout: 30000 });
     } finally {
-      await app.close();
-      fs.rmSync(root, { recursive: true, force: true });
+      await closeApp({ electronApp: app, root });
     }
   });
 });

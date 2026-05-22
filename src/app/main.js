@@ -34,6 +34,7 @@ const { registerPageMain } = require('./register-page-main');
 const {
   PtyService,
   createSkillgenRunner,
+  createSessionsDumpRunner,
   createSkillgenModelExtractorRuntime,
   createSessionTitleService,
   createModelResponseHelpers,
@@ -94,7 +95,7 @@ const e2eShowWindow = process.env.APP_E2E_SHOW_WINDOW;
 const suppressMainWindowDisplay = e2eShowWindow === '0' || (IS_E2E && e2eShowWindow !== '1');
 const appHomeDir = getDataDir();
 const runtimeAppId =
-  path.basename(appHomeDir).replace(/^\./, '') || (isDev ? `${APP_ID}dev` : APP_ID);
+  path.basename(appHomeDir).replace(/^\./, '') || (isDev ? `${APP_ID}-dev` : APP_ID);
 const appLogsDir = path.join(appHomeDir, 'logs');
 const appCacheDir = path.join(appHomeDir, 'cache');
 const windowRuntime = createWindowRuntime({
@@ -249,6 +250,7 @@ const {
   fileAttachmentSaveSchema,
   fileAttachmentSaveBufferSchema,
   skillgenRunSchema,
+  sessionsDumpRunSchema,
 } = createIpcSchemas(z);
 const { syncDiscoveredSessionsForProjects } = createSessionDiscoverySyncService({
   mapSessionsToProjects,
@@ -279,6 +281,12 @@ const skillgenRunner = createSkillgenRunner({
   logWarn,
   logError,
   extractCandidatesWithModel: extractSkillCandidatesWithModel,
+});
+const sessionsDumpRunner = createSessionsDumpRunner({
+  projectStore,
+  logInfo,
+  logWarn,
+  logError,
 });
 
 const { normalizeSuggestedTitle, suggestSessionTitleWithModel } = createSessionTitleService({
@@ -412,6 +420,8 @@ function registerAppIpc() {
     fileAttachmentSaveBufferSchema,
     skillgenRunSchema,
     skillgenRunner,
+    sessionsDumpRunSchema,
+    sessionsDumpRunner,
     providerConnectionService,
     oauthProbeService,
     proxyConnectivityService,

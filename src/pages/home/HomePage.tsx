@@ -18,6 +18,7 @@ import { SidebarProjectsPanel } from './sidebar/block.renderer';
 import { RenameSessionDialog, TerminalPanel } from './terminal/block.renderer';
 import { useSessionRename } from './terminal/renderer/use-session-rename';
 import { SkillgenResultDialog, TopToolbar } from './top-toolbar/block.renderer';
+import { useSessionsDumpRunner } from './top-toolbar/renderer/use-sessions-dump-runner';
 import { useSkillgenRunner } from './top-toolbar/renderer/use-skillgen-runner';
 import { WelcomeView } from './WelcomeView';
 
@@ -109,6 +110,10 @@ export function HomePage() {
   const { skillgenRunning, onRunSkillgen, skillgenResultDialogProps } = useSkillgenRunner({
     activeProject,
     activeSessionId,
+    setAppError,
+  });
+  const { sessionsDumpRunning, sessionsDumpStatus, onRunSessionsDump } = useSessionsDumpRunner({
+    activeProject,
     setAppError,
   });
 
@@ -217,6 +222,10 @@ export function HomePage() {
           skillgenRunning={skillgenRunning}
           onRunSkillgen={() => void onRunSkillgen()}
           canRunSkillgen={Boolean(activeProject?.id)}
+          sessionsDumpRunning={sessionsDumpRunning}
+          sessionsDumpStatus={sessionsDumpStatus}
+          onRunSessionsDump={() => void onRunSessionsDump()}
+          canRunSessionsDump={Boolean(activeProject?.id)}
           onArchiveActiveSession={() => {
             if (activeSessionId) destroySession(activeSessionId);
           }}

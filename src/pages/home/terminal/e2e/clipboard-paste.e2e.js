@@ -1,98 +1,54 @@
-const { test, expect } = require('@playwright/test');
-const { _electron: electron } = require('playwright');
+const { test, expect, launchApp: launchE2EApp, closeApp } = require('../../../../tests/e2e');
 const path = require('node:path');
-const os = require('node:os');
 const fs = require('node:fs');
-const { DatabaseSync } = require('node:sqlite');
 
 // 1x1 transparent PNG (68 bytes)
 const TEST_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
-function setupDb(dbPath, projectDir) {
-  const db = new DatabaseSync(dbPath);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      default_provider TEXT NOT NULL DEFAULT 'claude',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-  const now = new Date().toISOString();
-  const providerSettings = {
-    providers: {
-      claude: {
-        defaultProfileId: 'deepseek-api',
-        enabledProfileId: 'deepseek-api',
-        profiles: [
-          {
-            id: 'deepseek-api',
-            name: 'DeepSeek API',
-            envVars: [{ key: 'ANTHROPIC_AUTH_TOKEN', value: 'e2e-dummy-token' }],
-          },
-        ],
-      },
-      codex: {
-        defaultProfileId: 'oauth-login',
-        enabledProfileId: 'oauth-login',
-        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
-      },
-      gemini: {
-        defaultProfileId: 'oauth-login',
-        enabledProfileId: '',
-        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+async function launchApp() {
+  const launched = await launchE2EApp({
+    cwd: path.resolve(__dirname, '../../../../../'),
+    rootPrefix: 'cliswitch-clipboard-paste-',
+    projectDirName: 'project-a',
+    projectId: 'p1',
+    projectName: 'DemoProject',
+    providerSettings: {
+      providers: {
+        claude: {
+          defaultProfileId: 'deepseek-api',
+          enabledProfileId: 'deepseek-api',
+          profiles: [
+            {
+              id: 'deepseek-api',
+              name: 'DeepSeek API',
+              envVars: [{ key: 'ANTHROPIC_AUTH_TOKEN', value: 'e2e-dummy-token' }],
+            },
+          ],
+        },
+        codex: {
+          defaultProfileId: 'oauth-login',
+          enabledProfileId: 'oauth-login',
+          profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+        },
+        gemini: {
+          defaultProfileId: 'oauth-login',
+          enabledProfileId: '',
+          profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+        },
       },
     },
-  };
-  db.prepare(
-    `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'claude', ?, ?)`,
-  ).run('p1', 'DemoProject', projectDir, now, now);
-  db.prepare(
-    `INSERT INTO app_settings (key, value, updated_at)
-     VALUES (?, ?, ?)`,
-  ).run('provider_startup_settings', JSON.stringify(providerSettings), now);
-  db.close();
-}
-
-async function launchApp() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-clipboard-paste-'));
-  const dbPath = path.join(root, 'e2e.db');
-  const projectDir = path.join(root, 'project-a');
-  fs.mkdirSync(projectDir, { recursive: true });
-  setupDb(dbPath, projectDir);
-
-  const launchEnv = {
-    ...process.env,
-    HOME: root,
-    USERPROFILE: root,
-    ZEELIN_DB_PATH: dbPath,
-    SHELL: '/bin/bash',
-    APP_E2E: '1',
-    APP_E2E_SHOW_WINDOW: process.env.APP_E2E_SHOW_WINDOW || '0',
-  };
-  delete launchEnv.ELECTRON_RUN_AS_NODE;
-
-  const app = await electron.launch({
-    args: [path.resolve(__dirname, '../../../../../')],
-    env: launchEnv,
   });
-
-  const win = await app.firstWindow();
-  await win.waitForLoadState('domcontentloaded');
-  return { app, win, projectDir };
+  return {
+    app: launched.electronApp,
+    win: launched.window,
+    projectDir: launched.projectDir,
+    root: launched.root,
+  };
 }
 
 test('simulateImagePaste saves image to disk', async () => {
-  const { app, win, projectDir } = await launchApp();
+  const { app, win, projectDir, root } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
@@ -104,7 +60,7 @@ test('simulateImagePaste saves image to disk', async () => {
   );
 
   expect(result?.ok).toBe(true);
-  expect(result?.relPath).toMatch(/^\.claude\/attachments\/\d+\.png$/);
+  expect(result?.relPath).toMatch(/^\.cli-switch\/attachments\/\d+\.png$/);
   expect(result?.absPath).toBeTruthy();
 
   const absPath = path.join(projectDir, result.relPath);
@@ -112,11 +68,11 @@ test('simulateImagePaste saves image to disk', async () => {
   const stat = fs.statSync(absPath);
   expect(stat.size).toBeGreaterThan(0);
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });
 
 test('paste event listener on textarea intercepts image paste', async () => {
-  const { app, win } = await launchApp();
+  const { app, win, root } = await launchApp();
 
   await win.locator('.project-create-toggle').first().click({ force: true });
   await win.getByRole('button', { name: 'Codex CLI' }).click({ force: true });
@@ -165,11 +121,11 @@ test('paste event listener on textarea intercepts image paste', async () => {
   expect(pasteResult.targetTag).toBe('TEXTAREA');
   expect(pasteResult.defaultPrevented).toBe(true);
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });
 
 test('paste handler allows text paste when no image in clipboard', async () => {
-  const { app, win } = await launchApp();
+  const { app, win, root } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
@@ -211,13 +167,13 @@ test('paste handler allows text paste when no image in clipboard', async () => {
   expect(pasteResult.ok).toBe(true);
   expect(pasteResult.defaultPrevented).toBe(false);
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });
 
 // ===== 跨平台兼容性检测测试 =====
 
 test('attachCustomKeyEventHandler is registered and intercepts copy/paste keys', async () => {
-  const { app, win } = await launchApp();
+  const { app, win, root } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
@@ -273,11 +229,11 @@ test('attachCustomKeyEventHandler is registered and intercepts copy/paste keys',
   // 这证明 attachCustomKeyEventHandler 确实拦截了 Ctrl+V
   expect(handlerCheck.pasteDispatched).toBe(false);
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });
 
 test('app menu does not intercept copy/paste on macOS', async () => {
-  const { app, win } = await launchApp();
+  const { app, win, root } = await launchApp();
 
   // 在 macOS 上检测应用菜单是否包含 Copy/Paste role
   // 如果包含，会拦截 Cmd+C/Cmd+V 键盘事件，导致 attachCustomKeyEventHandler 收不到
@@ -300,11 +256,11 @@ test('app menu does not intercept copy/paste on macOS', async () => {
   // 记录平台信息，方便调试
   console.log('[e2e] platform:', menuCheck.platform, 'userAgent:', menuCheck.userAgent);
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });
 
 test('supportsImagePaste allows all providers on Windows but limits on macOS', async () => {
-  const { app, win } = await launchApp();
+  const { app, win, root } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
@@ -346,11 +302,11 @@ test('supportsImagePaste allows all providers on Windows but limits on macOS', a
     console.log('[e2e] WARNING: Claude provider does not support image paste on macOS');
   }
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });
 
 test('selection is not cleared after copy on macOS', async () => {
-  const { app, win } = await launchApp();
+  const { app, win, root } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
@@ -387,11 +343,11 @@ test('selection is not cleared after copy on macOS', async () => {
     // 这个测试需要手动验证，因为 Playwright 无法直接操作 xterm 的 selection
   }
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });
 
 test('FILE_ATTACHMENT_SAVE_BUFFER IPC channel is registered', async () => {
-  const { app, win } = await launchApp();
+  const { app, win, root } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
@@ -408,11 +364,11 @@ test('FILE_ATTACHMENT_SAVE_BUFFER IPC channel is registered', async () => {
   // 同时验证文件扩展名是否正确（基于 mimeType）
   expect(result?.relPath).toMatch(/\.png$/);
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });
 
 test('FILE_ATTACHMENT_SAVE handler supports multiple image formats', async () => {
-  const { app, win, projectDir } = await launchApp();
+  const { app, win, projectDir, root } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
@@ -440,11 +396,11 @@ test('FILE_ATTACHMENT_SAVE handler supports multiple image formats', async () =>
     expect(fs.existsSync(absPath)).toBe(true);
   }
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });
 
 test('Ctrl+Shift+V or Cmd+Shift+V should not trigger copy/paste handler', async () => {
-  const { app, win } = await launchApp();
+  const { app, win, root } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
@@ -503,5 +459,5 @@ test('Ctrl+Shift+V or Cmd+Shift+V should not trigger copy/paste handler', async 
     );
   }
 
-  await app.close();
+  await closeApp({ electronApp: app, root });
 });

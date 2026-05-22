@@ -94,6 +94,12 @@ class PtyService {
         repeat: true,
       },
       {
+        key: 'claude-bypass-permissions',
+        test: /Bypass Permissions mode/i,
+        guards: [/Yes,\s*I accept/i, /No,\s*exit/i],
+        input: '2\r',
+      },
+      {
         key: 'claude-api-key-confirm',
         test: /Detected a custom API key in your environment/i,
         guards: [/Do you want to use this API key\?/i, /1\.\s*Yes/i, /2\.\s*No\s*\(recommended\)/i],

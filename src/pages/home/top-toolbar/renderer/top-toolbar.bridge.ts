@@ -28,10 +28,42 @@ export interface SkillgenRunResult {
   logPath: string;
 }
 
+export interface SessionsDumpRunPayload {
+  projectId: string;
+  trigger?: string;
+}
+
+export interface SessionsDumpRunResult {
+  ok: boolean;
+  projectId: string;
+  projectPath: string;
+  trigger: string;
+  sessionsRoot: string;
+  yesterdayStart: string;
+  scanned: number;
+  inWindow: number;
+  changed: number;
+  dumpedFiles: number;
+  appendedRounds: number;
+  skippedUnchanged: number;
+  skippedOutOfWindow: number;
+  parseFailed: number;
+  warnings: string[];
+  files: string[];
+  elapsedMs: number;
+  finishedAt: string;
+  error?: string;
+}
+
 export const topToolbarBridge = {
   skillgen: {
     run(payload: SkillgenRunPayload): Promise<SkillgenRunResult> {
       return window.electronAPI.skillgen.run(payload);
+    },
+  },
+  sessionsDump: {
+    run(payload: SessionsDumpRunPayload): Promise<SessionsDumpRunResult> {
+      return window.electronAPI.sessionsDump.run(payload);
     },
   },
   window: {

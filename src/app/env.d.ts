@@ -296,6 +296,29 @@ declare global {
           logPath: string;
         }>;
       };
+      sessionsDump: {
+        run: (payload: { projectId: string; trigger?: string }) => Promise<{
+          ok: boolean;
+          projectId: string;
+          projectPath: string;
+          trigger: string;
+          sessionsRoot: string;
+          yesterdayStart: string;
+          scanned: number;
+          inWindow: number;
+          changed: number;
+          dumpedFiles: number;
+          appendedRounds: number;
+          skippedUnchanged: number;
+          skippedOutOfWindow: number;
+          parseFailed: number;
+          warnings: string[];
+          files: string[];
+          elapsedMs: number;
+          finishedAt: string;
+          error?: string;
+        }>;
+      };
       windowControls: {
         setTrafficLightPosition: (payload: { x: number; y: number }) => Promise<{ ok: boolean }>;
         openExternal: (payload: { url: string }) => Promise<void>;

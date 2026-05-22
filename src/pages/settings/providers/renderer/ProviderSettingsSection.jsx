@@ -100,6 +100,7 @@ export function ProviderSettingsSection({
             {isFixedProfileProvider ? (
               <div className="flex flex-wrap items-center gap-2">
                 <Select
+                  data-testid="provider-profile-select"
                   value={editingProfile.id || ''}
                   onChange={(e) => onSelectEditingProfile(e.target.value)}
                   className={`w-full max-w-[420px] ${linearFieldClass}`}
@@ -266,6 +267,7 @@ export function ProviderSettingsSection({
                       className="grid grid-cols-1 gap-2 sm:grid-cols-[180px_minmax(0,1fr)_auto]"
                     >
                       <Input
+                        data-testid={`provider-env-key-${pair.key || index}`}
                         type="text"
                         placeholder="KEY"
                         value={pair.key}
@@ -278,6 +280,7 @@ export function ProviderSettingsSection({
                         }
                       />
                       <Input
+                        data-testid={`provider-env-value-${pair.key || index}`}
                         type="text"
                         placeholder="输入值"
                         value={pair.value}
@@ -335,6 +338,7 @@ export function ProviderSettingsSection({
                   ) : null}
                 </span>
                 <Switch
+                  data-testid="provider-enable-switch"
                   aria-label="启用配置开关"
                   checked={currentProviderSettings.enabledProfileId === editingProfile.id}
                   onCheckedChange={(checked) => onToggleProviderProfile(editingProfile.id, checked)}

@@ -1,7 +1,7 @@
 const path = require('node:path');
 const os = require('node:os');
 const fs = require('node:fs');
-const { DB_FILENAME } = require('../shared/app-config.js');
+const { APP_ID, DB_FILENAME } = require('../shared/app-config.js');
 
 const IS_E2E = process.env.APP_E2E === '1';
 const IS_DEV = !!process.env.VITE_DEV_SERVER_URL;
@@ -11,7 +11,7 @@ function getAppHomeDir() {
     const runId = process.env.APP_E2E_RUN_ID || String(Date.now());
     return path.join(os.tmpdir(), '.cli-switch-e2e', runId);
   }
-  const appId = IS_DEV ? 'cli-switch-dev' : 'cli-switch';
+  const appId = IS_DEV ? `${APP_ID}-dev` : APP_ID;
   return path.join(os.homedir(), `.${appId}`);
 }
 

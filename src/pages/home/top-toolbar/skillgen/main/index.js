@@ -3,13 +3,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
+const { resolveProjectAppDataPath } = require('../../../../../shared/project-app-data');
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
 function openStateDb(workspacePath) {
-  const skillgenRoot = path.join(workspacePath, '.claude', '.skillgen');
+  const skillgenRoot = resolveProjectAppDataPath(workspacePath, 'skillgen');
   const runLogsDir = path.join(skillgenRoot, 'run_logs');
   const candidatesDir = path.join(skillgenRoot, 'candidates');
   ensureDir(skillgenRoot);

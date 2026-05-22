@@ -1,4 +1,6 @@
 const providerEnvPresets = require('../../pages/settings/providers/shared/provider-env-presets.json');
+const fs = require('node:fs');
+const path = require('node:path');
 
 function buildProviderSettings(overrides = {}) {
   const defaults = {
@@ -41,4 +43,57 @@ function buildProviderSettings(overrides = {}) {
   return { providers: defaults };
 }
 
-module.exports = { buildProviderSettings };
+function prepareClaudeCodeFirstRunState({ root, projectDir }) {
+  if (!root || !projectDir) return;
+  fs.mkdirSync(path.join(root, '.claude'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.claude', 'settings.json'),
+    `${JSON.stringify({ skipDangerousModePermissionPrompt: true }, null, 2)}\n`,
+  );
+
+  const now = new Date().toISOString();
+  const projectState = {
+    allowedTools: [],
+    disabledMcpjsonServers: [],
+    enabledMcpjsonServers: [],
+    exampleFiles: [],
+    hasClaudeMdExternalIncludesApproved: false,
+    hasClaudeMdExternalIncludesWarningShown: false,
+    hasCompletedProjectOnboarding: true,
+    hasTrustDialogAccepted: true,
+    lastAPIDuration: 0,
+    lastAPIDurationWithoutRetries: 0,
+    lastCost: 0,
+    lastDuration: 0,
+    lastLinesAdded: 0,
+    lastLinesRemoved: 0,
+    lastModelUsage: {},
+    mcpContextUris: [],
+    mcpServers: {},
+    projectOnboardingSeenCount: 1,
+  };
+
+  const realProjectDir = fs.realpathSync.native?.(projectDir) || fs.realpathSync(projectDir);
+  const projects = {
+    [projectDir]: projectState,
+  };
+  if (realProjectDir !== projectDir) {
+    projects[realProjectDir] = projectState;
+  }
+
+  fs.writeFileSync(
+    path.join(root, '.claude.json'),
+    `${JSON.stringify(
+      {
+        firstStartTime: now,
+        hasCompletedOnboarding: true,
+        customApiKeyResponses: { approved: [], rejected: [] },
+        projects,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+module.exports = { buildProviderSettings, prepareClaudeCodeFirstRunState };

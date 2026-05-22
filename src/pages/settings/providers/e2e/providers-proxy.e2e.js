@@ -1,10 +1,12 @@
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const net = require('node:net');
 const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
 const DEFAULT_PROXY_URL = process.env.E2E_PROXY_URL || 'http://127.0.0.1:7890';
 const PROXY_INPUT_PLACEHOLDER = '代理地址，例如 http://127.0.0.1:7890';
 const PROVIDER_TABS = ['Claude Code', 'Codex CLI', 'Gemini CLI'];
+const PROXY_PROBE_TARGETS = ['https://x.com', 'https://www.google.com', 'https://github.com'];
 
 function parseProxyEndpoint(proxyUrl) {
   const parsed = new URL(String(proxyUrl || '').trim());
@@ -41,6 +43,30 @@ async function probeProxyAvailability(proxyUrl, timeoutMs = 2500) {
       socket.once('timeout', () => onFinish(new Error('timeout')));
       socket.once('error', (err) => onFinish(err));
     });
+    for (const target of PROXY_PROBE_TARGETS) {
+      const result = spawnSync(
+        'curl',
+        ['--silent', '--show-error', '--location', '--output', '/dev/null', '--max-time', '3', '--write-out', '%{http_code}', target],
+        {
+          env: { ...process.env, HTTP_PROXY: proxyUrl, HTTPS_PROXY: proxyUrl },
+          encoding: 'utf8',
+          timeout: 4000,
+        },
+      );
+      const status = Number.parseInt(String(result.stdout || '').trim(), 10);
+      if (
+        result.error ||
+        result.status !== 0 ||
+        !Number.isInteger(status) ||
+        status < 200 ||
+        status >= 500
+      ) {
+        return {
+          ok: false,
+          message: `代理地址不可用 (${proxyUrl})：${target} 探测失败${result.stderr ? ` - ${String(result.stderr).trim()}` : ''}`,
+        };
+      }
+    }
     return { ok: true, message: '' };
   } catch (error) {
     return {

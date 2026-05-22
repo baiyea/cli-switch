@@ -1,5 +1,7 @@
 # Home Top Toolbar
 
-Home 顶部工具栏区块，负责当前会话标题、窗口控制按钮、文件树显示切换、归档当前会话入口和 Skillgen 触发入口。
+Home 顶部工具栏区块，负责当前会话标题、窗口控制按钮、文件树显示切换、归档当前会话入口、Skillgen 触发入口和会话内容手动导出入口。
 
 允许导入 `pages/home/home.store.ts` 中的 Home 页面共享状态，以及必要的全局 UI 组件。禁止导入 terminal/sidebar/file-tree 的内部实现。
+
+`sessions-dump/` 属于 top-toolbar 私有能力，只由 top-toolbar 的按钮手动触发。它独立扫描 Claude/Codex/Gemini 本地会话文件，并写入当前项目的 `.{APP_ID}/sessions/{日期}/{provider}-{sessionId}.md`。

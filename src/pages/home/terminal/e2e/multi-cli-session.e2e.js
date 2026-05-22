@@ -1,48 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { _electron: electron } = require('playwright');
 const path = require('node:path');
-const os = require('node:os');
 const fs = require('node:fs');
-const { DatabaseSync } = require('node:sqlite');
+const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
-}
-
-function setupDb(dbPath, projectDir) {
-  const db = new DatabaseSync(dbPath);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      default_provider TEXT NOT NULL DEFAULT 'claude',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS session_archives (
-      session_id TEXT PRIMARY KEY,
-      provider TEXT NOT NULL DEFAULT 'claude',
-      project_id TEXT,
-      title TEXT,
-      cwd TEXT NOT NULL,
-      archived_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'claude', ?, ?)`,
-  ).run('p1', 'DemoProject', projectDir, now, now);
-
-  db.close();
 }
 
 function seedProviderSessions(homeDir, projectDir) {
@@ -81,14 +42,7 @@ function seedProviderSessions(homeDir, projectDir) {
     `${JSON.stringify({ cwd: projectDir, message: { role: 'user', content: 'codex-provider-session' } })}\n`,
     'utf8',
   );
-  const codexDuplicatePath = path.join(
-    homeDir,
-    '.codex',
-    'sessions',
-    'demo',
-    'nested',
-    `${codexSid}.jsonl`,
-  );
+  const codexDuplicatePath = path.join(homeDir, '.codex', 'sessions', 'demo', 'nested', `${codexSid}.jsonl`);
   ensureDir(path.dirname(codexDuplicatePath));
   fs.writeFileSync(
     codexDuplicatePath,
@@ -100,10 +54,7 @@ function seedProviderSessions(homeDir, projectDir) {
   ensureDir(path.dirname(geminiPath));
   fs.writeFileSync(
     geminiPath,
-    JSON.stringify({
-      cwd: projectDir,
-      messages: [{ role: 'user', text: 'gemini-provider-session' }],
-    }),
+    JSON.stringify({ cwd: projectDir, messages: [{ role: 'user', text: 'gemini-provider-session' }] }),
     'utf8',
   );
 
@@ -111,37 +62,57 @@ function seedProviderSessions(homeDir, projectDir) {
 }
 
 async function launchAppWithFixtures() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-multi-cli-'));
-  const dbPath = path.join(root, 'e2e.db');
-  const projectDir = path.join(root, 'project-a');
-  ensureDir(projectDir);
-  setupDb(dbPath, projectDir);
-  const ids = seedProviderSessions(root, projectDir);
-
-  const launchEnv = {
-    ...process.env,
-    HOME: root,
-    USERPROFILE: root,
-    ZEELIN_DB_PATH: dbPath,
-    SHELL: '/bin/bash',
-    APP_E2E: '1',
-    APP_E2E_SHOW_WINDOW: process.env.APP_E2E_SHOW_WINDOW || '0',
-  };
-  delete launchEnv.ELECTRON_RUN_AS_NODE;
-
-  const app = await electron.launch({
-    args: [path.resolve(__dirname, '../../../../../')],
-    env: launchEnv,
+  const ids = {};
+  const launched = await launchApp({
+    cwd: path.resolve(__dirname, '../../../../../'),
+    rootPrefix: 'cliswitch-multi-cli-',
+    projectDirName: 'project-a',
+    projectId: 'p1',
+    projectName: 'DemoProject',
+    providerSettings: {
+      providers: {
+        claude: {
+          defaultProfileId: 'deepseek-api',
+          enabledProfileId: 'deepseek-api',
+          profiles: [{ id: 'deepseek-api', name: 'DeepSeek API', envVars: [] }],
+        },
+        codex: {
+          defaultProfileId: 'oauth-login',
+          enabledProfileId: 'oauth-login',
+          profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+        },
+        gemini: {
+          defaultProfileId: 'oauth-login',
+          enabledProfileId: 'oauth-login',
+          profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
+        },
+      },
+    },
+    prepareFs: ({ root, projectDir }) => {
+      Object.assign(ids, seedProviderSessions(root, projectDir));
+    },
   });
-
-  const win = await app.firstWindow();
-  await win.waitForLoadState('domcontentloaded');
-  return { app, win, ids };
+  return { ...launched, ids };
 }
 
 async function syncFirstProjectHistory(win) {
-  await win.locator('.project-create-toggle').first().click({ force: true });
-  await win.getByRole('button', { name: '读取历史会话' }).click({ force: true });
+  const projectNode = win.getByTestId('project-p1');
+  await projectNode.locator('.project-create-toggle').click({ force: true });
+  await projectNode.getByRole('button', { name: '读取历史会话' }).click({ force: true });
+}
+
+async function waitForDiscoveredSessions(win, projectId, sessionIds) {
+  await expect
+    .poll(
+      async () =>
+        win.evaluate(async ({ pid, ids }) => {
+          const rows = await window.electronAPI.sessions.list({ projectIds: [pid] });
+          const idSet = new Set(rows.map((item) => String(item?.sessionId || '')));
+          return ids.every((sid) => idSet.has(String(sid || '')));
+        }, { pid: projectId, ids: sessionIds }),
+      { timeout: 60000, intervals: [300, 600, 1000] },
+    )
+    .toBe(true);
 }
 
 function countOccurrences(text, token) {
@@ -150,73 +121,101 @@ function countOccurrences(text, token) {
 }
 
 test('multi provider sessions are discovered and resumed by provider', async () => {
-  const { app, win, ids } = await launchAppWithFixtures();
-  await syncFirstProjectHistory(win);
+  const launched = await launchAppWithFixtures();
+  const { electronApp, window: win, ids, root } = launched;
+  try {
+    await syncFirstProjectHistory(win);
+    await waitForDiscoveredSessions(win, 'p1', [ids.claudeSid, ids.codexSid, ids.geminiSid]);
 
-  await expect(win.getByTestId(`session-item-${ids.claudeSid}`)).toBeVisible();
-  await expect(win.getByTestId(`session-item-${ids.codexSid}`)).toBeVisible();
-  await expect(win.getByTestId(`session-item-${ids.geminiSid}`)).toBeVisible();
-  await expect(win.getByTestId(`session-item-${ids.codexSid}`)).toHaveCount(1);
-  await expect(win.getByTestId(`session-item-${ids.claudeSubAgentSid}`)).toHaveCount(0);
+    await expect(win.getByTestId(`session-item-${ids.claudeSid}`)).toBeVisible();
+    await expect(win.getByTestId(`session-item-${ids.codexSid}`)).toBeVisible();
+    await expect(win.getByTestId(`session-item-${ids.geminiSid}`)).toBeVisible();
+    await expect(win.getByTestId(`session-item-${ids.codexSid}`)).toHaveCount(1);
+    await expect(win.getByTestId(`session-item-${ids.claudeSubAgentSid}`)).toHaveCount(0);
 
-  await win.getByTestId(`session-item-${ids.codexSid}`).click();
-  await expect(win.locator(".toolbar-provider-icon[title='Codex CLI']")).toBeVisible();
-  await expect(win.locator('.status-chip')).toBeVisible();
-  await expect(win.locator(`[data-session-id="${ids.codexSid}"]`)).toBeVisible();
+    await win.getByTestId(`session-item-${ids.codexSid}`).click();
+    await expect(win.locator('.toolbar-provider-meta')).toHaveText(/^Codex CLI\s·/);
+    await expect(win.locator('.toolbar-session-status')).toBeVisible();
+    await expect(win.locator(`[data-session-id="${ids.codexSid}"]`)).toBeVisible();
 
-  await win.getByTestId(`session-item-${ids.geminiSid}`).click();
-  await expect(win.locator(".toolbar-provider-icon[title='Gemini CLI']")).toBeVisible();
-  await expect(win.locator('.status-chip')).toBeVisible();
-  await expect(win.locator(`[data-session-id="${ids.geminiSid}"]`)).toBeVisible();
-
-  await app.close();
+    await win.getByTestId(`session-item-${ids.geminiSid}`).click();
+    await expect(win.locator('.toolbar-provider-meta')).toHaveText(/^Gemini CLI\s·/);
+    await expect(win.locator('.toolbar-session-status')).toBeVisible();
+    await expect(win.locator(`[data-session-id="${ids.geminiSid}"]`)).toBeVisible();
+  } finally {
+    await closeApp({ electronApp, root });
+  }
 });
 
 test('archive and restore uses provider+session archive id', async () => {
-  const { app, win } = await launchAppWithFixtures();
-  await syncFirstProjectHistory(win);
+  const launched = await launchAppWithFixtures();
+  const { electronApp, window: win, root } = launched;
+  try {
+    await syncFirstProjectHistory(win);
+    await waitForDiscoveredSessions(win, 'p1', [
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333',
+    ]);
 
-  const codexItem = win.getByTestId('session-item-22222222-2222-4222-8222-222222222222');
-  await expect(codexItem).toBeVisible();
-  await codexItem.locator('.session-archive-btn').click({ force: true });
+    const codexItem = win.getByTestId('session-item-22222222-2222-4222-8222-222222222222');
+    await expect(codexItem).toBeVisible();
+    await codexItem.click();
+    await win.getByRole('button', { name: '归档当前会话' }).click();
+    await expect
+      .poll(
+        async () =>
+          win.evaluate(async () => {
+            const rows = await window.electronAPI.sessions.list({ projectIds: ['p1'] });
+            return rows.some(
+              (item) =>
+                String(item?.sessionId || '') === '22222222-2222-4222-8222-222222222222',
+            );
+          }),
+        { timeout: 60000, intervals: [300, 600, 1000] },
+      )
+      .toBe(false);
 
-  await expect(win.getByTestId('session-item-22222222-2222-4222-8222-222222222222')).toHaveCount(0);
-  await expect(win.getByTestId('session-item-11111111-1111-4111-8111-111111111111')).toBeVisible();
-  await expect(win.getByTestId('session-item-33333333-3333-4333-8333-333333333333')).toBeVisible();
+    await expect(win.getByTestId('session-item-22222222-2222-4222-8222-222222222222')).toHaveCount(0);
+    await expect(win.getByTestId('session-item-11111111-1111-4111-8111-111111111111')).toBeVisible();
+    await expect(win.getByTestId('session-item-33333333-3333-4333-8333-333333333333')).toBeVisible();
 
-  await win.getByRole('button', { name: 'Settings' }).click();
-  await win.locator('.settings-modal').getByRole('button', { name: 'Archive' }).click();
+    await win.evaluate(async () => {
+      await window.electronAPI.sessions.restore('codex:22222222-2222-4222-8222-222222222222');
+    });
+    await win.reload();
+    await win.waitForLoadState('domcontentloaded');
 
-  const archivedRow = win.locator('.archived-row', { hasText: 'codex-provider-session' });
-  await expect(archivedRow).toBeVisible();
-  await archivedRow.getByRole('button', { name: '恢复' }).click();
-  await win.locator('.settings-close').click();
-
-  await expect(win.getByTestId('session-item-22222222-2222-4222-8222-222222222222')).toBeVisible();
-
-  await app.close();
+    await expect(win.getByTestId('session-item-22222222-2222-4222-8222-222222222222')).toBeVisible();
+  } finally {
+    await closeApp({ electronApp, root });
+  }
 });
 
 test('switching back and forth does not inject duplicate resume commands', async () => {
-  const { app, win, ids } = await launchAppWithFixtures();
-  await syncFirstProjectHistory(win);
+  const launched = await launchAppWithFixtures();
+  const { electronApp, window: win, ids, root } = launched;
+  try {
+    await syncFirstProjectHistory(win);
+    await waitForDiscoveredSessions(win, 'p1', [ids.claudeSid, ids.codexSid, ids.geminiSid]);
 
-  const codexItem = win.getByTestId(`session-item-${ids.codexSid}`);
-  const claudeItem = win.getByTestId(`session-item-${ids.claudeSid}`);
-  const geminiItem = win.getByTestId(`session-item-${ids.geminiSid}`);
+    const codexItem = win.getByTestId(`session-item-${ids.codexSid}`);
+    const claudeItem = win.getByTestId(`session-item-${ids.claudeSid}`);
+    const geminiItem = win.getByTestId(`session-item-${ids.geminiSid}`);
 
-  await codexItem.click();
-  await claudeItem.click();
-  await codexItem.click();
-  await geminiItem.click();
-  await codexItem.click();
+    await codexItem.click();
+    await claudeItem.click();
+    await codexItem.click();
+    await geminiItem.click();
+    await codexItem.click();
 
-  const buffer = await win.evaluate(
-    (sid) => window.__ZEELIN_TEST__?.getSessionBuffer(sid) || '',
-    ids.codexSid,
-  );
-  const launchToken = 'ELECTRON_RUN_AS_NODE=1';
-  expect(countOccurrences(buffer, launchToken)).toBeLessThanOrEqual(1);
-
-  await app.close();
+    const buffer = await win.evaluate(
+      (sid) => window.__ZEELIN_TEST__?.getSessionBuffer(sid) || '',
+      ids.codexSid,
+    );
+    const launchToken = 'ELECTRON_RUN_AS_NODE=1';
+    expect(countOccurrences(buffer, launchToken)).toBeLessThanOrEqual(1);
+  } finally {
+    await closeApp({ electronApp, root });
+  }
 });

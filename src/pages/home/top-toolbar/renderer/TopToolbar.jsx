@@ -3,6 +3,7 @@ import React from 'react';
 import { Button } from '../../../../ui/button';
 import {
   ArchiveIcon,
+  DownloadIcon,
   ExplorerToggleIcon,
   ProviderIcon,
   SmartAiIcon,
@@ -32,6 +33,10 @@ export function TopToolbar({
   skillgenRunning,
   onRunSkillgen,
   canRunSkillgen,
+  sessionsDumpRunning,
+  sessionsDumpStatus,
+  onRunSessionsDump,
+  canRunSessionsDump,
   onArchiveActiveSession,
   explorerVisible,
   onToggleExplorer,
@@ -89,7 +94,6 @@ export function TopToolbar({
           <span
             className={`toolbar-title ${activeSession ? 'editable' : ''}`}
             onDoubleClick={onRenameActiveSession}
-            title={activeSession ? '双击重命名会话' : ''}
           >
             {activeSession ? activeSession.name : 'ready'}
           </span>
@@ -122,6 +126,18 @@ export function TopToolbar({
           disabled={!canRunSkillgen || skillgenRunning}
         >
           <SmartAiIcon size={14} />
+        </Button>
+        <Button
+          className={`toolbar-icon-btn ${sessionsDumpRunning ? 'active' : ''}`}
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onRunSessionsDump}
+          title={sessionsDumpStatus || '导出当前项目会话内容'}
+          aria-label="导出会话内容"
+          disabled={!canRunSessionsDump || sessionsDumpRunning}
+        >
+          <DownloadIcon size={14} />
         </Button>
         <Button
           className="toolbar-icon-btn"

@@ -6,6 +6,8 @@
 
 All three AI CLI tools are pre-bundled for each platform (macOS ARM64/x64, Windows x64). Configure your API keys or sign in via OAuth once, and switch between providers, models, and coding plans instantly.
 
+![Cli-Switch workspace with multi-provider sessions and file explorer](docs/images/al1.png)
+
 ---
 
 ## Why Cli-Switch?
@@ -44,6 +46,8 @@ Beyond the default providers, Cli-Switch supports virtually any LLM endpoint via
 | DeepSeek           | Code Plan via Claude | deepseek-v4-pro     |
 
 Each profile supports **custom base URL**, **custom model name**, and **proxy configuration** — so any OpenAI/Anthropic-compatible endpoint works out of the box.
+
+![Provider settings with OAuth and proxy configuration](docs/images/al2.png)
 
 ### Session Management
 

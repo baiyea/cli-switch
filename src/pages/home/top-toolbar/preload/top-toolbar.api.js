@@ -15,6 +15,9 @@ function createTopToolbarApi() {
     skillgen: {
       run: (payload) => ipcRenderer.invoke(TOP_TOOLBAR_CHANNELS.SKILLGEN_RUN, payload),
     },
+    sessionsDump: {
+      run: (payload) => ipcRenderer.invoke(TOP_TOOLBAR_CHANNELS.SESSIONS_DUMP_RUN, payload),
+    },
     logs: {
       write: (payload) => ipcRenderer.send(TOP_TOOLBAR_CHANNELS.APP_LOG, payload),
     },

@@ -1,5 +1,6 @@
 const { PtyService } = require('./terminal/main/pty.service');
 const { createSkillgenRunner } = require('./top-toolbar/skillgen/main/runner');
+const { createSessionsDumpRunner } = require('./top-toolbar/sessions-dump/main/runner');
 const { createSkillgenModelExtractor } = require('./top-toolbar/skillgen/main/model-extractor.service');
 const { createSkillgenModelExtractorRuntime } = require('./top-toolbar/skillgen/main/model-extractor-runtime');
 const { createSessionTitleService } = require('./top-toolbar/main/session-title.service');
@@ -16,6 +17,7 @@ const { TOP_TOOLBAR_CHANNELS } = require('./top-toolbar/shared/top-toolbar.chann
 module.exports = {
   PtyService,
   createSkillgenRunner,
+  createSessionsDumpRunner,
   createSkillgenModelExtractor,
   createSkillgenModelExtractorRuntime,
   createSessionTitleService,

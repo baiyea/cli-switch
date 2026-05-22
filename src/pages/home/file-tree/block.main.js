@@ -1,4 +1,8 @@
 const { FILE_TREE_CHANNELS } = require('./shared/file-tree.channels');
+const {
+  resolveProjectAppDataPath,
+  resolveProjectAppRelativePath,
+} = require('../../../shared/project-app-data');
 
 function registerFileTreeMain(context = {}) {
   const {
@@ -112,14 +116,14 @@ function registerFileTreeMain(context = {}) {
 
     if (!bytes || bytes.length === 0) return { ok: false, reason: 'no-image' };
 
-    const dir = path.join(root, '.claude', 'attachments');
+    const dir = resolveProjectAppDataPath(root, 'attachments');
     ensureDirSafe(dir);
     const micros = (BigInt(Date.now()) * 1000n + (process.hrtime.bigint() % 1000n)).toString();
     const fileName = `${micros}.${ext}`;
     const absPath = path.join(dir, fileName);
     fs.writeFileSync(absPath, bytes);
 
-    const relPath = `.claude/attachments/${fileName}`;
+    const relPath = resolveProjectAppRelativePath('attachments', fileName);
     logInfo('files', 'Saved clipboard image attachment', {
       sessionId: parsed.sessionId,
       cwd: root,
@@ -145,14 +149,14 @@ function registerFileTreeMain(context = {}) {
     };
     const ext = mimeToExt[parsed.mimeType.toLowerCase()] || 'png';
 
-    const dir = path.join(root, '.claude', 'attachments');
+    const dir = resolveProjectAppDataPath(root, 'attachments');
     ensureDirSafe(dir);
     const micros = (BigInt(Date.now()) * 1000n + (process.hrtime.bigint() % 1000n)).toString();
     const fileName = `${micros}.${ext}`;
     const absPath = path.join(dir, fileName);
     fs.writeFileSync(absPath, bytes);
 
-    const relPath = `.claude/attachments/${fileName}`;
+    const relPath = resolveProjectAppRelativePath('attachments', fileName);
     logInfo('files', 'Saved clipboard image attachment (buffer)', {
       sessionId: parsed.sessionId,
       cwd: root,

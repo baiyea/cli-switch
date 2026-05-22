@@ -52,7 +52,6 @@
     "lucide-react": "^1.14.0",
     "node-pty": "^1.0.0",
     "react": "^18.3.1",
-    "react-arborist": "^3.4.3",
     "react-dom": "^18.3.1",
     "react-files-icons": "^0.7.0",
     "tailwind-merge": "^3.6.0",

@@ -4,6 +4,7 @@ import {
   ArchiveIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  PlusCircledIcon,
   ProviderIcon,
 } from '../../../../ui/icon-registry';
 import { useSessionStore } from '../../home.store';
@@ -68,7 +69,7 @@ export function SidebarProjectsPanel({
           aria-label="添加项目"
           onClick={onAddProject}
         >
-          <ChevronDownIcon size={14} />
+          <PlusCircledIcon size={14} />
         </Button>
       </div>
       <div className="project-tree" data-testid="project-tree">
@@ -278,7 +279,6 @@ export function SidebarProjectsPanel({
                               e.stopPropagation();
                               openRenameModal(session.sessionId);
                             }}
-                            title="双击重命名会话"
                           >
                             {session.name}
                           </span>

@@ -1,66 +1,6 @@
-const { test, expect } = require('@playwright/test');
-const { _electron: electron } = require('playwright');
 const path = require('node:path');
-const os = require('node:os');
 const fs = require('node:fs');
-const { DatabaseSync } = require('node:sqlite');
-
-function setupDb(dbPath, projectDir) {
-  const db = new DatabaseSync(dbPath);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      default_provider TEXT NOT NULL DEFAULT 'claude',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-
-  const now = new Date().toISOString();
-  const providerSettings = {
-    providers: {
-      claude: {
-        defaultProfileId: 'deepseek-api',
-        enabledProfileId: 'deepseek-api',
-        profiles: [
-          {
-            id: 'deepseek-api',
-            name: 'DeepSeek API',
-            envVars: [{ key: 'ANTHROPIC_AUTH_TOKEN', value: 'e2e-dummy-token' }],
-          },
-        ],
-      },
-      codex: {
-        defaultProfileId: 'oauth-login',
-        enabledProfileId: '',
-        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
-      },
-      gemini: {
-        defaultProfileId: 'oauth-login',
-        enabledProfileId: '',
-        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
-      },
-    },
-  };
-  db.prepare(
-    `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'claude', ?, ?)`,
-  ).run('p1', 'DemoProject', projectDir, now, now);
-  db.prepare(
-    `INSERT INTO app_settings (key, value, updated_at)
-     VALUES (?, ?, ?)`,
-  ).run('provider_startup_settings', JSON.stringify(providerSettings), now);
-
-  db.close();
-}
+const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
 function seedClaudeSession(homeDir, projectDir, sid, title) {
   const sessionPath = path.join(homeDir, '.claude', 'projects', 'flow-terminal', `${sid}.jsonl`);
@@ -72,42 +12,26 @@ function seedClaudeSession(homeDir, projectDir, sid, title) {
   );
 }
 
-async function launchApp(options = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-terminal-flow-'));
-  const dbPath = path.join(root, 'e2e.db');
-  const projectDir = path.join(root, 'project-a');
-  fs.mkdirSync(projectDir, { recursive: true });
-  setupDb(dbPath, projectDir);
-  if (options.seedSession) {
-    seedClaudeSession(root, projectDir, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'seed-session');
-  }
-
-  const launchEnv = {
-    ...process.env,
-    HOME: root,
-    USERPROFILE: root,
-    ZEELIN_DB_PATH: dbPath,
-    SHELL: '/bin/bash',
-    APP_E2E: '1',
-    APP_E2E_SHOW_WINDOW: process.env.APP_E2E_SHOW_WINDOW || '0',
-  };
-  delete launchEnv.ELECTRON_RUN_AS_NODE;
-
-  const app = await electron.launch({
-    args: [path.resolve(__dirname, '../../../../../')],
-    env: launchEnv,
+async function launchFlowApp(options = {}) {
+  return launchApp({
+    cwd: path.resolve(__dirname, '../../../../../'),
+    rootPrefix: 'cliswitch-terminal-flow-',
+    projectDirName: 'project-a',
+    projectId: 'p1',
+    projectName: 'DemoProject',
+    prepareFs: ({ root, projectDir }) => {
+      if (options.seedSession) {
+        seedClaudeSession(root, projectDir, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'seed-session');
+      }
+    },
   });
-
-  const win = await app.firstWindow();
-  await win.waitForLoadState('domcontentloaded');
-  return { app, win, projectDir };
 }
 
-async function closeApp(app, win) {
+async function cleanup(launched) {
   try {
-    await win.evaluate(() => window.__ZEELIN_TEST__?.destroyAllSessions?.());
+    await launched.window.evaluate(() => window.__ZEELIN_TEST__?.destroyAllSessions?.());
   } catch {}
-  await app.close();
+  await closeApp({ electronApp: launched.electronApp, root: launched.root });
 }
 
 async function syncFirstProjectHistory(win) {
@@ -116,17 +40,19 @@ async function syncFirstProjectHistory(win) {
 }
 
 test('Task acceptance: quick launch creates claude-01 and injects command', async () => {
-  const { app, win } = await launchApp();
+  const launched = await launchFlowApp();
+  const { window: win } = launched;
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('.session-item-name').first()).toHaveText('claude-01');
   await expect(win.locator('.toolbar-session-status')).toBeVisible();
 
-  await closeApp(app, win);
+  await cleanup(launched);
 });
 
 test('Task acceptance: switching sessions keeps both entries and switches active state', async () => {
-  const { app, win } = await launchApp({ seedSession: true });
+  const launched = await launchFlowApp({ seedSession: true });
+  const { window: win } = launched;
 
   await syncFirstProjectHistory(win);
   await win.locator('.project-create-main').first().click({ force: true });
@@ -148,11 +74,12 @@ test('Task acceptance: switching sessions keeps both entries and switches active
   await expect(win.getByTestId(`session-item-${secondSessionId}`)).toHaveClass(/active/);
   await expect(win.getByTestId(`session-item-${firstSessionId}`)).not.toHaveClass(/active/);
 
-  await closeApp(app, win);
+  await cleanup(launched);
 });
 
 test('Task acceptance: resize triggers cols/rows update', async () => {
-  const { app, win } = await launchApp();
+  const launched = await launchFlowApp();
+  const { window: win } = launched;
 
   await win.locator('.project-create-main').first().click({ force: true });
   const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
@@ -167,11 +94,12 @@ test('Task acceptance: resize triggers cols/rows update', async () => {
     expect(after.rows > 0).toBeTruthy();
   }
 
-  await closeApp(app, win);
+  await cleanup(launched);
 });
 
 test('Task acceptance: terminal keeps manual scroll position while new output arrives', async () => {
-  const { app, win } = await launchApp();
+  const launched = await launchFlowApp();
+  const { window: win } = launched;
 
   await win.locator('.project-create-main').first().click({ force: true });
   const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
@@ -222,11 +150,12 @@ test('Task acceptance: terminal keeps manual scroll position while new output ar
   expect(afterOutput.baseY - afterOutput.viewportY).toBeGreaterThan(1);
   expect(afterOutput.viewportY).toBe(scrolledUp.viewportY);
 
-  await closeApp(app, win);
+  await cleanup(launched);
 });
 
 test('Task acceptance: archive closes active session without renderer crash', async () => {
-  const { app, win } = await launchApp();
+  const launched = await launchFlowApp();
+  const { window: win } = launched;
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
@@ -235,11 +164,12 @@ test('Task acceptance: archive closes active session without renderer crash', as
 
   await expect(win.locator('[data-session-id]')).toHaveCount(0);
 
-  await closeApp(app, win);
+  await cleanup(launched);
 });
 
 test('Task acceptance: explorer panel remains flex so tree uses full height', async () => {
-  const { app, win } = await launchApp();
+  const launched = await launchFlowApp();
+  const { window: win } = launched;
   await win.locator('.project-create-main').first().click({ force: true });
 
   let display = await win.evaluate(() => {
@@ -262,5 +192,5 @@ test('Task acceptance: explorer panel remains flex so tree uses full height', as
 
   expect(display).toBe('flex');
 
-  await closeApp(app, win);
+  await cleanup(launched);
 });

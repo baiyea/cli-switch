@@ -23,7 +23,7 @@ function createRuntimeDataCleaner({
     const runtimeDirs = Array.from(
       new Set([
         path.join(os.homedir(), `.${APP_ID}`),
-        path.join(os.homedir(), `.${APP_ID}dev`),
+        path.join(os.homedir(), `.${APP_ID}-dev`),
         appHomeDir,
       ]),
     ).map((item) => path.resolve(item));

@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { DatabaseSync } = require('node:sqlite');
-const { DB_FILENAME } = require('../src/shared/app-config');
+const { APP_ID, DB_FILENAME } = require('../src/shared/app-config');
 const { buildProviderSettings } = require('../src/tests/e2e/provider-fixture');
 
 const SETTINGS_KEY = 'provider_startup_settings';
@@ -22,8 +22,8 @@ function resolveDbCandidates() {
     candidates.push(path.resolve(process.env.ZEELIN_DB_PATH));
   }
   const home = os.homedir();
-  candidates.push(path.join(home, '.cli-switch', DB_FILENAME));
-  candidates.push(path.join(home, '.cli-switch-dev', DB_FILENAME));
+  candidates.push(path.join(home, `.${APP_ID}`, DB_FILENAME));
+  candidates.push(path.join(home, `.${APP_ID}-dev`, DB_FILENAME));
   return [...new Set(candidates)];
 }
 

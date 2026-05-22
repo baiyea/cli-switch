@@ -144,6 +144,10 @@ function createIpcSchemas(z) {
     rebuild: z.boolean().optional().default(false),
     focusSessionId: z.string().optional().default(''),
   });
+  const sessionsDumpRunSchema = z.object({
+    projectId: z.string().min(1),
+    trigger: z.string().optional().default('manual'),
+  });
 
   return {
     providerSettingsSchema,
@@ -162,6 +166,7 @@ function createIpcSchemas(z) {
     fileAttachmentSaveSchema,
     fileAttachmentSaveBufferSchema,
     skillgenRunSchema,
+    sessionsDumpRunSchema,
   };
 }
 

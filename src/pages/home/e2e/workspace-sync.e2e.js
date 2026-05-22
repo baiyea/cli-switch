@@ -1,73 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { _electron: electron } = require('playwright');
 const path = require('node:path');
-const os = require('node:os');
 const fs = require('node:fs');
-const { DatabaseSync } = require('node:sqlite');
+const { test, expect, launchApp, closeApp } = require('../../../tests/e2e');
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
-}
-
-function setupDb(dbPath, projectAPath, projectBPath) {
-  const db = new DatabaseSync(dbPath);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      default_provider TEXT NOT NULL DEFAULT 'claude',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'claude', ?, ?)`,
-  ).run('p1', 'ProjectA', projectAPath, now, now);
-  db.prepare(
-    `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'claude', ?, ?)`,
-  ).run('p2', 'ProjectB', projectBPath, now, now);
-
-  const providerSettings = {
-    providers: {
-      claude: {
-        defaultProfileId: 'deepseek-api',
-        enabledProfileId: 'deepseek-api',
-        profiles: [
-          {
-            id: 'deepseek-api',
-            name: 'DeepSeek API',
-            envVars: [{ key: 'ANTHROPIC_AUTH_TOKEN', value: 'e2e-dummy-token' }],
-          },
-        ],
-      },
-      codex: {
-        defaultProfileId: 'oauth-login',
-        enabledProfileId: '',
-        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
-      },
-      gemini: {
-        defaultProfileId: 'oauth-login',
-        enabledProfileId: '',
-        profiles: [{ id: 'oauth-login', name: 'OAuth 登录', envVars: [] }],
-      },
-    },
-  };
-  db.prepare(
-    `INSERT INTO app_settings (key, value, updated_at)
-     VALUES (?, ?, ?)`,
-  ).run('provider_startup_settings', JSON.stringify(providerSettings), now);
-
-  db.close();
 }
 
 function seedClaudeSession(homeDir, projectDir, sid, title) {
@@ -80,66 +16,95 @@ function seedClaudeSession(homeDir, projectDir, sid, title) {
   );
 }
 
-async function launchApp() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-project-sync-'));
-  const dbPath = path.join(root, 'e2e.db');
-  const projectAPath = path.join(root, 'project-a');
-  const projectBPath = path.join(root, 'project-b');
-  ensureDir(projectAPath);
-  ensureDir(projectBPath);
-  fs.writeFileSync(path.join(projectAPath, 'a.txt'), 'a', 'utf8');
-  fs.writeFileSync(path.join(projectBPath, 'b.txt'), 'b', 'utf8');
-  setupDb(dbPath, projectAPath, projectBPath);
-
+async function launchWorkspaceSyncApp() {
   const sidA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const sidB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-  seedClaudeSession(root, projectAPath, sidA, 'session-project-a');
-  seedClaudeSession(root, projectBPath, sidB, 'session-project-b');
-
-  const launchEnv = {
-    ...process.env,
-    HOME: root,
-    USERPROFILE: root,
-    ZEELIN_DB_PATH: dbPath,
-    SHELL: '/bin/bash',
-    APP_E2E: '1',
-    APP_E2E_SHOW_WINDOW: process.env.APP_E2E_SHOW_WINDOW || '0',
-  };
-  delete launchEnv.ELECTRON_RUN_AS_NODE;
-
-  const app = await electron.launch({
-    args: [path.resolve(__dirname, '../../../../')],
-    env: launchEnv,
+  const launched = await launchApp({
+    cwd: path.resolve(__dirname, '../../../../'),
+    rootPrefix: 'cliswitch-project-sync-',
+    projectDirName: 'project-a',
+    projectId: 'p1',
+    projectName: 'ProjectA',
+    prepareFs: ({ root, projectDir }) => {
+      const projectBPath = path.join(root, 'project-b');
+      ensureDir(projectBPath);
+      fs.writeFileSync(path.join(projectDir, 'a.txt'), 'a', 'utf8');
+      fs.writeFileSync(path.join(projectBPath, 'b.txt'), 'b', 'utf8');
+      seedClaudeSession(root, projectDir, sidA, 'session-project-a');
+      seedClaudeSession(root, projectBPath, sidB, 'session-project-b');
+    },
+    seedDb: ({ db, now, root }) => {
+      const projectBPath = path.join(root, 'project-b');
+      db.prepare(
+        `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
+         VALUES (?, ?, ?, 'claude', ?, ?)`,
+      ).run('p2', 'ProjectB', projectBPath, now, now);
+    },
   });
 
-  const win = await app.firstWindow();
-  await win.waitForLoadState('domcontentloaded');
-  return { app, win, projectAPath, projectBPath, sidA, sidB };
+  return {
+    ...launched,
+    sidA,
+    sidB,
+  };
 }
 
-async function syncAllProjectHistory(win) {
-  const toggles = win.locator('.project-create-toggle');
-  const count = await toggles.count();
-  for (let i = 0; i < count; i += 1) {
-    await toggles.nth(i).click({ force: true });
-    await win.getByRole('button', { name: '读取历史会话' }).click({ force: true });
+async function syncProjectHistory(win, projectId, expectedSessionId) {
+  await win.evaluate(
+    async ({ pid }) => {
+      await window.electronAPI.sessions.syncProject({ projectId: pid });
+    },
+    { pid: projectId },
+  );
+  await expect
+    .poll(
+      async () =>
+        win.evaluate(
+          async ({ projectId: pid, targetSessionId }) => {
+            const rows = await window.electronAPI.sessions.list({ projectIds: [pid] });
+            return rows.some(
+              (item) => String(item?.sessionId || '') === String(targetSessionId || ''),
+            );
+          },
+          { projectId, targetSessionId: expectedSessionId },
+        ),
+      { timeout: 60000, intervals: [300, 600, 1000] },
+    )
+    .toBe(true);
+}
+
+async function syncAllProjectHistory(win, sidA, sidB) {
+  await syncProjectHistory(win, 'p1', sidA);
+  await syncProjectHistory(win, 'p2', sidB);
+  await win.reload();
+  await win.waitForLoadState('domcontentloaded');
+}
+
+async function ensureExplorerVisible(win) {
+  const expandBtn = win.getByRole('button', { name: '展开文件树' });
+  if ((await expandBtn.count()) > 0) {
+    await expandBtn.first().click({ force: true });
   }
 }
 
 test('switching project session updates explorer cwd and active terminal', async () => {
-  const { app, win, projectAPath, projectBPath, sidA, sidB } = await launchApp();
-  await syncAllProjectHistory(win);
+  const launched = await launchWorkspaceSyncApp();
+  const { electronApp, window: win, sidA, sidB, root } = launched;
+  try {
+    await syncAllProjectHistory(win, sidA, sidB);
+    await ensureExplorerVisible(win);
 
-  await expect(win.getByTestId(`session-item-${sidA}`)).toBeVisible();
-  await expect(win.getByTestId(`session-item-${sidB}`)).toBeVisible();
+    await expect(win.getByTestId(`session-item-${sidA}`)).toBeVisible();
+    await expect(win.getByTestId(`session-item-${sidB}`)).toBeVisible();
 
-  await win.getByTestId(`session-item-${sidA}`).click();
-  await expect(win.locator('.explorer-root-path')).toHaveText(projectAPath);
-  await expect(win.locator(`[data-session-id="${sidA}"]`)).toBeVisible();
+    await win.getByTestId(`session-item-${sidA}`).click();
+    await expect(win.locator(`[data-session-id="${sidA}"]`)).toBeVisible();
+    await expect(win.getByRole('treeitem', { name: 'a.txt' })).toBeVisible();
 
-  await win.getByTestId(`session-item-${sidB}`).click();
-  await expect(win.locator('.explorer-root-path')).toHaveText(projectBPath);
-  await expect(win.locator(`[data-session-id="${sidB}"]`)).toBeVisible();
-
-  await app.close();
+    await win.getByTestId(`session-item-${sidB}`).click();
+    await expect(win.locator(`[data-session-id="${sidB}"]`)).toBeVisible();
+    await expect(win.getByRole('treeitem', { name: 'b.txt' })).toBeVisible();
+  } finally {
+    await closeApp({ electronApp, root });
+  }
 });

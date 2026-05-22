@@ -481,10 +481,17 @@ export function useProviderSettings({
     window.open(target, '_blank', 'noopener,noreferrer');
   }
 
+  function resolveProviderTestSessionId(providerId) {
+    return `${normalizeProviderId(providerId)}-tests`;
+  }
+
   function resolveOAuthSessionId(providerId, profileId) {
     const stateKey = `${providerId}:${profileId}`;
     const stored = oauthLinksByKey[stateKey]?.sessionId;
     if (stored) return stored;
+    const fixedSessionId = resolveProviderTestSessionId(providerId);
+    const fixed = sessions.find((session) => String(session.sessionId || '') === fixedSessionId);
+    if (fixed?.sessionId) return fixed.sessionId;
     const candidate = sessions
       .filter(
         (session) => normalizeProviderId(session.provider) === normalizeProviderId(providerId),

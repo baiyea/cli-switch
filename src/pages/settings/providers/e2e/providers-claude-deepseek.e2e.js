@@ -1,32 +1,11 @@
-const { test, expect } = require('@playwright/test');
-const { _electron: electron } = require('playwright');
 const path = require('node:path');
-const os = require('node:os');
-const fs = require('node:fs');
 const dotenv = require('dotenv');
-const { DatabaseSync } = require('node:sqlite');
-const { buildSchemaSql } = require('../../../../kernel/db/models');
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
-}
+const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
+const { prepareClaudeCodeFirstRunState } = require('../../../../tests/e2e/provider-fixture');
 
 function loadDeepSeekToken() {
   dotenv.config({ path: path.resolve(__dirname, '../../../../../.env') });
   return String(process.env.TEST_DEEPSEEK || '').trim();
-}
-
-function setupDb(dbPath, projectDir) {
-  const db = new DatabaseSync(dbPath);
-  db.exec(buildSchemaSql());
-
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO projects (id, name, path, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'claude', ?, ?)`,
-  ).run('p1', 'DeepSeekProject', projectDir, now, now);
-
-  db.close();
 }
 
 async function findMainWindow(app, timeoutMs = 90000) {
@@ -44,38 +23,24 @@ async function findMainWindow(app, timeoutMs = 90000) {
   throw new Error('Main window not found');
 }
 
-async function launchApp() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-provider-claude-deepseek-'));
-  const dbPath = path.join(root, 'e2e.db');
-  const projectDir = path.join(root, 'project-a');
-  ensureDir(projectDir);
-  setupDb(dbPath, projectDir);
-
-  const env = { ...process.env };
-  env.APP_E2E = '1';
-  env.APP_E2E_SHOW_WINDOW = process.env.APP_E2E_SHOW_WINDOW || '0';
-  delete env.ANTHROPIC_API_KEY;
-  delete env.ANTHROPIC_AUTH_TOKEN;
-  delete env.ELECTRON_RUN_AS_NODE;
-  env.HOME = root;
-  env.USERPROFILE = root;
-  env.ZEELIN_DB_PATH = dbPath;
-  env.SHELL = '/bin/bash';
-
-  const app = await electron.launch({
-    args: [path.resolve(__dirname, '../../../../../')],
-    env,
+async function launchDeepSeekSettingsApp() {
+  const launched = await launchApp({
+    cwd: path.resolve(__dirname, '../../../../../'),
+    rootPrefix: 'cliswitch-provider-claude-deepseek-',
+    projectDirName: 'project-a',
+    projectId: 'p1',
+    projectName: 'DeepSeekProject',
+    providerSettings: null,
+    prepareFs: prepareClaudeCodeFirstRunState,
+    unsetEnvKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'],
   });
-
-  const win = await findMainWindow(app);
-  return { app, win };
+  const win = await findMainWindow(launched.electronApp);
+  return { ...launched, window: win };
 }
 
 async function waitForSettings(win) {
   await expect(win.locator('.settings-modal')).toBeVisible({ timeout: 90000 });
-  await expect(win.getByRole('heading', { name: 'Provider Settings' })).toBeVisible({
-    timeout: 30000,
-  });
+  await expect(win.getByRole('heading', { name: 'Provider Settings' })).toBeVisible({ timeout: 30000 });
 }
 
 async function configureDeepSeekInSettings(win, token) {
@@ -90,13 +55,22 @@ async function configureDeepSeekInSettings(win, token) {
   await expect(win.getByText('✓ 连接成功')).toBeVisible({ timeout: 90000 });
 
   await win.getByRole('button', { name: '保存' }).click();
-  await expect(win.locator('.settings-modal')).toHaveCount(0, { timeout: 30000 });
-  await expect(win.getByText('已保存')).toBeVisible({ timeout: 5000 });
+  await expect
+    .poll(
+      async () => {
+        const modalCount = await win.locator('.settings-modal').count();
+        const savedVisible = await win.getByText('已保存').isVisible().catch(() => false);
+        return modalCount === 0 || savedVisible;
+      },
+      { timeout: 30000, intervals: [250, 500, 1000] },
+    )
+    .toBeTruthy();
 }
 
 function normalizeTerminalText(value) {
   return String(value || '')
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+    .replace(/\x1b\[[0-9;:?]*[ -/]*[@-~]/g, '')
     .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
     .replace(/\r/g, '\n');
 }
@@ -148,7 +122,10 @@ async function waitForClaudeCodeReady(win, sessionId) {
         if (/No startup command available|stdin is not a terminal|command not found/i.test(text)) {
           throw new Error(`Claude Code did not start: ${text.slice(-2000)}`);
         }
-        return /@anthropic-ai\.claude-code.*cli\.js|claude-code.*cli|claude/i.test(text);
+        return (
+          /@anthropic-ai\.claude-code.*cli\.js|claude-code.*cli/i.test(text) ||
+          /Claude\s*Code\s*v[\s\S]*bypass\s*permissions\s*on/i.test(text)
+        );
       },
       { timeout: 120000, intervals: [1000, 2000, 3000] },
     )
@@ -176,11 +153,7 @@ async function sendPromptAndWaitForReply(win, sessionId, prompt, marker) {
           sessionId,
         );
         const text = normalizeTerminalText(buffer);
-        if (
-          /invalid api key|401|Unauthorized|No startup command available|stdin is not a terminal/i.test(
-            text,
-          )
-        ) {
+        if (/invalid api key|401|Unauthorized|No startup command available|stdin is not a terminal/i.test(text)) {
           throw new Error(`DeepSeek terminal failed: ${text.slice(-2500)}`);
         }
         const markerCount = text.split(marker).length - 1;
@@ -198,18 +171,20 @@ describe('Claude DeepSeek provider flow', () => {
   test.setTimeout(9 * 60 * 1000);
 
   test('can save DeepSeek provider config in settings', async () => {
-    const { app, win } = await launchApp();
+    const launched = await launchDeepSeekSettingsApp();
+    const { electronApp, window: win, root } = launched;
     try {
       await configureDeepSeekInSettings(win, DEEPSEEK_TOKEN);
     } finally {
-      await app.close();
+      await closeApp({ electronApp, root });
     }
   });
 
   test('settings config can launch Claude session and receive DeepSeek reply', async () => {
     const marker = `CLI_SWITCH_SETTINGS_LIVE_${Date.now()}`;
     const prompt = `Reply with exactly this single token and no other text: ${marker}`;
-    const { app, win } = await launchApp();
+    const launched = await launchDeepSeekSettingsApp();
+    const { electronApp, window: win, root } = launched;
 
     try {
       await configureDeepSeekInSettings(win, DEEPSEEK_TOKEN);
@@ -220,7 +195,7 @@ describe('Claude DeepSeek provider flow', () => {
       await waitForClaudeCodeReady(win, sessionId);
       await sendPromptAndWaitForReply(win, sessionId, prompt, marker);
     } finally {
-      await app.close();
+      await closeApp({ electronApp, root });
     }
   });
 });

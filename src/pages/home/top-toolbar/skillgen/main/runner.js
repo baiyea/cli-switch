@@ -9,6 +9,7 @@ const { scoreCandidate } = require('./scorer');
 const { classifyCandidates } = require('./dedup');
 const { writeSkillFile } = require('./writer');
 const { openStateDb } = require('./index');
+const { resolveProjectAppDataPath } = require('../../../../../shared/project-app-data');
 const SKILLGEN_STATE_VERSION = 'v3-llm-extractor-1';
 
 function ensureDir(dirPath) {
@@ -159,7 +160,7 @@ function createSkillgenRunner({
     }
 
     const workspacePath = path.resolve(project.path);
-    const skillsRoot = path.join(workspacePath, '.claude', 'skills');
+    const skillsRoot = resolveProjectAppDataPath(workspacePath, 'skills');
     ensureDir(skillsRoot);
     const state = openStateDb(workspacePath);
     const runStartedAt = Date.now();
