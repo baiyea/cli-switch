@@ -501,7 +501,7 @@ select {
   border: none;
   border-radius: 0;
   background: transparent;
-  cursor: pointer;
+  cursor: default;
   padding: 6px 16px 6px 36px;
   color: var(--text-muted);
   min-width: 0;
@@ -511,11 +511,11 @@ select {
 }
 
 .session-item[draggable='true'] {
-  cursor: grab;
+  cursor: default;
 }
 
 .session-item[draggable='true']:active {
-  cursor: grabbing;
+  cursor: default;
 }
 
 .session-item:hover {
@@ -542,7 +542,7 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: text;
+  cursor: default;
 }
 
 .session-item.active .session-item-name {
@@ -758,6 +758,7 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
 }
 
 .toolbar-provider-meta {
@@ -770,10 +771,11 @@ select {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: default;
 }
 
 .toolbar-title.editable {
-  cursor: text;
+  cursor: default;
   -webkit-app-region: no-drag;
 }
 
@@ -1149,6 +1151,7 @@ select {
 .explorer-arborist {
   font-size: 13px;
   overflow: auto;
+  cursor: default;
 }
 
 .explorer-node-row {
@@ -1159,6 +1162,7 @@ select {
   border-radius: 4px;
   padding: 0 16px 0 0;
   color: var(--text-muted);
+  cursor: default;
   min-width: 0;
 }
 
@@ -1205,6 +1209,7 @@ select {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-muted);
+  cursor: default;
 }
 
 .explorer-git-dot {
@@ -1955,6 +1960,7 @@ body,
 .explorer-node-row,
 .explorer-node-name {
   color: var(--text-muted);
+  cursor: default;
 }
 
 .explorer-node-row:hover,

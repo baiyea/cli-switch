@@ -53,4 +53,29 @@ test.describe('@file-tree', () => {
       await closeApp({ electronApp, root });
     }
   });
+
+  test('file tree refreshes when workspace files are created', async () => {
+    const launched = await launchApp({
+      cwd: path.resolve(__dirname, '../../../../../'),
+      rootPrefix: 'cliswitch-file-tree-refresh-',
+      prepareFs: ({ projectDir }) => {
+        fs.writeFileSync(path.join(projectDir, 'README.md'), '# root\n', 'utf8');
+      },
+    });
+    const { electronApp, window: win, root, projectDir } = launched;
+
+    try {
+      await ensureExplorerVisible(win);
+      await expect(win.getByRole('treeitem', { name: /README\.md/ })).toBeVisible();
+      await expect(win.getByRole('treeitem', { name: /generated\.txt/ })).toHaveCount(0);
+
+      fs.writeFileSync(path.join(projectDir, 'generated.txt'), 'created later\n', 'utf8');
+
+      await expect(win.getByRole('treeitem', { name: /generated\.txt/ })).toBeVisible({
+        timeout: 7000,
+      });
+    } finally {
+      await closeApp({ electronApp, root });
+    }
+  });
 });

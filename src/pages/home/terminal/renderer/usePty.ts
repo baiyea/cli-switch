@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 
 import { logBridge } from '../../../../shared/bridge';
 import { useSessionStore } from '../../home.store';
+import { supportsImagePasteForProvider } from './paste-support.mjs';
 import { fileAttachmentBridge, ptyBridge } from './terminal.bridge';
 
 type TermEntry = {
@@ -228,20 +229,6 @@ export function usePty() {
       const key = event.key.toLowerCase();
       const isMod = event.ctrlKey || event.metaKey;
 
-      logBridge.write({
-        level: 'info',
-        scope: 'terminal',
-        message: '[key] attachCustomKeyEventHandler',
-        meta: {
-          sessionId,
-          key: event.key,
-          ctrlKey: event.ctrlKey,
-          metaKey: event.metaKey,
-          shiftKey: event.shiftKey,
-          hasSelection: term.hasSelection(),
-        },
-      });
-
       // Ctrl/Cmd + C — 有选区时复制到剪贴板，无选区时发送中断
       if (key === 'c' && isMod) {
         if (term.hasSelection()) {
@@ -303,9 +290,10 @@ export function usePty() {
           return false;
         }
 
-        const isWindows = /Win32|Win64/.test(navigator.platform);
-        const supportsImagePaste =
-          session.provider === 'codex' || session.provider === 'gemini' || isWindows;
+        const supportsImagePaste = supportsImagePasteForProvider(
+          session.provider,
+          navigator.platform,
+        );
 
         if (supportsImagePaste) {
           // 先尝试 IPC 读取剪贴板图片（主进程有完整权限）
@@ -428,9 +416,10 @@ export function usePty() {
         });
         return;
       }
-      const isWindows = /Win32|Win64/.test(navigator.platform);
-      const supportsImagePaste =
-        session.provider === 'codex' || session.provider === 'gemini' || isWindows;
+      const supportsImagePaste = supportsImagePasteForProvider(
+        session.provider,
+        navigator.platform,
+      );
       if (!supportsImagePaste) {
         logBridge.write({
           level: 'info',

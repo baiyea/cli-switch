@@ -1,4 +1,6 @@
 const path = require('node:path');
+const os = require('node:os');
+const fs = require('node:fs');
 const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
 async function launchAutoResponseApp() {
@@ -170,4 +172,79 @@ test('auto-response only triggers for claude provider', async () => {
   expect(buffer.length).toBeGreaterThan(0);
 
   await closeApp({ electronApp, root });
+});
+
+test('Claude Code launch auto-confirms custom API key prompt with retry', async () => {
+  const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-fake-claude-runtime-'));
+  const capturePath = path.join(runtimeRoot, 'claude-input.hex');
+  const entrypoint = path.join(
+    runtimeRoot,
+    'node_modules',
+    '@anthropic-ai',
+    'claude-code',
+    'cli.js',
+  );
+  fs.mkdirSync(path.dirname(entrypoint), { recursive: true });
+  fs.writeFileSync(
+    entrypoint,
+    `#!/usr/bin/env node
+const fs = require('node:fs');
+const capturePath = process.env.CLAUDE_AUTO_RESPONSE_CAPTURE;
+let inputCount = 0;
+function writePrompt() {
+  process.stdout.write('\\r\\nDetected a custom API key in your environment\\r\\n\\r\\n');
+  process.stdout.write('ANTHROPIC_API_KEY: sk-ant-...ioj4X0Wo1AZ6O3DPrrzL\\r\\n\\r\\n');
+  process.stdout.write('Do you want to use this API key?\\r\\n\\r\\n');
+  process.stdout.write('  1. Yes\\r\\n❯ 2. No (recommended) ✔\\r\\n\\r\\n');
+  process.stdout.write('Enter to confirm · Esc to cancel\\r\\n');
+}
+if (process.stdin.isTTY) process.stdin.setRawMode(true);
+process.stdin.resume();
+writePrompt();
+process.stdin.on('data', (chunk) => {
+  inputCount += 1;
+  const hex = Buffer.from(chunk).toString('hex');
+  if (capturePath) fs.appendFileSync(capturePath, hex);
+  if (inputCount === 1) {
+    process.stdout.write('\\r\\n[first input ignored by fake Claude TUI]\\r\\n');
+    writePrompt();
+    return;
+  }
+  if (hex.includes('1b5b410d')) {
+    process.stdout.write('\\r\\n[accepted custom API key]\\r\\n');
+    setTimeout(() => process.exit(0), 50);
+  }
+});
+setTimeout(() => process.exit(2), 6000);
+`,
+    'utf8',
+  );
+  fs.chmodSync(entrypoint, 0o755);
+
+  const launched = await launchApp({
+    cwd: path.resolve(__dirname, '../../../../../'),
+    rootPrefix: 'cliswitch-claude-api-key-autoconfirm-',
+    envOverrides: {
+      ZEELIN_CLI_RUNTIME_DIR: runtimeRoot,
+      CLAUDE_AUTO_RESPONSE_CAPTURE: capturePath,
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+    },
+  });
+  const { electronApp, window: win, root } = launched;
+
+  try {
+    await win.locator('.project-create-main').first().click({ force: true });
+    await expect
+      .poll(
+        () => {
+          if (!fs.existsSync(capturePath)) return 0;
+          return (fs.readFileSync(capturePath, 'utf8').match(/1b5b410d/g) || []).length;
+        },
+        { timeout: 8000 },
+      )
+      .toBeGreaterThanOrEqual(2);
+  } finally {
+    await closeApp({ electronApp, root });
+    fs.rmSync(runtimeRoot, { recursive: true, force: true });
+  }
 });

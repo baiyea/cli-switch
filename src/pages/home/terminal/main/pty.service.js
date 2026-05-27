@@ -104,6 +104,7 @@ class PtyService {
         test: /Detected a custom API key in your environment/i,
         guards: [/Do you want to use this API key\?/i, /1\.\s*Yes/i, /2\.\s*No\s*\(recommended\)/i],
         input: '\x1b[A\r',
+        repeat: true,
       },
     ];
 

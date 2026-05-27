@@ -259,14 +259,13 @@ test('app menu does not intercept copy/paste on macOS', async () => {
   await closeApp({ electronApp: app, root });
 });
 
-test('supportsImagePaste allows all providers on Windows but limits on macOS', async () => {
+test('supportsImagePaste allows all built-in providers on macOS and Windows', async () => {
   const { app, win, root } = await launchApp();
 
   await win.locator('.project-create-main').first().click({ force: true });
   await expect(win.locator('[data-session-id]')).toHaveCount(1);
   const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
 
-  // 检测当前的 platform 和 supportsImagePaste 逻辑
   const platformCheck = await win.evaluate(() => {
     const isWindows = /Win32|Win64/.test(navigator.platform);
     const isMac = /Mac/.test(navigator.platform);
@@ -275,13 +274,12 @@ test('supportsImagePaste allows all providers on Windows but limits on macOS', a
       platform: navigator.platform,
       isWindows,
       isMac,
-      // 这是 usePty.ts 中的逻辑
-      // claude provider on macOS: supportsImagePaste = false (isWindows=false, provider=claude)
-      // claude provider on Windows: supportsImagePaste = true (isWindows=true)
-      claudeOnMac: false || false, // provider !== codex/gemini && !isWindows
-      claudeOnWin: false || true, // provider !== codex/gemini && isWindows
-      codexOnMac: true || false, // provider === codex || isWindows
-      codexOnWin: true || true,
+      claudeOnMac: /Mac/.test(navigator.platform),
+      claudeOnWin: /Win32|Win64/.test(navigator.platform),
+      codexOnMac: /Mac/.test(navigator.platform),
+      codexOnWin: /Win32|Win64/.test(navigator.platform),
+      geminiOnMac: /Mac/.test(navigator.platform),
+      geminiOnWin: /Win32|Win64/.test(navigator.platform),
     };
   }, sessionId);
 
@@ -290,16 +288,15 @@ test('supportsImagePaste allows all providers on Windows but limits on macOS', a
   const isMac = platformCheck.isMac;
 
   if (isWindows) {
-    // Windows 上所有 provider 都应该支持图片粘贴
     expect(platformCheck.claudeOnWin).toBe(true);
+    expect(platformCheck.codexOnWin).toBe(true);
+    expect(platformCheck.geminiOnWin).toBe(true);
   }
 
   if (isMac) {
-    // macOS 上只有 codex/gemini 支持图片粘贴
-    // Claude provider 在 macOS 上不支持 —— 这是一个已知问题
-    expect(platformCheck.claudeOnMac).toBe(false);
+    expect(platformCheck.claudeOnMac).toBe(true);
     expect(platformCheck.codexOnMac).toBe(true);
-    console.log('[e2e] WARNING: Claude provider does not support image paste on macOS');
+    expect(platformCheck.geminiOnMac).toBe(true);
   }
 
   await closeApp({ electronApp: app, root });

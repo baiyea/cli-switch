@@ -20,14 +20,14 @@ function createMeta(provider = 'claude') {
   };
 }
 
-test('auto-response chooses Yes for claude API key environment prompt', () => {
+test('auto-response chooses Yes with terminal navigation for claude API key environment prompt', () => {
   const service = new PtyService();
   const { meta, writes } = createMeta('claude');
   const promptText = `
 Detected a custom API key in your environment
 Do you want to use this API key?
 1. Yes
-2. No (recommended)
+2. No (recommended) ✓
 Enter to confirm · Esc to cancel
 `;
 
@@ -37,6 +37,26 @@ Enter to confirm · Esc to cancel
 
   assert.deepEqual(writes, ['\x1b[A\r']);
   assert.equal(meta.autoResponses.has('claude-api-key-confirm'), true);
+});
+
+test('auto-response retries claude API key confirmation when prompt remains visible', async () => {
+  const service = new PtyService();
+  const { meta, writes } = createMeta('claude');
+  const promptText = `
+Detected a custom API key in your environment
+Do you want to use this API key?
+1. Yes
+2. No (recommended) ✓
+Enter to confirm · Esc to cancel
+`;
+
+  service.buffers.set(meta.sessionId, promptText);
+  service.sessions.set(meta.sessionId, meta);
+  service.handleAutoResponses(meta);
+
+  assert.deepEqual(writes, ['\x1b[A\r']);
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  assert.deepEqual(writes, ['\x1b[A\r', '\x1b[A\r']);
 });
 
 test('auto-response does not trigger API key confirmation on non-claude provider', () => {

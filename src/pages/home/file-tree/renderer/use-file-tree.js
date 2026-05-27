@@ -11,14 +11,15 @@ export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible
   const [explorerTreeHeight, setExplorerTreeHeight] = useState(300);
   const explorerTreeWrapRef = useRef(null);
 
-  async function loadExplorerTree(cwd) {
+  async function loadExplorerTree(cwd, options = {}) {
+    const silent = Boolean(options.silent);
     if (!cwd) {
       setExplorerTree([]);
       setExplorerCwd('');
       setExplorerIsGitRepo(false);
       return;
     }
-    setExplorerLoading(true);
+    if (!silent) setExplorerLoading(true);
     try {
       const result = await fileTreeBridge.readTree({ cwd, depth: 6 });
       setExplorerTree(result.items || []);
@@ -29,7 +30,7 @@ export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible
       setExplorerCwd(cwd);
       setExplorerIsGitRepo(false);
     } finally {
-      setExplorerLoading(false);
+      if (!silent) setExplorerLoading(false);
     }
   }
 
@@ -61,6 +62,16 @@ export function useFileTree({ activeProject, activeWorkspaceCwd, explorerVisible
     });
     loadExplorerTree(activeWorkspaceCwd);
   }, [activeWorkspaceCwd]);
+
+  useEffect(() => {
+    if (!activeProject || !explorerVisible || !activeWorkspaceCwd) return undefined;
+
+    const timer = window.setInterval(() => {
+      loadExplorerTree(activeWorkspaceCwd, { silent: true });
+    }, 2000);
+
+    return () => window.clearInterval(timer);
+  }, [activeProject, explorerVisible, activeWorkspaceCwd]);
 
   useEffect(() => {
     if (!activeProject || !explorerVisible) return undefined;
