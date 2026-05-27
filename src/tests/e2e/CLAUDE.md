@@ -17,8 +17,8 @@
 ## E2E 测试用例汇总
 
 - 扫描范围：`src/pages/**/e2e/*.e2e.js`
-- 测试文件数：17
-- 生成时间：2026-05-19T09:37:33.000Z
+- 测试文件数：16
+- 生成时间：2026-05-27
 
 ### pages/home
 
@@ -32,7 +32,6 @@
 | 终端核心流转：快速启动创建会话、会话切换状态、窗口 resize 触发重排、滚动保持、归档后渲染稳定、Explorer 高度布局正确 | src/pages/home/terminal/e2e/flow-terminal.e2e.js |
 | 多 provider 会话恢复：跨 provider 发现与恢复、归档 ID 规则、反复切换不重复注入 resume | src/pages/home/terminal/e2e/multi-cli-session.e2e.js |
 | PTY 退出清理：关闭应用销毁会话、清空缓冲、多会话清理、Windows 清理不抛错 | src/pages/home/terminal/e2e/pty-cleanup.e2e.js |
-| 终端基础交互（fixme）：Start Terminal 建会话、`echo hello` 输出、`pwd` 路径校验 | src/pages/home/terminal/e2e/terminal.e2e.js |
 | 窗口控制行为：最小化/最大化/关闭按钮与 macOS 隐藏策略 | src/pages/home/top-toolbar/e2e/window-controls.e2e.js |
 
 ### pages/settings
@@ -43,5 +42,14 @@
 | Claude DeepSeek 配置可在设置页保存，并可启动会话获得回复 | src/pages/settings/providers/e2e/providers-claude-deepseek.e2e.js |
 | Codex OAuth 可启动并在人工交互后启用 | src/pages/settings/providers/e2e/providers-codex-oauth.e2e.js |
 | Gemini OAuth 可启动并在人工交互后启用 | src/pages/settings/providers/e2e/providers-gemini-oauth.e2e.js |
+| OAuth 测试会话跨 provider 复用固定 singleton 记录 | src/pages/settings/providers/e2e/providers-oauth-session-reuse.e2e.js |
 | Claude/Codex/Gemini 三个 tab 的代理配置可通过连通性检测 | src/pages/settings/providers/e2e/providers-proxy.e2e.js |
 | Provider 增删改与连接测试（待补充） | src/pages/settings/providers/e2e/providers.e2e.js |
+
+## 重复测试与合并建议
+
+### 高优先级：OAuth 测试合并
+
+`providers-codex-oauth.e2e.js` 与 `providers-gemini-oauth.e2e.js` 结构几乎完全一致，区别仅在于操作不同 provider tab，且均被 CI 跳过（需人工交互）。建议合并为 `providers-oauth.e2e.js`，通过参数化 provider 减少重复代码。
+
+`providers-oauth-session-reuse.e2e.js` 涉及多个 provider 的 OAuth session 复用，若合并上述两个文件，可将 session 复用逻辑一并纳入，最终一个 `providers-oauth.e2e.js` 覆盖所有 OAuth 场景。

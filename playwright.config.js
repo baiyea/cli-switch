@@ -11,6 +11,9 @@ module.exports = defineConfig({
     '**/home/sidebar/e2e/sidebar.e2e.js',
     '**/settings/archive/e2e/archive.e2e.js',
     '**/settings/providers/e2e/providers.e2e.js',
+    '**/settings/providers/e2e/providers-codex-oauth.e2e.js',
+    '**/settings/providers/e2e/providers-gemini-oauth.e2e.js',
+    '**/settings/providers/e2e/providers-oauth-session-reuse.e2e.js',
   ],
   timeout: 600000,
   expect: {
