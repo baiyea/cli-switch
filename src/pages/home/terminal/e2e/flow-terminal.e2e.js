@@ -104,6 +104,9 @@ test('Task acceptance: terminal keeps manual scroll position while new output ar
   await win.locator('.project-create-main').first().click({ force: true });
   const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
   expect(sessionId).toBeTruthy();
+  await expect
+    .poll(() => win.evaluate(() => window.__ZEELIN_TEST__?.getActiveSessionId?.() || ''))
+    .toBe(sessionId);
 
   const initialLines = Array.from(
     { length: 220 },
@@ -149,6 +152,62 @@ test('Task acceptance: terminal keeps manual scroll position while new output ar
   );
   expect(afterOutput.baseY - afterOutput.viewportY).toBeGreaterThan(1);
   expect(afterOutput.viewportY).toBe(scrolledUp.viewportY);
+
+  await cleanup(launched);
+});
+
+test('Task acceptance: floating scroll-to-bottom button appears after manual scroll', async () => {
+  const launched = await launchFlowApp();
+  const { window: win } = launched;
+
+  await win.locator('.project-create-main').first().click({ force: true });
+  const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
+  expect(sessionId).toBeTruthy();
+  await expect
+    .poll(() => win.evaluate(() => window.__ZEELIN_TEST__?.getActiveSessionId?.() || ''))
+    .toBe(sessionId);
+
+  const initialLines = Array.from(
+    { length: 220 },
+    (_, index) => `scroll-button-line-${String(index).padStart(3, '0')}`,
+  ).join('\r\n');
+  await win.evaluate(
+    ({ sid, data }) => window.__ZEELIN_TEST__?.appendTerminalData(sid, `${data}\r\n`),
+    { sid: sessionId, data: initialLines },
+  );
+
+  await expect
+    .poll(async () =>
+      win.evaluate((sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid), sessionId),
+    )
+    .toMatchObject({ baseY: expect.any(Number), viewportY: expect.any(Number) });
+
+  await expect(win.getByRole('button', { name: '滚动到底部' })).toHaveCount(0);
+
+  await win.evaluate((sid) => window.__ZEELIN_TEST__?.scrollTerminalLines(sid, -80), sessionId);
+  await expect
+    .poll(async () => {
+      const state = await win.evaluate(
+        (sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid),
+        sessionId,
+      );
+      return state ? state.baseY - state.viewportY : 0;
+    })
+    .toBeGreaterThan(1);
+  await expect(win.getByRole('button', { name: '滚动到底部' })).toBeVisible();
+
+  await win.getByRole('button', { name: '滚动到底部' }).click();
+
+  await expect
+    .poll(async () => {
+      const state = await win.evaluate(
+        (sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid),
+        sessionId,
+      );
+      return state ? state.baseY - state.viewportY : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(1);
+  await expect(win.getByRole('button', { name: '滚动到底部' })).toHaveCount(0);
 
   await cleanup(launched);
 });

@@ -11,7 +11,7 @@ export function TerminalPanel() {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const activeProjectId = useHomeWorkspaceStore((state) => state.activeProjectId);
   const activeCwd = useHomeWorkspaceStore((state) => state.activeCwd);
-  const { setPaneRef } = usePty();
+  const { setPaneRef, activeScrolledUp, scrollActiveToBottom } = usePty();
   void activeProjectId;
   void activeCwd;
   const activeSession = sessions.find((session) => session.sessionId === activeSessionId) || null;
@@ -129,6 +129,17 @@ export function TerminalPanel() {
             registerPane={setPaneRef}
           />
         ))}
+        {activeSession && activeScrolledUp && (
+          <button
+            type="button"
+            className={styles.scrollToBottomButton}
+            aria-label="滚动到底部"
+            title="滚动到底部"
+            onClick={scrollActiveToBottom}
+          >
+            <span aria-hidden="true">↓</span>
+          </button>
+        )}
       </div>
       <div className={styles.footer} data-testid="terminal-session-stats">
         <div className={styles.status}>

@@ -16,6 +16,7 @@ declare global {
         clientHeight: number;
       } | null;
       scrollTerminalLines: (sessionId: string, lines: number) => boolean;
+      scrollTerminalToBottom: (sessionId: string) => boolean;
       appendTerminalData: (sessionId: string, data: string) => boolean;
       destroyAllSessions: () => boolean;
       simulateImagePaste: (

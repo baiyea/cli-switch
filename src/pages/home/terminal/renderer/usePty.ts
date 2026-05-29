@@ -1,7 +1,7 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { logBridge } from '../../../../shared/bridge';
 import { useSessionStore } from '../../home.store';
@@ -86,6 +86,7 @@ export function usePty() {
   const pasteCleanupRef = useRef<Map<string, () => void>>(new Map());
   const pasteInFlightRef = useRef<Set<string>>(new Set());
   const activeSessionIdRef = useRef<string | null>(null);
+  const [activeScrolledUp, setActiveScrolledUp] = useState(false);
 
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const ingestOutput = useSessionStore((state) => state.ingestOutput);
@@ -137,6 +138,7 @@ export function usePty() {
     if (activeSessionIdRef.current !== sessionId) return;
     try {
       term.scrollToBottom();
+      setActiveScrolledUp(false);
     } catch {}
   }
 
@@ -149,12 +151,37 @@ export function usePty() {
     }
   }
 
+  function syncActiveScrollState(sessionId = activeSessionIdRef.current) {
+    if (!sessionId || activeSessionIdRef.current !== sessionId) {
+      setActiveScrolledUp(false);
+      return;
+    }
+    const entry = terminalRef.current.get(sessionId);
+    if (!entry) {
+      setActiveScrolledUp(false);
+      return;
+    }
+    const next = !isAtScrollBottom(entry.term);
+    setActiveScrolledUp((prev) => (prev === next ? prev : next));
+  }
+
+  function scrollActiveToBottom() {
+    const sessionId = activeSessionIdRef.current;
+    if (!sessionId) return false;
+    const entry = terminalRef.current.get(sessionId);
+    if (!entry) return false;
+    scrollToBottomIfActive(sessionId, entry.term);
+    entry.term.focus();
+    return true;
+  }
+
   function writeLiveTerminalData(sessionId: string, term: Terminal, data: string) {
     const shouldFollowOutput = activeSessionIdRef.current === sessionId && isAtScrollBottom(term);
     term.write(data, () => {
       if (shouldFollowOutput) {
         scrollToBottomIfActive(sessionId, term);
       }
+      syncActiveScrollState(sessionId);
     });
   }
 
@@ -221,6 +248,7 @@ export function usePty() {
     term.loadAddon(fitAddon);
     term.loadAddon(linkAddon);
     installCodexScrollbackGuard(sessionId, term);
+    term.onScroll(() => syncActiveScrollState(sessionId));
     term.open(container);
     fitAddon.fit();
 
@@ -843,6 +871,7 @@ export function usePty() {
   useEffect(() => {
     fitActiveTerminal();
     const raf = window.requestAnimationFrame(() => fitActiveTerminal());
+    syncActiveScrollState(activeSessionId);
     logBridge.write({
       level: 'info',
       scope: 'terminal',
@@ -855,6 +884,17 @@ export function usePty() {
       window.cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    if (!activeSessionId) {
+      setActiveScrolledUp(false);
+      return undefined;
+    }
+    syncActiveScrollState(activeSessionId);
+    const timer = window.setInterval(() => syncActiveScrollState(activeSessionId), 250);
+    return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSessionId]);
 
@@ -888,7 +928,12 @@ export function usePty() {
         const entry = terminalRef.current.get(sessionId);
         if (!entry) return false;
         entry.term.scrollLines(lines);
+        syncActiveScrollState(sessionId);
         return true;
+      },
+      scrollTerminalToBottom: (sessionId: string) => {
+        if (activeSessionIdRef.current !== sessionId) return false;
+        return scrollActiveToBottom();
       },
       appendTerminalData: (sessionId: string, data: string) => {
         const entry = terminalRef.current.get(sessionId);
@@ -933,5 +978,7 @@ export function usePty() {
   return {
     setPaneRef,
     fitActiveTerminal,
+    activeScrolledUp,
+    scrollActiveToBottom,
   };
 }

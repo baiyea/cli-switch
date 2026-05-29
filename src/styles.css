@@ -32,9 +32,9 @@
   --font-header: 'Manrope', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  --bg-page: #0b0d10;
-  --bg-sidebar: #0f1115;
-  --bg-main: #0d1014;
+  --bg-page: #1c1c1c;
+  --bg-sidebar: #212122;
+  --bg-main: #1c1c1c;
   --bg-stage: #11141a;
   --bg-card: #141922;
   --bg-hover: #1b2130;
@@ -102,7 +102,7 @@ select {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: transparent;
+  background: var(--bg-sidebar);
   border-right: 1px solid var(--border-soft);
   transition: width 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -670,7 +670,7 @@ select {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: transparent;
+  background: var(--bg-page);
   padding: 0;
 }
 
@@ -971,6 +971,7 @@ select {
   display: flex;
   gap: 0;
   min-height: 0;
+  background: var(--bg-page);
   transition: gap 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 

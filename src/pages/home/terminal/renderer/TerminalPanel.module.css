@@ -23,6 +23,56 @@
   font-size: 14px;
 }
 
+.scrollToBottomButton {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  z-index: 3;
+  width: 32px;
+  height: 32px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(160, 176, 210, 0.28);
+  border-radius: 999px;
+  background: rgba(16, 22, 34, 0.78);
+  color: #dce6ff;
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    border-color 0.14s ease,
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.scrollToBottomButton:hover {
+  transform: translateX(-50%) translateY(-1px);
+  border-color: rgba(180, 195, 235, 0.44);
+  background: rgba(24, 32, 48, 0.9);
+  color: #ffffff;
+}
+
+.scrollToBottomButton:active {
+  transform: translateX(-50%) translateY(0);
+}
+
+.scrollToBottomButton:focus-visible {
+  outline: 2px solid rgba(126, 145, 255, 0.78);
+  outline-offset: 3px;
+}
+
+.scrollToBottomButton span {
+  display: block;
+  font-size: 18px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
 /* ── Footer bar · 40px · T42ZB exFooter ── */
 
 .footer {
