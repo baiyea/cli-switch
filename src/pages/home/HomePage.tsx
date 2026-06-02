@@ -97,7 +97,14 @@ export function HomePage() {
     setAppError,
   });
 
-  const { archivedSessions, loadArchivedSessions, onRestoreArchivedSession } = useArchiveList({
+  const {
+    archivedSessions,
+    archiveCleanupRunning,
+    archiveCleanupResult,
+    loadArchivedSessions,
+    onRestoreArchivedSession,
+    onCleanupExpiredArchivedSessions,
+  } = useArchiveList({
     refreshSessions,
   });
 
@@ -277,8 +284,11 @@ export function HomePage() {
           onSelectAbout={() => setSettingsSection('about')}
           providerSectionProps={providerSectionProps}
           archivedSessions={archivedSessions}
+          archiveCleanupRunning={archiveCleanupRunning}
+          archiveCleanupResult={archiveCleanupResult}
           providerLabel={PROVIDER_LABEL}
           onRestoreArchivedSession={onRestoreArchivedSession}
+          onCleanupExpiredArchivedSessions={onCleanupExpiredArchivedSessions}
           appVersion={APP_VERSION}
           appLogo={appLogo}
         />

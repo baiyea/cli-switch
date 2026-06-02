@@ -1,6 +1,6 @@
 {
-  "name": "zee-lin-code",
-  "version": "0.1.6",
+  "name": "cli-switch",
+  "version": "0.1.8",
   "private": true,
   "description": "Electron + React terminal-style AI workspace",
   "main": "src/app/main.js",

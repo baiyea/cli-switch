@@ -19,6 +19,7 @@ function createSessionDiscoverySyncService({
         cwd: session.cwd || '',
         sessionFilePath: session.sessionFilePath || null,
         createdAt: session.createdAt,
+        titleSource: session.titleSource || 'auto',
       });
       if (result?.reconciled && result.fromProviderSessionId && result.toProviderSessionId) {
         mappings.push({

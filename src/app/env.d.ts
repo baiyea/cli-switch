@@ -166,6 +166,19 @@ declare global {
           }>
         >;
         restore: (sessionId: string) => Promise<{ ok: boolean }>;
+        cleanupExpiredArchived: () => Promise<{
+          ok: boolean;
+          retentionDays: number;
+          cutoffIso: string;
+          scanned: number;
+          deletedRecords: number;
+          deletedFiles: number;
+          missingFiles: number;
+          skipped: number;
+          cleanedFiles: string[];
+          warnings: string[];
+          message?: string;
+        }>;
       };
       settings: {
         getClaude: () => Promise<{

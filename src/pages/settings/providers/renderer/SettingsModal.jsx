@@ -21,8 +21,11 @@ export function SettingsModal({
   onSelectAbout,
   providerSectionProps,
   archivedSessions,
+  archiveCleanupRunning,
+  archiveCleanupResult,
   providerLabel,
   onRestoreArchivedSession,
+  onCleanupExpiredArchivedSessions,
   appVersion,
   appLogo,
 }) {
@@ -121,8 +124,11 @@ export function SettingsModal({
             <TabsContent value="archive" className="mt-0 h-full">
               <ArchiveSettingsSection
                 archivedSessions={archivedSessions}
+                archiveCleanupRunning={archiveCleanupRunning}
+                archiveCleanupResult={archiveCleanupResult}
                 providerLabel={providerLabel}
                 onRestoreArchivedSession={onRestoreArchivedSession}
+                onCleanupExpiredArchivedSessions={onCleanupExpiredArchivedSessions}
               />
             </TabsContent>
 

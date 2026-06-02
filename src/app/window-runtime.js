@@ -69,6 +69,19 @@ function createWindowRuntime(deps = {}) {
     ]);
   }
 
+  function setMacWindowButtonVisibility(win, visible) {
+    if (process.platform !== 'darwin' || !win || win.isDestroyed()) return;
+    if (typeof win.setWindowButtonVisibility !== 'function') return;
+    win.setWindowButtonVisibility(Boolean(visible));
+  }
+
+  function bindMacWindowButtonVisibility(win) {
+    if (process.platform !== 'darwin' || !win || win.isDestroyed()) return;
+    setMacWindowButtonVisibility(win, true);
+    win.on('focus', () => setMacWindowButtonVisibility(win, true));
+    win.on('blur', () => setMacWindowButtonVisibility(win, false));
+  }
+
   function createWindow() {
     logInfo('app', 'Creating main window', { isDev });
     const iconPath = getWindowIconPath();
@@ -94,6 +107,7 @@ function createWindowRuntime(deps = {}) {
         sandbox: false,
       },
     });
+    bindMacWindowButtonVisibility(mainWindow);
 
     if (process.platform !== 'darwin') {
       mainWindow.setMenuBarVisibility(false);

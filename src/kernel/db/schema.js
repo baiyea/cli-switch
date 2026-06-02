@@ -81,6 +81,13 @@ const DB_MODELS = {
         description: '会话手动排序权重（同项目内越大越靠前）',
       },
       {
+        name: 'title_source',
+        type: 'TEXT',
+        notNull: true,
+        default: "'auto'",
+        description: '标题来源（auto=系统占位，derived=自动提取，manual=用户手动命名）',
+      },
+      {
         name: 'last_active_at',
         type: 'TEXT',
         notNull: true,

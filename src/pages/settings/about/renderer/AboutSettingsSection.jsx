@@ -160,7 +160,8 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
           <AlertDialogHeader>
             <AlertDialogTitle>确认清理运行数据</AlertDialogTitle>
             <AlertDialogDescription>
-              这会清理本地运行数据库和缓存文件（通常位于 ~/zeelincode 目录），该操作不可撤销。
+              这会清理本地运行数据库和缓存文件（正式环境通常位于 ~/.cli-switch，开发环境通常位于
+              ~/.cli-switch-dev），该操作不可撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

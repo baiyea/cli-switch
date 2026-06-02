@@ -40,6 +40,10 @@ function normalizeTitle(text, maxLen = 48) {
   return `${compact.slice(0, maxLen - 1)}…`;
 }
 
+function createFallbackTitle(sessionId) {
+  return `session-${String(sessionId || '').slice(0, 13)}`;
+}
+
 function extractRenameTitle(content) {
   if (typeof content !== 'string') return '';
   if (!content.includes('<command-name>/rename</command-name>')) return '';
@@ -55,6 +59,20 @@ function extractPromptTitle(content) {
   if (trimmed.startsWith('<')) return '';
   if (trimmed.includes('<local-command-caveat>')) return '';
   return normalizeTitle(trimmed, 40);
+}
+
+function extractUserPromptFromEvent(parsed) {
+  if (!parsed || typeof parsed !== 'object') return '';
+  if (parsed?.message?.role === 'user') {
+    return extractPromptTitle(parsed?.message?.content);
+  }
+  if (parsed?.role === 'user') {
+    return extractPromptTitle(parsed?.content);
+  }
+  if (parsed?.type === 'event_msg' && parsed?.payload?.type === 'user_message') {
+    return extractPromptTitle(parsed?.payload?.message);
+  }
+  return '';
 }
 
 function isSamePath(candidate, rootPath) {
@@ -159,16 +177,20 @@ function deriveJsonlTitle(filePath, fallbackTitle) {
     const content = parsed?.message?.content;
     const rename = extractRenameTitle(content);
     if (rename) return rename;
-    if (!promptTitle && parsed?.message?.role === 'user') {
-      const prompt = extractPromptTitle(content);
-      if (prompt) promptTitle = prompt;
-    }
-    if (!promptTitle && parsed?.role === 'user') {
-      const prompt = extractPromptTitle(parsed?.content);
+    if (!promptTitle) {
+      const prompt = extractUserPromptFromEvent(parsed);
       if (prompt) promptTitle = prompt;
     }
   }
   return promptTitle || fallbackTitle;
+}
+
+function deriveJsonlTitleWithSource(filePath, fallbackTitle) {
+  const title = deriveJsonlTitle(filePath, fallbackTitle);
+  return {
+    title,
+    titleSource: title === fallbackTitle ? 'auto' : 'derived',
+  };
 }
 
 function tryReadJson(filePath) {
@@ -231,8 +253,8 @@ function parseClaudeSession(filePath) {
   const sessionId = path.basename(filePath, '.jsonl');
   const cwd = findJsonlLinesFirstCwd(filePath);
   if (!cwd) return null;
-  const fallbackTitle = `session-${sessionId.slice(0, 8)}`;
-  const title = deriveJsonlTitle(filePath, fallbackTitle);
+  const fallbackTitle = createFallbackTitle(sessionId);
+  const { title, titleSource } = deriveJsonlTitleWithSource(filePath, fallbackTitle);
   const createdAt = fs.statSync(filePath).mtimeMs;
   return {
     provider: PROVIDERS.CLAUDE,
@@ -241,6 +263,7 @@ function parseClaudeSession(filePath) {
     sessionFilePath: filePath,
     cwd: path.resolve(cwd),
     name: title,
+    titleSource,
     createdAt,
   };
 }
@@ -249,8 +272,8 @@ function parseCodexSession(filePath) {
   const sessionId = findJsonlSessionId(filePath) || path.basename(filePath, '.jsonl');
   const cwd = findJsonlLinesFirstCwd(filePath);
   if (!cwd) return null;
-  const fallbackTitle = `session-${sessionId.slice(0, 8)}`;
-  const title = deriveJsonlTitle(filePath, fallbackTitle);
+  const fallbackTitle = createFallbackTitle(sessionId);
+  const { title, titleSource } = deriveJsonlTitleWithSource(filePath, fallbackTitle);
   const createdAt = fs.statSync(filePath).mtimeMs;
   return {
     provider: PROVIDERS.CODEX,
@@ -259,6 +282,7 @@ function parseCodexSession(filePath) {
     sessionFilePath: filePath,
     cwd: path.resolve(cwd),
     name: title,
+    titleSource,
     createdAt,
   };
 }
@@ -296,7 +320,7 @@ function parseGeminiSession(filePath) {
   if (!cwd) return null;
 
   const prompt = deepFindFirstUserText(payload);
-  const fallbackTitle = `session-${sessionId.slice(0, 8)}`;
+  const fallbackTitle = createFallbackTitle(sessionId);
   const title = prompt || fallbackTitle;
   const createdAt = fs.statSync(filePath).mtimeMs;
   return {
@@ -306,6 +330,7 @@ function parseGeminiSession(filePath) {
     sessionFilePath: filePath,
     cwd: path.resolve(cwd),
     name: title,
+    titleSource: prompt ? 'derived' : 'auto',
     createdAt,
   };
 }

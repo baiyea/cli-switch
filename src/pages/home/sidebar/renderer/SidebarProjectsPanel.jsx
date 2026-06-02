@@ -152,7 +152,10 @@ export function SidebarProjectsPanel({
                             placement = 'up';
                           }
                         }
-                        setCreateMenuPlacementByProject((prev) => ({ ...prev, [p.id]: placement }));
+                        setCreateMenuPlacementByProject((prev) => ({
+                          ...prev,
+                          [p.id]: placement,
+                        }));
                         setOpenCreateMenuProjectId((prev) => (prev === p.id ? null : p.id));
                       }}
                     >
@@ -181,6 +184,27 @@ export function SidebarProjectsPanel({
                           </Button>
                         ))}
                         <div className="project-create-divider" />
+                        {hiddenSessionCount > 0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="project-create-item"
+                            onClick={() => {
+                              setOpenCreateMenuProjectId(null);
+                              setShowAllSessionsByProject((prev) => ({
+                                ...prev,
+                                [p.id]: !showAllSessions,
+                              }));
+                            }}
+                          >
+                            <span className="project-create-history-icon" aria-hidden="true">
+                              {showAllSessions ? '›' : '⌄'}
+                            </span>
+                            <span>{showAllSessions ? '收起会话列表' : '展开全部会话'}</span>
+                          </Button>
+                        )}
+                        {hiddenSessionCount > 0 && <div className="project-create-divider" />}
                         <Button
                           type="button"
                           variant="ghost"

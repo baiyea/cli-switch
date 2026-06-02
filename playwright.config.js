@@ -8,8 +8,6 @@ module.exports = defineConfig({
   testMatch: ['**/e2e/**/*.e2e.js'],
   // 临时忽略占位用例（含 test.todo），避免阻断测试收集
   testIgnore: [
-    '**/home/sidebar/e2e/sidebar.e2e.js',
-    '**/settings/archive/e2e/archive.e2e.js',
     '**/settings/providers/e2e/providers.e2e.js',
     '**/settings/providers/e2e/providers-codex-oauth.e2e.js',
     '**/settings/providers/e2e/providers-gemini-oauth.e2e.js',

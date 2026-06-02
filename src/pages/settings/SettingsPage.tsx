@@ -48,8 +48,11 @@ export interface SettingsPageProps {
     settingsError: string;
   };
   archivedSessions: any[];
+  archiveCleanupRunning?: boolean;
+  archiveCleanupResult?: any;
   providerLabel: Record<string, string>;
   onRestoreArchivedSession: (archiveId: string) => Promise<void>;
+  onCleanupExpiredArchivedSessions?: () => Promise<any>;
   appVersion: string;
   appLogo: string;
 }
@@ -59,8 +62,11 @@ export function SettingsPage({
   settingsSection: initialSection,
   providerSectionProps,
   archivedSessions,
+  archiveCleanupRunning,
+  archiveCleanupResult,
   providerLabel,
   onRestoreArchivedSession,
+  onCleanupExpiredArchivedSessions,
   appVersion,
   appLogo,
 }: SettingsPageProps) {
@@ -114,8 +120,11 @@ export function SettingsPage({
           {section === 'archive' && (
             <ArchiveSettingsSection
               archivedSessions={archivedSessions}
+              archiveCleanupRunning={archiveCleanupRunning}
+              archiveCleanupResult={archiveCleanupResult}
               providerLabel={providerLabel}
               onRestoreArchivedSession={onRestoreArchivedSession}
+              onCleanupExpiredArchivedSessions={onCleanupExpiredArchivedSessions}
             />
           )}
           {section === 'about' && (

@@ -39,6 +39,16 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
     return Number(row?.min_sort_order || 0) - 1;
   }
 
+  function normalizeTitleSource(value) {
+    const normalized = String(value || 'auto').toLowerCase();
+    if (normalized === 'manual' || normalized === 'derived') return normalized;
+    return 'auto';
+  }
+
+  function isAutoTitleSource(row) {
+    return normalizeTitleSource(row?.title_source) === 'auto';
+  }
+
   function listByArchiveFlag(isArchived, projectIds = []) {
     const { sql, params } = buildInClause(projectIds);
     return conn
@@ -63,6 +73,18 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
     },
     listAllArchived(projectIds = []) {
       return listByArchiveFlag(true, projectIds);
+    },
+    listExpiredArchivedSessions(cutoffIso) {
+      return conn
+        .prepare(
+          `SELECT s.*, p.path AS project_path
+           FROM ${sessionsTable} s LEFT JOIN projects p ON p.id = s.project_id
+           WHERE s.is_archived = 1
+             AND s.archived_at IS NOT NULL
+             AND s.archived_at < ?
+           ORDER BY s.archived_at ASC, s.created_at ASC`,
+        )
+        .all(cutoffIso);
     },
     listActiveWithSessionFileByProject(projectId) {
       return conn
@@ -89,6 +111,7 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
       cwd = '',
       sessionFilePath = null,
       status = 'idle',
+      titleSource = 'auto',
     }) {
       const timestamp = now();
       const sortOrder = getNextSortOrder(projectId);
@@ -102,6 +125,7 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
         session_file_path: sessionFilePath,
         status,
         sort_order: sortOrder,
+        title_source: normalizeTitleSource(titleSource),
         last_active_at: timestamp,
         created_at: timestamp,
         updated_at: timestamp,
@@ -111,9 +135,9 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
       conn
         .prepare(
           `INSERT INTO ${sessionsTable} (id, project_id, title, provider, provider_session_id, cwd, session_file_path,
-         status, sort_order, last_active_at, created_at, updated_at, is_archived, archived_at)
+         status, sort_order, title_source, last_active_at, created_at, updated_at, is_archived, archived_at)
          VALUES (@id, @project_id, @title, @provider, @provider_session_id, @cwd, @session_file_path,
-         @status, @sort_order, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at)`,
+         @status, @sort_order, @title_source, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at)`,
         )
         .run(session);
       return session;
@@ -126,20 +150,35 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
       cwd = '',
       sessionFilePath = null,
       createdAt,
+      titleSource = 'auto',
     }) {
       const timestamp = now();
       const createdAtIso = Number.isFinite(createdAt)
         ? new Date(createdAt).toISOString()
         : timestamp;
       const sortOrder = getNextBottomSortOrder(projectId);
+      const normalizedTitleSource = normalizeTitleSource(titleSource);
       conn
         .prepare(
           `INSERT INTO ${sessionsTable} (id, project_id, title, provider, provider_session_id, cwd, session_file_path,
-         status, sort_order, last_active_at, created_at, updated_at, is_archived, archived_at)
+         status, sort_order, title_source, last_active_at, created_at, updated_at, is_archived, archived_at)
          VALUES (@id, @project_id, @title, @provider, @provider_session_id, @cwd, @session_file_path,
-         @status, @sort_order, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at)
+         @status, @sort_order, @title_source, @last_active_at, @created_at, @updated_at, @is_archived, @archived_at)
          ON CONFLICT(provider, provider_session_id) DO UPDATE SET
-           project_id = excluded.project_id, title = excluded.title, cwd = excluded.cwd,
+           project_id = excluded.project_id,
+           title = CASE
+             WHEN COALESCE(${sessionsTable}.title_source, 'auto') = 'manual' THEN ${sessionsTable}.title
+             WHEN COALESCE(${sessionsTable}.title_source, 'auto') = 'derived'
+              AND excluded.title_source = 'auto' THEN ${sessionsTable}.title
+             ELSE excluded.title
+           END,
+           title_source = CASE
+             WHEN COALESCE(${sessionsTable}.title_source, 'auto') = 'manual' THEN ${sessionsTable}.title_source
+             WHEN COALESCE(${sessionsTable}.title_source, 'auto') = 'derived'
+              AND excluded.title_source = 'auto' THEN ${sessionsTable}.title_source
+             ELSE excluded.title_source
+           END,
+           cwd = excluded.cwd,
            session_file_path = COALESCE(excluded.session_file_path, ${sessionsTable}.session_file_path),
            updated_at = excluded.updated_at`,
         )
@@ -153,6 +192,7 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
           session_file_path: sessionFilePath,
           status: 'exited',
           sort_order: sortOrder,
+          title_source: normalizedTitleSource,
           last_active_at: createdAtIso,
           created_at: createdAtIso,
           updated_at: timestamp,
@@ -168,6 +208,7 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
       cwd = '',
       sessionFilePath = null,
       createdAt,
+      titleSource = 'auto',
     }) {
       const existing = conn
         .prepare(`SELECT * FROM ${sessionsTable} WHERE provider = ? AND provider_session_id = ?`)
@@ -181,6 +222,7 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
           cwd,
           sessionFilePath,
           createdAt,
+          titleSource,
         });
         return {
           ok: true,
@@ -204,6 +246,7 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
           cwd,
           sessionFilePath,
           createdAt,
+          titleSource,
         });
         return {
           ok: true,
@@ -216,16 +259,15 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
       const createdAtIso = Number.isFinite(createdAt)
         ? new Date(createdAt).toISOString()
         : timestamp;
-      const shouldReplaceTitle = new RegExp(`^${String(provider)}-\\d+`, 'i').test(
-        String(candidate.title || ''),
-      );
+      const shouldReplaceTitle = isAutoTitleSource(candidate);
       conn
         .prepare(
-          `UPDATE ${sessionsTable} SET provider_session_id = ?, title = ?, cwd = ?, session_file_path = ?, last_active_at = ?, updated_at = ? WHERE id = ?`,
+          `UPDATE ${sessionsTable} SET provider_session_id = ?, title = ?, title_source = ?, cwd = ?, session_file_path = ?, last_active_at = ?, updated_at = ? WHERE id = ?`,
         )
         .run(
           providerSessionId,
           shouldReplaceTitle ? title : candidate.title,
+          shouldReplaceTitle ? normalizeTitleSource(titleSource) : normalizeTitleSource(candidate.title_source),
           cwd,
           sessionFilePath,
           createdAtIso,
@@ -250,9 +292,23 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
     renameByProviderSessionId({ provider, providerSessionId, title }) {
       conn
         .prepare(
-          `UPDATE ${sessionsTable} SET title = ?, updated_at = ? WHERE provider = ? AND provider_session_id = ?`,
+          `UPDATE ${sessionsTable} SET title = ?, title_source = 'manual', updated_at = ? WHERE provider = ? AND provider_session_id = ?`,
         )
         .run(title, now(), provider, providerSessionId);
+    },
+    updateAutoTitleByProviderSessionId({ provider, providerSessionId, title, titleSource = 'derived' }) {
+      const nextTitle = String(title || '').trim();
+      if (!nextTitle) return { changed: false };
+      const result = conn
+        .prepare(
+          `UPDATE ${sessionsTable}
+           SET title = ?, title_source = ?, updated_at = ?
+           WHERE provider = ?
+             AND provider_session_id = ?
+             AND COALESCE(title_source, 'auto') = 'auto'`,
+        )
+        .run(nextTitle, normalizeTitleSource(titleSource), now(), provider, providerSessionId);
+      return { changed: result.changes > 0 };
     },
     archiveByProviderSessionId({ provider, providerSessionId }) {
       const timestamp = now();
@@ -268,6 +324,12 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
           `UPDATE ${sessionsTable} SET is_archived = 0, archived_at = NULL, updated_at = ? WHERE provider = ? AND provider_session_id = ?`,
         )
         .run(now(), provider, providerSessionId);
+    },
+    deleteArchivedSessionById(sessionId) {
+      const result = conn
+        .prepare(`DELETE FROM ${sessionsTable} WHERE id = ? AND is_archived = 1`)
+        .run(sessionId);
+      return { changes: result.changes };
     },
     reorderActiveByProject({ projectId, orderedSessions = [] }) {
       const activeRows = conn

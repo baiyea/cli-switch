@@ -35,6 +35,46 @@ function registerTerminalMain(context = {}) {
 
   if (!registerIpc) return;
 
+  function isAutoSessionTitle(row) {
+    return String(row?.title_source || 'auto').toLowerCase() === 'auto';
+  }
+
+  function shouldSyncDiscoveredSessionBeforeStats(provider, providerSessionId, row) {
+    if (!row) return false;
+    if (isAutoSessionTitle(row)) return true;
+    if (typeof isLocalGeneratedSessionId !== 'function') return false;
+    if (!isLocalGeneratedSessionId(provider, providerSessionId)) return false;
+    const sessionFilePath = String(row.session_file_path || '').trim();
+    if (!sessionFilePath) return true;
+    return typeof fs?.existsSync === 'function' ? !fs.existsSync(sessionFilePath) : false;
+  }
+
+  function reconcileSessionBeforeStats(provider, providerSessionId, row) {
+    if (!shouldSyncDiscoveredSessionBeforeStats(provider, providerSessionId, row)) {
+      return { providerSessionId, row };
+    }
+    if (typeof syncDiscoveredSessionsForProjects !== 'function') return { providerSessionId, row };
+    const project = row?.project_id ? projectStore.getById(row.project_id) : null;
+    if (!project) return { providerSessionId, row };
+
+    const { mappings = [] } = syncDiscoveredSessionsForProjects([project]) || {};
+    const reconciled = mappings.find(
+      (item) => item.provider === provider && item.fromProviderSessionId === providerSessionId,
+    );
+    const nextProviderSessionId = reconciled?.toProviderSessionId || providerSessionId;
+    const nextRow =
+      sessionStore.getByProviderSessionId({ provider, providerSessionId: nextProviderSessionId }) ||
+      row;
+    if (nextProviderSessionId !== providerSessionId) {
+      logInfo('session', 'Reconciled local session id before reading session stats', {
+        provider,
+        fromProviderSessionId: providerSessionId,
+        toProviderSessionId: nextProviderSessionId,
+      });
+    }
+    return { providerSessionId: nextProviderSessionId, row: nextRow };
+  }
+
   registerIpc(TERMINAL_CHANNELS.SESSION_STATS, async (_event, payload) => {
     const parsed = sessionStatsSchema.parse(payload || {});
     const provider = normalizeProviderId(parsed.provider || 'claude');
@@ -43,7 +83,12 @@ function registerTerminalMain(context = {}) {
 
     const row = sessionStore.getByProviderSessionId({ provider, providerSessionId });
     try {
-      const stats = readSessionStats({ provider, providerSessionId, row });
+      const reconciled = reconcileSessionBeforeStats(provider, providerSessionId, row);
+      const stats = readSessionStats({
+        provider,
+        providerSessionId: reconciled.providerSessionId,
+        row: reconciled.row,
+      });
       return { ok: true, stats };
     } catch (error) {
       return { ok: false, reason: error instanceof Error ? error.message : String(error) };

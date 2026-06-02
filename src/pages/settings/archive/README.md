@@ -4,6 +4,8 @@
 
 归档设置区块负责归档会话列表、恢复和删除。只有当归档状态需要被 Home 读取时，才同步到 `pages.store.ts`。
 
+一键清理只处理已归档且归档时间超过 30 天的会话，删除范围限定为 `sessions.session_file_path` 指向的 provider 原始会话文件和对应数据库记录，不删除 attachments、skillgen 输出、sessions dump 等衍生内容。
+
 ## 允许 import
 
 - `../../pages.store.ts`，仅用于跨页面归档共享状态。
@@ -23,7 +25,7 @@
 - `main/` 放归档相关 IPC handler。
 - `preload/` 暴露 archive 专用 API。
 - `shared/` 只放 archive channel、协议和类型。
-- `e2e/` 覆盖归档列表、恢复和删除。
+- `e2e/` 覆盖归档列表、恢复和一键清理删除。
 
 ## AI 修改前先读
 

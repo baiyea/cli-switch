@@ -1,4 +1,5 @@
 const { ARCHIVE_CHANNELS } = require('./shared/archive.channels');
+const { createArchiveRetentionService } = require('./main/archive-retention.service');
 
 function registerArchiveMain(context = {}) {
   const {
@@ -11,9 +12,18 @@ function registerArchiveMain(context = {}) {
     parseArchiveId,
     toArchivedView,
     logInfo = () => {},
+    logWarn = () => {},
   } = context;
 
   if (!registerIpc) return;
+
+  const archiveRetentionService =
+    context.archiveRetentionService ||
+    createArchiveRetentionService({
+      sessionStore,
+      logInfo,
+      logWarn,
+    });
 
   registerIpc(ARCHIVE_CHANNELS.SESSION_ARCHIVE, async (_event, payload) => {
     const parsed = z
@@ -53,6 +63,10 @@ function registerArchiveMain(context = {}) {
     });
     return { ok: true };
   });
+
+  registerIpc(ARCHIVE_CHANNELS.SESSION_ARCHIVE_CLEANUP_EXPIRED, async () =>
+    archiveRetentionService.cleanupExpiredArchivedSessions(),
+  );
 }
 
 module.exports = { registerArchiveMain };
