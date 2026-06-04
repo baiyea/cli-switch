@@ -27,7 +27,7 @@
 ```
 projects (1) ──< (N) sessions
     │                   │
-    │                   └──< (N) token_usage_runs (1) ── (1) token_usage_snapshots
+    │                   └──< (N) token_usage_runs (1) ── (0..1) token_usage_snapshots
     │
     └──────< (N) token_usage_runs
 ┌──────────┐      ┌──────────────┐
