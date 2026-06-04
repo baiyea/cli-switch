@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { tokenUsageBridge } from './token-usage.bridge';
 
 const DEFAULT_FILTERS = { range: '30d', projectId: '', provider: '', modelName: '' };
+const REFRESH_POLL_INTERVAL_MS = 1000;
+const REFRESH_POLL_MAX_ATTEMPTS = 60;
 
 const EMPTY_STATUS = {
   running: false,
@@ -58,6 +60,12 @@ function toErrorMessage(error, fallback) {
   return fallback;
 }
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 export function useTokenUsage() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
@@ -65,42 +73,91 @@ export function useTokenUsage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const filtersRef = useRef(filters);
+  const mountedRef = useRef(true);
+  const summaryRequestSeqRef = useRef(0);
+  const refreshRequestSeqRef = useRef(0);
   const didRunInitialEffectRef = useRef(false);
   const didRunFilterEffectRef = useRef(false);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
 
   const loadSummary = useCallback(async (nextFilters = filtersRef.current) => {
-    setLoading(true);
-    setError('');
+    const requestSeq = summaryRequestSeqRef.current + 1;
+    summaryRequestSeqRef.current = requestSeq;
+    if (mountedRef.current) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const result = await tokenUsageBridge.summary(nextFilters);
       if (!result?.ok) throw new Error(result?.reason || 'Token 统计读取失败');
-      setSummary(normalizeSummary(result.summary));
+      if (mountedRef.current && summaryRequestSeqRef.current === requestSeq) {
+        setSummary(normalizeSummary(result.summary));
+      }
     } catch (err) {
-      setError(toErrorMessage(err, 'Token 统计读取失败'));
+      if (mountedRef.current && summaryRequestSeqRef.current === requestSeq) {
+        setError(toErrorMessage(err, 'Token 统计读取失败'));
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current && summaryRequestSeqRef.current === requestSeq) {
+        setLoading(false);
+      }
     }
   }, []);
 
   const refresh = useCallback(
     async ({ force = false } = {}) => {
-      setRefreshing(true);
-      setError('');
+      const requestSeq = refreshRequestSeqRef.current + 1;
+      refreshRequestSeqRef.current = requestSeq;
+      const isCurrentRefresh = () => mountedRef.current && refreshRequestSeqRef.current === requestSeq;
+      const updateStatus = (status) => {
+        if (!status || !isCurrentRefresh()) return;
+        setSummary((prev) => normalizeSummary({ ...prev, status }));
+      };
+
+      if (mountedRef.current) {
+        setRefreshing(true);
+        setError('');
+      }
       try {
         const result = await tokenUsageBridge.refresh({ force });
         if (!result?.ok) throw new Error(result?.reason || 'Token 统计刷新失败');
-        if (result.status) {
-          setSummary((prev) => normalizeSummary({ ...prev, status: result.status }));
+        updateStatus(result.status);
+
+        let currentStatus = result.status;
+        for (let attempt = 0; currentStatus?.running && attempt < REFRESH_POLL_MAX_ATTEMPTS; attempt += 1) {
+          await wait(REFRESH_POLL_INTERVAL_MS);
+          if (!isCurrentRefresh()) return;
+          const statusResult = await tokenUsageBridge.status();
+          if (!statusResult?.ok) throw new Error(statusResult?.reason || 'Token 统计刷新状态读取失败');
+          currentStatus = statusResult.status;
+          updateStatus(currentStatus);
+        }
+
+        if (currentStatus?.running) {
+          throw new Error('Token 统计刷新超时，请稍后重试');
+        }
+        if (currentStatus?.error) {
+          throw new Error(currentStatus.error);
         }
         await loadSummary(filtersRef.current);
       } catch (err) {
-        setError(toErrorMessage(err, 'Token 统计刷新失败'));
+        if (isCurrentRefresh()) {
+          setError(toErrorMessage(err, 'Token 统计刷新失败'));
+        }
       } finally {
-        setRefreshing(false);
+        if (isCurrentRefresh()) {
+          setRefreshing(false);
+        }
       }
     },
     [loadSummary],

@@ -67,6 +67,7 @@ export function TokenUsageSettingsSection() {
   const models = Array.isArray(summary?.models) ? summary.models : [];
   const projects = Array.isArray(summary?.projects) ? summary.projects : [];
   const status = summary?.status || {};
+  const isRefreshing = refreshing || Boolean(status.running);
   const maxDaily = Math.max(1, ...daily.map((item) => Number(item?.totalTokens || 0)));
 
   return (
@@ -82,18 +83,18 @@ export function TokenUsageSettingsSection() {
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="rounded-lg border border-white/10 bg-white/[0.045] px-2.5 py-1.5 text-[12px] text-[var(--text-muted)]">
-            {status.running || refreshing ? '同步中...' : `上次同步：${formatDateTime(status.lastFinishedAt)}`}
+            {isRefreshing ? '同步中...' : `上次同步：${formatDateTime(status.lastFinishedAt)}`}
           </span>
           <Button
             type="button"
             variant="secondary"
             size="sm"
             className="h-8 shrink-0 gap-2 rounded-lg border border-white/10 bg-white/[0.08] px-[14px] text-[13px] font-medium text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]"
-            disabled={refreshing}
+            disabled={isRefreshing}
             onClick={() => refresh({ force: true })}
           >
-            <RefreshCcw size={14} className={refreshing ? 'animate-spin' : ''} />
-            {refreshing ? '扫描中...' : '重新扫描'}
+            <RefreshCcw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            {isRefreshing ? '扫描中...' : '重新扫描'}
           </Button>
         </div>
       </div>
@@ -107,7 +108,7 @@ export function TokenUsageSettingsSection() {
           <SelectButton
             key={range}
             active={filters.range === range}
-            onClick={() => setFilters((prev) => ({ ...prev, range }))}
+            onClick={() => setFilters((prev) => (prev.range === range ? prev : { ...prev, range }))}
           >
             {label}
           </SelectButton>
@@ -116,7 +117,9 @@ export function TokenUsageSettingsSection() {
           <SelectButton
             key={provider || 'all-provider'}
             active={filters.provider === provider}
-            onClick={() => setFilters((prev) => ({ ...prev, provider }))}
+            onClick={() =>
+              setFilters((prev) => (prev.provider === provider ? prev : { ...prev, provider }))
+            }
           >
             {provider || '全部 Provider'}
           </SelectButton>
@@ -124,7 +127,10 @@ export function TokenUsageSettingsSection() {
         <select
           className="h-[31px] rounded-lg border border-white/10 bg-[#15181D] px-3 text-[12px] text-[var(--text-muted)] outline-none transition-colors duration-150 hover:text-[var(--text-main)]"
           value={filters.projectId || ''}
-          onChange={(event) => setFilters((prev) => ({ ...prev, projectId: event.target.value }))}
+          onChange={(event) => {
+            const projectId = event.target.value;
+            setFilters((prev) => (prev.projectId === projectId ? prev : { ...prev, projectId }));
+          }}
         >
           <option value="">全部项目</option>
           {projects.map((project) => (
@@ -136,7 +142,10 @@ export function TokenUsageSettingsSection() {
         <select
           className="h-[31px] rounded-lg border border-white/10 bg-[#15181D] px-3 text-[12px] text-[var(--text-muted)] outline-none transition-colors duration-150 hover:text-[var(--text-main)]"
           value={filters.modelName || ''}
-          onChange={(event) => setFilters((prev) => ({ ...prev, modelName: event.target.value }))}
+          onChange={(event) => {
+            const modelName = event.target.value;
+            setFilters((prev) => (prev.modelName === modelName ? prev : { ...prev, modelName }));
+          }}
         >
           <option value="">全部模型</option>
           {modelOptions.map((model) => (
