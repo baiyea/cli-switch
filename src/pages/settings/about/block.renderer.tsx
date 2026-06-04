@@ -5,3 +5,5 @@ export const aboutRenderer = {
     settings: AboutSettingsSection,
   },
 };
+
+export { AboutSettingsSection };

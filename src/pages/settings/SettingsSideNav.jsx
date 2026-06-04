@@ -1,4 +1,4 @@
-import { TabsList, TabsTrigger } from '../../../../ui/tabs';
+import { TabsList, TabsTrigger } from '../../ui/tabs';
 
 function CpuIcon({ size = 14 }) {
   return (

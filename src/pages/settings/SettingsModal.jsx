@@ -4,13 +4,13 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '../../../../ui/dialog';
-import { Tabs, TabsContent } from '../../../../ui/tabs';
-import { AboutSettingsSection } from '../../about/renderer/AboutSettingsSection';
-import { ArchiveSettingsSection } from '../../archive/renderer/ArchiveSettingsSection';
-import { TokenUsageSettingsSection } from '../../token-usage/block.renderer';
-import { ProviderSettingsSection } from './ProviderSettingsSection';
+} from '../../ui/dialog';
+import { Tabs, TabsContent } from '../../ui/tabs';
+import { AboutSettingsSection } from './about/block.renderer';
+import { ArchiveSettingsSection } from './archive/block.renderer';
+import { ProviderSettingsSection } from './providers/block.renderer';
 import { SettingsSideNav } from './SettingsSideNav';
+import { TokenUsageSettingsSection } from './token-usage/block.renderer';
 
 export function SettingsModal({
   forceLock,

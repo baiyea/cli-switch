@@ -5,3 +5,5 @@ export const archiveRenderer = {
     settings: ArchiveSettingsSection,
   },
 };
+
+export { ArchiveSettingsSection };

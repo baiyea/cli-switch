@@ -5,7 +5,7 @@ import appLogo from '../../assets/brand/app-logo.png';
 import { Button } from '../../ui/button';
 import { ExplorerToggleIcon, SettingsIcon } from '../../ui/icon-registry';
 import { useArchiveList } from '../settings/archive/renderer/use-archive-list';
-import { SettingsModal } from '../settings/providers/renderer/SettingsModal';
+import { SettingsModal } from '../settings/SettingsModal';
 import {
   isProviderConfigured,
   useProviderSettings,
