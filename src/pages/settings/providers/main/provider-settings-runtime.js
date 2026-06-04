@@ -206,6 +206,7 @@ function createProviderSettingsRuntime({
     return {
       providerId: id,
       profileId: profile.id || activeProfileId || '',
+      profileName: profile.name || profile.id || activeProfileId || '',
       envVars: mergedEnvVars,
     };
   }
