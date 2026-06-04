@@ -40,6 +40,29 @@ function rel(filePath) {
   return path.relative(root, filePath).replace(/\\/g, '/');
 }
 
+function extractImportSpecifiers(source) {
+  const imports = [];
+  const patterns = [
+    /import\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/g,
+    /import\(\s*['"]([^'"]+)['"]\s*\)/g,
+    /require\(\s*['"]([^'"]+)['"]\s*\)/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) imports.push(match[1]);
+  }
+
+  return imports;
+}
+
+function resolveImportPath(fromRelativePath, specifier) {
+  if (specifier.startsWith('@/')) return `src/${specifier.slice(2)}`;
+  if (!specifier.startsWith('.')) return null;
+
+  const importerDir = path.posix.dirname(fromRelativePath);
+  return path.posix.normalize(path.posix.join(importerDir, specifier));
+}
+
 const srcFiles = walk(path.join(root, 'src')).filter((filePath) =>
   /\.(js|jsx|ts|tsx)$/.test(filePath),
 );
@@ -54,6 +77,7 @@ if (fs.existsSync(featuresDir)) {
 for (const filePath of srcFiles) {
   const relative = rel(filePath);
   const source = read(filePath);
+  const imports = extractImportSpecifiers(source);
   if (/src\/features|['"][^'"]*\.\.\/features|['"][^'"]*features\//.test(source)) {
     violations.push(`${relative}: imports or references src/features`);
   }
@@ -67,6 +91,30 @@ for (const filePath of srcFiles) {
     /pages\/home\/(terminal|sidebar|file-tree|top-toolbar)\/.*\/renderer\/.*bridge/.test(source)
   ) {
     violations.push(`${relative}: imports another Home block renderer bridge`);
+  }
+  if (
+    relative.startsWith('src/pages/settings/token-usage/renderer/') &&
+    /pages\/home\/terminal|home\/terminal\/renderer|home\/terminal\/preload|home\/terminal\/main/.test(
+      source,
+    )
+  ) {
+    violations.push(`${relative}: token-usage renderer must not import terminal internals`);
+  }
+  if (relative.startsWith('src/pages/settings/token-usage/') && /terminal\.bridge/.test(source)) {
+    violations.push(`${relative}: token-usage block must not import terminal.bridge`);
+  }
+
+  for (const importPath of imports) {
+    const resolved = resolveImportPath(relative, importPath);
+    if (!resolved) continue;
+    if (
+      resolved.startsWith('src/pages/settings/token-usage/renderer/') &&
+      !relative.startsWith('src/pages/settings/token-usage/')
+    ) {
+      violations.push(
+        `${relative}: must not import token-usage renderer internals; import the block renderer entry instead`,
+      );
+    }
   }
 }
 
