@@ -67,4 +67,17 @@ test('ensureTokenUsageTables creates run and snapshot tables idempotently', () =
   assert.ok(indexes.includes('idx_token_usage_runs_session'));
   assert.ok(indexes.includes('idx_token_usage_runs_project'));
   assert.ok(indexes.includes('idx_token_usage_runs_model'));
+
+  const runForeignKeys = conn
+    .prepare('PRAGMA foreign_key_list(token_usage_runs)')
+    .all()
+    .map((row) => ({
+      table: row.table,
+      from: row.from,
+      to: row.to,
+    }));
+  assert.deepEqual(runForeignKeys, [
+    { table: 'sessions', from: 'session_id', to: 'id' },
+    { table: 'projects', from: 'project_id', to: 'id' },
+  ]);
 });

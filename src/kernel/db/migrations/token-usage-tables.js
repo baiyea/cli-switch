@@ -15,7 +15,9 @@ function ensureTokenUsageTables(conn) {
       run_started_at TEXT NOT NULL,
       run_ended_at TEXT,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(project_id) REFERENCES projects(id),
+      FOREIGN KEY(session_id) REFERENCES sessions(id)
     );
 
     CREATE TABLE IF NOT EXISTS token_usage_snapshots (

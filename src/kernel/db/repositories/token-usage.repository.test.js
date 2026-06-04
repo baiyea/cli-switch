@@ -7,6 +7,16 @@ const { createTokenUsageRepo } = require('./token-usage.repository');
 
 function createRepo() {
   const conn = new Database(':memory:');
+  conn.exec(`
+    CREATE TABLE projects (
+      id TEXT PRIMARY KEY
+    );
+    CREATE TABLE sessions (
+      id TEXT PRIMARY KEY
+    );
+    INSERT INTO projects (id) VALUES ('project-1'), ('project-2');
+    INSERT INTO sessions (id) VALUES ('session-1');
+  `);
   ensureTokenUsageTables(conn);
 
   let seq = 0;
@@ -173,4 +183,59 @@ test('getSummary returns models ordered by totalTokens descending with camelCase
       totalTokens: 50,
     },
   ]);
+});
+
+test('getSummary status respects project provider and model filters', () => {
+  const { repo } = createRepo();
+  const matchingRunning = startRun(repo, {
+    projectId: 'project-1',
+    provider: 'claude',
+    modelName: 'target-model',
+    runStartedAt: '2026-06-04T01:00:00.000Z',
+  });
+  const matchingFinished = startRun(repo, {
+    projectId: 'project-1',
+    provider: 'claude',
+    modelName: 'target-model',
+    runStartedAt: '2026-06-04T02:00:00.000Z',
+  });
+  const otherProjectRunning = startRun(repo, {
+    projectId: 'project-2',
+    provider: 'claude',
+    modelName: 'target-model',
+    runStartedAt: '2026-06-04T03:00:00.000Z',
+  });
+  const otherModelFinished = startRun(repo, {
+    projectId: 'project-1',
+    provider: 'claude',
+    modelName: 'other-model',
+    runStartedAt: '2026-06-04T04:00:00.000Z',
+  });
+  const otherProviderFinished = startRun(repo, {
+    projectId: 'project-1',
+    provider: 'codex',
+    modelName: 'target-model',
+    runStartedAt: '2026-06-04T05:00:00.000Z',
+  });
+
+  repo.finishRun(matchingFinished.id, '2026-06-04T02:30:00.000Z');
+  repo.finishRun(otherModelFinished.id, '2026-06-04T04:30:00.000Z');
+  repo.finishRun(otherProviderFinished.id, '2026-06-04T05:30:00.000Z');
+  repo.addSnapshotDelta(matchingRunning.id, { totalTokens: 10 });
+  repo.addSnapshotDelta(matchingFinished.id, { totalTokens: 20 });
+  repo.addSnapshotDelta(otherProjectRunning.id, { totalTokens: 30 });
+  repo.addSnapshotDelta(otherModelFinished.id, { totalTokens: 40 });
+  repo.addSnapshotDelta(otherProviderFinished.id, { totalTokens: 50 });
+
+  const summary = repo.getSummary({
+    range: 'all',
+    projectId: 'project-1',
+    provider: 'claude',
+    modelName: 'target-model',
+  });
+
+  assert.deepEqual(summary.status, {
+    running: 1,
+    lastFinishedAt: '2026-06-04T02:30:00.000Z',
+  });
 });

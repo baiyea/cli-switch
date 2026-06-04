@@ -273,11 +273,12 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
       const statusRow = conn
         .prepare(
           `SELECT
-             COALESCE(SUM(CASE WHEN run_ended_at IS NULL THEN 1 ELSE 0 END), 0) AS running,
-             MAX(run_ended_at) AS last_finished_at
-           FROM token_usage_runs`,
+             COALESCE(SUM(CASE WHEN r.run_ended_at IS NULL THEN 1 ELSE 0 END), 0) AS running,
+             MAX(r.run_ended_at) AS last_finished_at
+           FROM token_usage_runs r
+           LEFT JOIN token_usage_snapshots s ON s.run_id = r.id${sql}`,
         )
-        .get();
+        .get(...params);
 
       return {
         totals: {
