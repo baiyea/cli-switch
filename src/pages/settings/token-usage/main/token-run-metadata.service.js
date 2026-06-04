@@ -30,6 +30,14 @@ const FINGERPRINT_ENV_KEYS = [
 ];
 
 const COMPAT_PATH_SEGMENTS = new Set(['anthropic', 'openai', 'gemini']);
+const URL_FINGERPRINT_KEYS = new Set([
+  'ANTHROPIC_BASE_URL',
+  'BASE_URL',
+  'GEMINI_BASE_URL',
+  'GOOGLE_GEMINI_BASE_URL',
+  'OPENAI_BASE_URL',
+]);
+const PROXY_FINGERPRINT_KEYS = new Set(['HTTP_PROXY', 'HTTPS_PROXY']);
 
 function normalizeEnvValue(value) {
   return String(value || '').trim();
@@ -48,22 +56,30 @@ function resolveModelName(provider, env = {}) {
 function parseBaseUrl(rawValue) {
   const raw = normalizeEnvValue(rawValue);
   if (!raw) return null;
+  const withProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
 
   try {
-    return new URL(raw);
+    return new URL(withProtocol);
   } catch (_error) {
-    try {
-      return new URL(`https://${raw}`);
-    } catch (_fallbackError) {
-      return null;
-    }
+    return null;
   }
+}
+
+function sanitizeHostCandidate(rawValue) {
+  let value = normalizeEnvValue(rawValue);
+  if (!value) return '';
+  value = value.replace(/^[a-z][a-z\d+.-]*:\/\//i, '');
+  value = value.split('#')[0].split('?')[0];
+  value = value.includes('@') ? value.slice(value.lastIndexOf('@') + 1) : value;
+  value = value.split('/')[0].trim();
+  if (!value || /\s/.test(value)) return '';
+  return value;
 }
 
 function compactBaseHost(rawValue) {
   const raw = normalizeEnvValue(rawValue);
   const parsed = parseBaseUrl(raw);
-  if (!parsed) return raw;
+  if (!parsed) return sanitizeHostCandidate(raw);
 
   const firstSegment = parsed.pathname
     .split('/')
@@ -84,6 +100,13 @@ function resolveApiBaseHost(env = {}) {
   return 'unknown';
 }
 
+function normalizeProxyHost(value) {
+  const raw = normalizeEnvValue(value);
+  const parsed = parseBaseUrl(raw);
+  if (parsed?.host) return parsed.host;
+  return sanitizeHostCandidate(raw);
+}
+
 function isSecretEnvKey(key) {
   return /(?:^|_)(?:.*TOKEN|.*SECRET|.*PASSWORD|.*CREDENTIALS?|.*API_?KEY|.*PRIVATE_?KEY)(?:_|$)/i.test(
     String(key || ''),
@@ -94,12 +117,23 @@ function fingerprintEnv(env = {}) {
   const pairs = [];
   for (const key of FINGERPRINT_ENV_KEYS) {
     if (isSecretEnvKey(key)) continue;
-    const value = normalizeEnvValue(env?.[key]);
+    const value = normalizeFingerprintValue(key, env?.[key]);
     if (!value) continue;
     pairs.push([key, value]);
   }
   pairs.sort(([left], [right]) => left.localeCompare(right));
   return crypto.createHash('sha256').update(JSON.stringify(pairs)).digest('hex').slice(0, 24);
+}
+
+function normalizeFingerprintValue(key, value) {
+  if (URL_FINGERPRINT_KEYS.has(key)) {
+    const host = resolveApiBaseHost({ [key]: value });
+    return host === 'unknown' ? '' : host;
+  }
+  if (PROXY_FINGERPRINT_KEYS.has(key)) {
+    return normalizeProxyHost(value);
+  }
+  return normalizeEnvValue(value);
 }
 
 function envFromPairs(pairs = []) {

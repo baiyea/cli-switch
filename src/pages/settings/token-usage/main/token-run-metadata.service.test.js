@@ -21,10 +21,17 @@ test('resolveApiBaseHost stores host and preserves provider compatibility path s
     resolveApiBaseHost({ ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic/v1' }),
     'api.deepseek.com/anthropic',
   );
+  assert.equal(
+    resolveApiBaseHost({
+      ANTHROPIC_BASE_URL: 'https://user:pass@api.example.com/anthropic/v1?api_key=secret',
+    }),
+    'api.example.com/anthropic',
+  );
   assert.equal(resolveApiBaseHost({ OPENAI_BASE_URL: 'https://api.openai.com/v1' }), 'api.openai.com');
   assert.equal(resolveApiBaseHost({ GEMINI_BASE_URL: 'https://example.test/gemini/v1beta' }), 'example.test/gemini');
   assert.equal(resolveApiBaseHost({ GOOGLE_GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta' }), 'generativelanguage.googleapis.com');
-  assert.equal(resolveApiBaseHost({ BASE_URL: 'not a url' }), 'not a url');
+  assert.equal(resolveApiBaseHost({ BASE_URL: 'api.example.com/secret/path?api_key=secret' }), 'api.example.com');
+  assert.equal(resolveApiBaseHost({ BASE_URL: 'not a url' }), 'unknown');
   assert.equal(resolveApiBaseHost({}), 'unknown');
 });
 
@@ -49,6 +56,30 @@ test('fingerprintEnv ignores secrets and is stable across key order', () => {
   assert.equal(first, second);
   assert.match(first, /^[a-f0-9]{24}$/);
   assert.notEqual(first, changed);
+});
+
+test('fingerprintEnv normalizes URL and proxy values before hashing', () => {
+  const unsafe = fingerprintEnv({
+    BASE_URL: 'https://user:pass@api.example.com/anthropic/v1?api_key=secret#token',
+    HTTP_PROXY: 'http://proxy-user:proxy-pass@proxy.example.com:8080/path?token=secret',
+    HTTPS_PROXY: 'https://other-user:other-pass@secure-proxy.example.com',
+    OPENAI_MODEL: 'gpt-5',
+  });
+  const safeEquivalent = fingerprintEnv({
+    BASE_URL: 'api.example.com/anthropic',
+    HTTP_PROXY: 'proxy.example.com:8080',
+    HTTPS_PROXY: 'secure-proxy.example.com',
+    OPENAI_MODEL: 'gpt-5',
+  });
+  const changedHost = fingerprintEnv({
+    BASE_URL: 'api.other.example.com/anthropic',
+    HTTP_PROXY: 'proxy.example.com:8080',
+    HTTPS_PROXY: 'secure-proxy.example.com',
+    OPENAI_MODEL: 'gpt-5',
+  });
+
+  assert.equal(unsafe, safeEquivalent);
+  assert.notEqual(unsafe, changedHost);
 });
 
 test('createTokenRunMetadataResolver combines active profile env vars with startup env', () => {
