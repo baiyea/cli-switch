@@ -5,7 +5,7 @@ import { Button } from '../../ui/button';
 import { AboutSettingsSection } from './about/renderer/AboutSettingsSection';
 import { ArchiveSettingsSection } from './archive/renderer/ArchiveSettingsSection';
 import { ProviderSettingsSection } from './providers/renderer/ProviderSettingsSection';
-import { TokenUsageSettingsSection } from './token-usage/renderer/TokenUsageSettingsSection';
+import { TokenUsageSettingsSection } from './token-usage/block.renderer';
 
 type SettingsSection = 'providers' | 'archive' | 'token-usage' | 'about';
 

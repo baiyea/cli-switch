@@ -8,7 +8,7 @@ import {
 import { Tabs, TabsContent } from '../../../../ui/tabs';
 import { AboutSettingsSection } from '../../about/renderer/AboutSettingsSection';
 import { ArchiveSettingsSection } from '../../archive/renderer/ArchiveSettingsSection';
-import { TokenUsageSettingsSection } from '../../token-usage/renderer/TokenUsageSettingsSection';
+import { TokenUsageSettingsSection } from '../../token-usage/block.renderer';
 import { ProviderSettingsSection } from './ProviderSettingsSection';
 import { SettingsSideNav } from './SettingsSideNav';
 
