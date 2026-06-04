@@ -15,8 +15,11 @@ export interface TokenUsageRefreshStatus {
   running: boolean;
   lastStartedAt: string | null;
   lastFinishedAt: string | null;
-  lastError: string;
-  lastResult: TokenUsageRefreshResult | null;
+  scanned: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  error: string;
 }
 
 export interface TokenUsageRefreshResult {
@@ -64,7 +67,7 @@ export type TokenUsageSummaryResponse =
   | { ok: false; reason: string };
 
 export type TokenUsageRefreshResponse =
-  | { ok: true; status: TokenUsageRefreshStatus; result: TokenUsageRefreshResult }
+  | { ok: true; status: TokenUsageRefreshStatus }
   | { ok: false; status: TokenUsageRefreshStatus; reason: string };
 
 export type TokenUsageStatusResponse = { ok: true; status: TokenUsageRefreshStatus };

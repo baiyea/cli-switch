@@ -6,8 +6,11 @@ let refreshStatus = {
   running: false,
   lastStartedAt: null,
   lastFinishedAt: null,
-  lastError: '',
-  lastResult: null,
+  scanned: 0,
+  updated: 0,
+  skipped: 0,
+  failed: 0,
+  error: '',
 };
 
 function asReason(error) {
@@ -69,14 +72,18 @@ function registerTokenUsageMain(context = {}) {
       return { ok: false, status: refreshStatus, reason: UNAVAILABLE_REASON };
     }
     if (refreshStatus.running) {
-      return { ok: false, status: refreshStatus, reason: 'token usage refresh already running' };
+      return { ok: true, status: refreshStatus };
     }
 
     const parsed = parseWithSchema(tokenUsageRefreshSchema, payload);
     updateRefreshStatus({
       running: true,
       lastStartedAt: new Date().toISOString(),
-      lastError: '',
+      scanned: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      error: '',
     });
 
     try {
@@ -84,16 +91,19 @@ function registerTokenUsageMain(context = {}) {
       const status = updateRefreshStatus({
         running: false,
         lastFinishedAt: new Date().toISOString(),
-        lastError: '',
-        lastResult: result,
+        scanned: Number(result?.scanned || 0),
+        updated: Number(result?.updated || 0),
+        skipped: Number(result?.skipped || 0),
+        failed: Number(result?.failed || 0),
+        error: '',
       });
-      return { ok: true, status, result };
+      return { ok: true, status };
     } catch (error) {
       const reason = asReason(error);
       const status = updateRefreshStatus({
         running: false,
         lastFinishedAt: new Date().toISOString(),
-        lastError: reason,
+        error: reason,
       });
       logWarn('token-usage', 'Refresh failed', { error: reason });
       return { ok: false, status, reason };
