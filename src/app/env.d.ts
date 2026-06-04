@@ -333,6 +333,16 @@ declare global {
           error?: string;
         }>;
       };
+      tokenUsage: {
+        summary: (payload?: {
+          range?: '7d' | '30d' | 'all';
+          projectId?: string;
+          provider?: string;
+          modelName?: string;
+        }) => Promise<any>;
+        refresh: (payload?: { force?: boolean }) => Promise<any>;
+        status: () => Promise<any>;
+      };
       windowControls: {
         setTrafficLightPosition: (payload: { x: number; y: number }) => Promise<{ ok: boolean }>;
         openExternal: (payload: { url: string }) => Promise<void>;

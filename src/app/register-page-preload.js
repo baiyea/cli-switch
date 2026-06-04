@@ -4,6 +4,7 @@ const { createFileTreePreloadApi } = require('../pages/home/file-tree/block.prel
 const { createTopToolbarPreloadApi } = require('../pages/home/top-toolbar/block.preload');
 const { createProvidersPreloadApi } = require('../pages/settings/providers/block.preload');
 const { createArchivePreloadApi } = require('../pages/settings/archive/block.preload');
+const { createTokenUsagePreloadApi } = require('../pages/settings/token-usage/block.preload');
 
 function mergeApis(...parts) {
   const target = {};
@@ -34,6 +35,7 @@ function createPageApis() {
     createTopToolbarPreloadApi(),
     createProvidersPreloadApi(),
     createArchivePreloadApi(),
+    createTokenUsagePreloadApi(),
   );
 }
 

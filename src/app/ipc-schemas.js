@@ -148,6 +148,15 @@ function createIpcSchemas(z) {
     projectId: z.string().min(1),
     trigger: z.string().optional().default('manual'),
   });
+  const tokenUsageFiltersSchema = z.object({
+    range: z.enum(['7d', '30d', 'all']).optional().default('30d'),
+    projectId: z.string().optional().default(''),
+    provider: z.string().optional().default(''),
+    modelName: z.string().optional().default(''),
+  });
+  const tokenUsageRefreshSchema = z.object({
+    force: z.boolean().optional().default(false),
+  });
 
   return {
     providerSettingsSchema,
@@ -167,6 +176,8 @@ function createIpcSchemas(z) {
     fileAttachmentSaveBufferSchema,
     skillgenRunSchema,
     sessionsDumpRunSchema,
+    tokenUsageFiltersSchema,
+    tokenUsageRefreshSchema,
   };
 }
 

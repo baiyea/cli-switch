@@ -3,6 +3,7 @@ const { registerSidebarMain } = require('../pages/home/sidebar/block.main');
 const { registerFileTreeMain } = require('../pages/home/file-tree/block.main');
 const { registerProvidersMain } = require('../pages/settings/providers/block.main');
 const { registerArchiveMain } = require('../pages/settings/archive/block.main');
+const { registerTokenUsageMain } = require('../pages/settings/token-usage/block.main');
 const { registerTopToolbarMain } = require('../pages/home/top-toolbar/block.main');
 
 function registerPageMain(context = {}) {
@@ -11,6 +12,7 @@ function registerPageMain(context = {}) {
   registerFileTreeMain(context);
   registerProvidersMain(context);
   registerArchiveMain(context);
+  registerTokenUsageMain(context);
   if (typeof registerTopToolbarMain === 'function') registerTopToolbarMain(context);
 }
 

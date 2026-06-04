@@ -256,6 +256,8 @@ const {
   fileAttachmentSaveBufferSchema,
   skillgenRunSchema,
   sessionsDumpRunSchema,
+  tokenUsageFiltersSchema,
+  tokenUsageRefreshSchema,
 } = createIpcSchemas(z);
 const { extractSkillCandidatesWithModel } = createSkillgenModelExtractorRuntime({
   normalizeProviderId,
@@ -489,6 +491,8 @@ function registerAppIpc() {
     skillgenRunner,
     sessionsDumpRunSchema,
     sessionsDumpRunner,
+    tokenUsageFiltersSchema,
+    tokenUsageRefreshSchema,
     providerConnectionService,
     oauthProbeService,
     proxyConnectivityService,
