@@ -13,8 +13,8 @@ export interface TokenUsageRefreshPayload {
 
 export interface TokenUsageRefreshStatus {
   running: boolean;
-  lastStartedAt: string | null;
-  lastFinishedAt: string | null;
+  lastStartedAt: string;
+  lastFinishedAt: string;
   scanned: number;
   updated: number;
   skipped: number;

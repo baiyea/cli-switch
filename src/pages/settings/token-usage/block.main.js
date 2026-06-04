@@ -4,8 +4,8 @@ const UNAVAILABLE_REASON = 'token usage runtime unavailable';
 
 let refreshStatus = {
   running: false,
-  lastStartedAt: null,
-  lastFinishedAt: null,
+  lastStartedAt: '',
+  lastFinishedAt: '',
   scanned: 0,
   updated: 0,
   skipped: 0,
