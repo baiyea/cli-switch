@@ -526,6 +526,77 @@ test('session create ignores token usage start failures and still returns sessio
   assert.match(warnings[0].message, /Failed to start token usage run/);
 });
 
+test('session create logs rejected token usage start promises without failing', async () => {
+  const { registerTerminalMain } = loadBlockMainWithFakeElectron();
+  const warnings = [];
+  const createdRecord = {
+    id: 'session-row-create-rejection',
+    project_id: 'project-1',
+    provider: 'codex',
+    provider_session_id: 'codex-local-rejection',
+    cwd: '/tmp/project',
+    session_file_path: '',
+  };
+
+  const { handlers, context } = createBaseContext({
+    sessionCreateSchema: {
+      parse(payload) {
+        return payload;
+      },
+    },
+    projectStore: {
+      getById(projectId) {
+        assert.equal(projectId, 'project-1');
+        return { id: 'project-1', path: '/tmp/project' };
+      },
+    },
+    sessionStore: {
+      create() {},
+      getByProviderSessionId({ provider, providerSessionId }) {
+        assert.equal(provider, 'codex');
+        assert.match(providerSessionId, /^codex-/);
+        return { ...createdRecord, provider_session_id: providerSessionId };
+      },
+      updateStateByProviderSessionId() {},
+    },
+    getStartupCommandForProvider() {
+      return 'codex\n';
+    },
+    getStartupEnvForProvider() {
+      return {};
+    },
+    maskEnvForLog(env) {
+      return env;
+    },
+    async waitForShellBootstrap() {},
+    toSessionView(row) {
+      return row;
+    },
+    tokenUsageRuntime: {
+      startRunForSession() {
+        return Promise.reject(new Error('async token usage unavailable'));
+      },
+    },
+    logWarn(scope, message, meta) {
+      warnings.push({ scope, message, meta });
+    },
+  });
+
+  registerTerminalMain(context);
+  const handler = handlers.get(TERMINAL_CHANNELS.SESSION_CREATE);
+  const result = await handler(null, {
+    projectId: 'project-1',
+    title: 'New Codex',
+    provider: 'codex',
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(result.status, 'running');
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].scope, 'token-usage');
+  assert.match(warnings[0].meta.error, /async token usage unavailable/);
+});
+
 test('session start ignores token usage start failures and still writes resume command', async () => {
   const { registerTerminalMain } = loadBlockMainWithFakeElectron();
   const warnings = [];

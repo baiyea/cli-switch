@@ -292,12 +292,40 @@ function createTokenUsageSyncService({
     return null;
   }
 
+  function reconcileProviderSessionId({
+    provider,
+    fromProviderSessionId,
+    toProviderSessionId,
+  } = {}) {
+    const normalizedProvider = text(provider, 'claude').trim().toLowerCase() || 'claude';
+    const fromId = text(fromProviderSessionId).trim();
+    const toId = text(toProviderSessionId).trim();
+    if (!fromId || !toId || fromId === toId) return { changed: false, count: 0 };
+    if (typeof tokenUsageStore.reconcileProviderSessionId !== 'function') {
+      return { changed: false, count: 0 };
+    }
+
+    const row =
+      sessionStore.getByProviderSessionId?.({
+        provider: normalizedProvider,
+        providerSessionId: toId,
+      }) || null;
+
+    return tokenUsageStore.reconcileProviderSessionId({
+      provider: normalizedProvider,
+      fromProviderSessionId: fromId,
+      toProviderSessionId: toId,
+      sessionFilePath: sessionFilePathFromRow(row),
+    });
+  }
+
   return {
     startRunForSession,
     syncSession,
     refresh,
     finishActiveRunByProviderSession,
     finishActiveRunByRuntimeSessionId,
+    reconcileProviderSessionId,
   };
 }
 

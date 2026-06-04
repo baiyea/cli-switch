@@ -4,7 +4,32 @@ function createSessionDiscoverySyncService({
   dedupeSessionViews,
   sessionStore,
   normalizeProviderId,
+  onReconciledSession = () => {},
+  logWarn = () => {},
 }) {
+  function notifyReconciledSession(mapping) {
+    try {
+      const result = onReconciledSession(mapping);
+      if (result && typeof result.then === 'function') {
+        result.catch((error) => {
+          logWarn('session', 'Reconciled session callback failed', {
+            provider: mapping.provider,
+            fromProviderSessionId: mapping.fromProviderSessionId,
+            toProviderSessionId: mapping.toProviderSessionId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
+    } catch (error) {
+      logWarn('session', 'Reconciled session callback failed', {
+        provider: mapping.provider,
+        fromProviderSessionId: mapping.fromProviderSessionId,
+        toProviderSessionId: mapping.toProviderSessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   function syncDiscoveredSessionsForProjects(projects) {
     if (!Array.isArray(projects) || projects.length === 0) return { count: 0, mappings: [] };
     const discovered = mapSessionsToProjects(listProviderSessions(), projects);
@@ -22,13 +47,15 @@ function createSessionDiscoverySyncService({
         titleSource: session.titleSource || 'auto',
       });
       if (result?.reconciled && result.fromProviderSessionId && result.toProviderSessionId) {
-        mappings.push({
+        const mapping = {
           provider: normalizeProviderId(session.provider),
           fromProviderSessionId: result.fromProviderSessionId,
           toProviderSessionId: result.toProviderSessionId,
           cwd: session.cwd || '',
           projectId: session.projectId,
-        });
+        };
+        mappings.push(mapping);
+        notifyReconciledSession(mapping);
       }
     }
     return { count: deduped.length, mappings };

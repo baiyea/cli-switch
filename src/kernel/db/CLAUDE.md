@@ -26,7 +26,10 @@
 
 ```
 projects (1) ──< (N) sessions
-    1                   N
+    │                   │
+    │                   └──< (N) token_usage_runs (1) ── (1) token_usage_snapshots
+    │
+    └──────< (N) token_usage_runs
 ┌──────────┐      ┌──────────────┐
 │ id (PK)  │◄─────│ project_id   │
 │ name     │      │ id (PK)      │
@@ -82,6 +85,55 @@ app_settings（独立键值表，无外键关系）
 2. 不存在则查 `(provider, project_id, cwd)` 下无 `session_file_path` 的本地生成会话 → 匹配到则更新其 `provider_session_id` 指向发现的真实文件
 3. 都没匹配到则新插入
 
+### `token_usage_runs` — Token 统计运行段
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | TEXT | PK | 运行段 ID |
+| `project_id` | TEXT | NOT NULL, FK → projects.id | 所属项目 |
+| `session_id` | TEXT | NOT NULL, FK → sessions.id | 应用内 session 行 ID |
+| `provider` | TEXT | NOT NULL | CLI 来源（claude/codex/gemini） |
+| `provider_session_id` | TEXT | NOT NULL | CLI 原生会话 ID；本地生成 ID 被发现真实会话后需要同步迁移 |
+| `profile_id` | TEXT | NOT NULL, DEFAULT '' | 启动时命中的 provider profile ID |
+| `profile_name` | TEXT | NOT NULL, DEFAULT '' | 启动时命中的 provider profile 名称 |
+| `model_name` | TEXT | NOT NULL, DEFAULT '' | 启动时解析出的模型名 |
+| `api_base_host` | TEXT | NOT NULL, DEFAULT '' | 启动时解析出的 API base host，不保存完整 URL secret |
+| `env_fingerprint` | TEXT | NOT NULL, DEFAULT '' | 启动环境指纹，只由非 secret 的归一化值生成 |
+| `session_file_path` | TEXT | NOT NULL, DEFAULT '' | 已登记会话文件路径 |
+| `run_started_at` | TEXT | NOT NULL | 运行段开始时间 |
+| `run_ended_at` | TEXT | - | 运行段结束时间，运行中为 NULL |
+| `created_at` | TEXT | NOT NULL | 创建时间 |
+| `updated_at` | TEXT | NOT NULL | 最后更新时间 |
+
+**索引**：
+- `idx_token_usage_runs_session(provider, provider_session_id, run_started_at)`
+- `idx_token_usage_runs_project(project_id, run_started_at)`
+- `idx_token_usage_runs_model(provider, model_name, api_base_host)`
+
+### `token_usage_snapshots` — Token 统计快照
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `run_id` | TEXT | PK, FK → token_usage_runs.id | 所属运行段 |
+| `file_mtime_ms` | INTEGER | NOT NULL, DEFAULT 0 | 会话文件 mtime，用于跳过未变化文件 |
+| `file_size` | INTEGER | NOT NULL, DEFAULT 0 | 会话文件大小，用于跳过未变化文件 |
+| `stats_ended_at` | TEXT | - | 统计数据对应的最后消息时间 |
+| `input_tokens` | INTEGER | NOT NULL, DEFAULT 0 | 输入 token 增量累计 |
+| `output_tokens` | INTEGER | NOT NULL, DEFAULT 0 | 输出 token 增量累计 |
+| `cached_tokens` | INTEGER | NOT NULL, DEFAULT 0 | 缓存 token 增量累计 |
+| `reasoning_tokens` | INTEGER | NOT NULL, DEFAULT 0 | 推理 token 增量累计 |
+| `tool_tokens` | INTEGER | NOT NULL, DEFAULT 0 | 工具调用 token 增量累计 |
+| `total_tokens` | INTEGER | NOT NULL, DEFAULT 0 | 总 token 增量累计 |
+| `rounds` | INTEGER | NOT NULL, DEFAULT 0 | 对话轮数增量累计 |
+| `source_missing` | INTEGER | NOT NULL, DEFAULT 0 | 会话源文件是否缺失 |
+| `last_error` | TEXT | NOT NULL, DEFAULT '' | 最近一次解析错误 |
+| `updated_at` | TEXT | NOT NULL | 最后更新时间 |
+
+**写入语义**：
+- `token_usage_snapshots.run_id` 一行对应一个运行段，重复写入通过 `ON CONFLICT(run_id)` 累加 token/rounds。
+- 文件指纹使用 `${file_mtime_ms}:${file_size}`，无 snapshot 或无效值返回空字符串。
+- `sessions.reconcileDiscovered()` 把本地生成 `provider_session_id` 更新为真实 CLI 会话 ID 后，token usage run 必须同步迁移到真实 ID，避免 profile/model 归属退化为 `unknown`。
+
 ### `app_settings` — 应用设置键值
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -95,6 +147,9 @@ app_settings（独立键值表，无外键关系）
 ### 表关系总结
 
 - **`projects.id` ← `sessions.project_id`**：一个项目下可有多个会话。删除项目时级联删除其下所有会话。
+- **`projects.id` ← `token_usage_runs.project_id`**：一个项目下可有多个 token 统计运行段。
+- **`sessions.id` ← `token_usage_runs.session_id`**：一个应用会话可产生多个运行段（例如切换 provider/profile/model 后重新启动）。
+- **`token_usage_runs.id` ← `token_usage_snapshots.run_id`**：一个运行段最多一个累计快照。
 - **`app_settings`**：独立键值表，无外键关系。
 
 ## Repository 层
@@ -107,11 +162,13 @@ app_settings（独立键值表，无外键关系）
 | `sessionsRepo` | `repositories/session.repository.js` | `listAllActive()`, `listByProject()`, `getById()`, `create()`, `upsertDiscovered()`, `reconcileDiscovered()`, `archive/restore`, `reorderActiveByProject()`, `markAllStopped()` |
 | `settingsRepo` | `repositories/settings.repository.js` | `getProviderStartupSettings()`, `setProviderStartupSettings()` |
 | `archiveRepo` | `repositories/archive.repository.js` | `listAll()`, `archiveByProviderSessionId()`, `restoreByProviderSessionId()` |
+| `tokenUsageRepo` | `repositories/token-usage.repository.js` | `startRun()`, `finishRun()`, `addSnapshotDelta()`, `getSummary()`, `getAssignedTotals()`, `getLastFingerprint()`, `reconcileProviderSessionId()` |
 
 **关键操作说明**：
 - `projectsRepo.remove(projectId)` 会先删除关联 sessions 再删除 project。
 - `sessionsRepo.reorderActiveByProject()` 以传入的有序列表为准，未列出的 session 保持原有顺序追加。
 - `sessionsRepo.upsertDiscovered()` 使用 `ON CONFLICT(provider, provider_session_id)` 做 upsert。
+- `tokenUsageRepo.reconcileProviderSessionId()` 在发现真实 CLI 会话 ID 后迁移运行段归属，不改动 snapshot 数据。
 - `sessionsRepo.markAllStopped()` 应用启动时将所有 `status='running'` 的 session 标记为 `exited`。
 - `settingsRepo.ensureProviderShape()` 对 provider 配置做归一化：填充缺失字段、清理无效引用、兼容旧格式迁移。
 
@@ -125,6 +182,11 @@ app_settings（独立键值表，无外键关系）
 - 清理 `(provider, provider_session_id)` 重复行（保留更新时间最新的）
 - 创建唯一索引 `idx_sessions_provider_sid_unique`
 - 为 `sort_order = 0` 的旧行按 `created_at` 降序初始化排序值
+
+### `token-usage-tables.js`
+- 创建 `token_usage_runs` 和 `token_usage_snapshots`。
+- 创建 token usage 聚合查询所需索引。
+- 运行时由 `connection.js` 的 `initDatabase()` 显式调用，保证旧数据库也能补齐新表。
 
 **新增迁移**：在 `migrations/` 下新建文件，在 `connection.js` 的 `initDatabase()` 中调用。
 

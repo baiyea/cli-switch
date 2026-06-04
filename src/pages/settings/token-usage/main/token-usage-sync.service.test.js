@@ -307,6 +307,64 @@ test('parse error persists file fingerprint so unchanged non-force refresh skips
   assert.equal(deps.snapshots.length, 2);
 });
 
+test('reconcileProviderSessionId updates token usage store with discovered session file path', () => {
+  const calls = [];
+  const deps = createDeps({
+    rows: [
+      {
+        id: 'session-1',
+        project_id: 'project-1',
+        provider: 'codex',
+        provider_session_id: 'real-provider-session',
+        session_file_path: '/tmp/real-session.jsonl',
+      },
+    ],
+    deps: {
+      tokenUsageStore: {
+        getActiveRunByProviderSession() {
+          return null;
+        },
+        startRun() {
+          throw new Error('startRun should not be called');
+        },
+        addSnapshotDelta() {
+          throw new Error('addSnapshotDelta should not be called');
+        },
+        getAssignedTotals() {
+          return {};
+        },
+        getLastFingerprint() {
+          return '';
+        },
+        finishRun() {
+          return null;
+        },
+        reconcileProviderSessionId(payload) {
+          calls.push(payload);
+          return { changed: true, count: 1 };
+        },
+      },
+    },
+  });
+  const service = createTokenUsageSyncService(deps);
+
+  const result = service.reconcileProviderSessionId({
+    provider: 'codex',
+    fromProviderSessionId: 'codex-1780016473299-015422',
+    toProviderSessionId: 'real-provider-session',
+  });
+
+  assert.deepEqual(result, { changed: true, count: 1 });
+  assert.deepEqual(calls, [
+    {
+      provider: 'codex',
+      fromProviderSessionId: 'codex-1780016473299-015422',
+      toProviderSessionId: 'real-provider-session',
+      sessionFilePath: '/tmp/real-session.jsonl',
+    },
+  ]);
+});
+
 test('finishActiveRunByRuntimeSessionId finds and finishes non-claude active run', () => {
   const deps = createDeps({
     rows: [

@@ -257,13 +257,6 @@ const {
   skillgenRunSchema,
   sessionsDumpRunSchema,
 } = createIpcSchemas(z);
-const { syncDiscoveredSessionsForProjects } = createSessionDiscoverySyncService({
-  mapSessionsToProjects,
-  listProviderSessions,
-  dedupeSessionViews,
-  sessionStore,
-  normalizeProviderId,
-});
 const { extractSkillCandidatesWithModel } = createSkillgenModelExtractorRuntime({
   normalizeProviderId,
   getStartupEnvForProvider,
@@ -328,6 +321,39 @@ const tokenUsageRuntime = createTokenUsageSyncService({
   readSessionStats,
   resolveRunMetadata: resolveTokenRunMetadata,
   now: () => new Date().toISOString(),
+  logWarn,
+});
+
+function reconcileTokenUsageProviderSessionId(mapping) {
+  try {
+    const result = tokenUsageRuntime.reconcileProviderSessionId(mapping);
+    if (result && typeof result.then === 'function') {
+      result.catch((error) => {
+        logWarn('token-usage', 'Failed to reconcile token usage run provider session id', {
+          provider: mapping.provider,
+          fromProviderSessionId: mapping.fromProviderSessionId,
+          toProviderSessionId: mapping.toProviderSessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+  } catch (error) {
+    logWarn('token-usage', 'Failed to reconcile token usage run provider session id', {
+      provider: mapping.provider,
+      fromProviderSessionId: mapping.fromProviderSessionId,
+      toProviderSessionId: mapping.toProviderSessionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+const { syncDiscoveredSessionsForProjects } = createSessionDiscoverySyncService({
+  mapSessionsToProjects,
+  listProviderSessions,
+  dedupeSessionViews,
+  sessionStore,
+  normalizeProviderId,
+  onReconciledSession: reconcileTokenUsageProviderSessionId,
   logWarn,
 });
 

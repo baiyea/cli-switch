@@ -236,6 +236,47 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
       return `${normalizedMtimeMs}:${normalizedFileSize}`;
     },
 
+    reconcileProviderSessionId({
+      provider,
+      fromProviderSessionId,
+      toProviderSessionId,
+      sessionFilePath,
+    } = {}) {
+      const providerId = text(provider, 'claude').trim().toLowerCase() || 'claude';
+      const fromId = text(fromProviderSessionId).trim();
+      const toId = text(toProviderSessionId).trim();
+      if (!fromId || !toId || fromId === toId) return { changed: false, count: 0 };
+
+      const timestamp = now();
+      const nextSessionFilePath = text(sessionFilePath).trim();
+      const result = nextSessionFilePath
+        ? conn
+            .prepare(
+              `UPDATE token_usage_runs
+               SET provider_session_id = @toId,
+                   session_file_path = @sessionFilePath,
+                   updated_at = @updatedAt
+               WHERE provider = @providerId AND provider_session_id = @fromId`,
+            )
+            .run({
+              providerId,
+              fromId,
+              toId,
+              sessionFilePath: nextSessionFilePath,
+              updatedAt: timestamp,
+            })
+        : conn
+            .prepare(
+              `UPDATE token_usage_runs
+               SET provider_session_id = @toId,
+                   updated_at = @updatedAt
+               WHERE provider = @providerId AND provider_session_id = @fromId`,
+            )
+            .run({ providerId, fromId, toId, updatedAt: timestamp });
+
+      return { changed: result.changes > 0, count: integer(result.changes) };
+    },
+
     getSummary(filters = {}) {
       const { sql, params } = buildSummaryWhere(filters);
       const totalsRow = conn

@@ -213,6 +213,66 @@ test('getLastFingerprint returns empty string for negative snapshot file values'
   );
 });
 
+test('reconcileProviderSessionId moves existing run attribution to the discovered provider session id', () => {
+  const { repo } = createRepo();
+  const run = startRun(repo, {
+    providerSessionId: 'claude-1780016473299-015422',
+    sessionFilePath: '',
+  });
+  repo.addSnapshotDelta(run.id, {
+    fileMtimeMs: 300,
+    fileSize: 400,
+    inputTokens: 10,
+    outputTokens: 5,
+    totalTokens: 15,
+    rounds: 1,
+  });
+
+  const result = repo.reconcileProviderSessionId({
+    provider: 'claude',
+    fromProviderSessionId: 'claude-1780016473299-015422',
+    toProviderSessionId: '019e713f-fee4-7942-bfe0-51ee042b472e',
+    sessionFilePath: '/tmp/real-session.jsonl',
+  });
+
+  assert.deepEqual(result, { changed: true, count: 1 });
+  assert.equal(
+    repo.getActiveRunByProviderSession({
+      provider: 'claude',
+      providerSessionId: 'claude-1780016473299-015422',
+    }),
+    undefined,
+  );
+  const reconciled = repo.getActiveRunByProviderSession({
+    provider: 'claude',
+    providerSessionId: '019e713f-fee4-7942-bfe0-51ee042b472e',
+  });
+  assert.equal(reconciled.id, run.id);
+  assert.equal(reconciled.session_file_path, '/tmp/real-session.jsonl');
+  assert.deepEqual(
+    repo.getAssignedTotals({
+      provider: 'claude',
+      providerSessionId: '019e713f-fee4-7942-bfe0-51ee042b472e',
+    }),
+    {
+      inputTokens: 10,
+      outputTokens: 5,
+      cachedTokens: 0,
+      reasoningTokens: 0,
+      toolTokens: 0,
+      totalTokens: 15,
+      rounds: 1,
+    },
+  );
+  assert.equal(
+    repo.getLastFingerprint({
+      provider: 'claude',
+      providerSessionId: '019e713f-fee4-7942-bfe0-51ee042b472e',
+    }),
+    '300:400',
+  );
+});
+
 test('getSummary returns models ordered by totalTokens descending with camelCase fields', () => {
   const { repo } = createRepo();
   const small = startRun(repo, { modelName: 'small-model', profileName: 'Small' });
