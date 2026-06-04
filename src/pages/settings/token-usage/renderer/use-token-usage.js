@@ -79,12 +79,12 @@ export function useTokenUsage() {
   const didRunInitialEffectRef = useRef(false);
   const didRunFilterEffectRef = useRef(false);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   useEffect(() => {
     filtersRef.current = filters;
