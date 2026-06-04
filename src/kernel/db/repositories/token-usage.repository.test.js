@@ -151,6 +151,48 @@ test('getAssignedTotals aggregates multiple model runs for the same provider ses
   );
 });
 
+test('getLastFingerprint returns latest run snapshot file fingerprint', () => {
+  const { repo } = createRepo();
+  const first = startRun(repo, {
+    envFingerprint: 'env-first',
+    runStartedAt: '2026-06-04T01:00:00.000Z',
+  });
+  const latest = startRun(repo, {
+    envFingerprint: 'env-latest',
+    runStartedAt: '2026-06-04T02:00:00.000Z',
+  });
+  repo.addSnapshotDelta(first.id, { fileMtimeMs: 100, fileSize: 200, totalTokens: 10 });
+  repo.addSnapshotDelta(latest.id, { fileMtimeMs: 300, fileSize: 400, totalTokens: 20 });
+
+  assert.equal(
+    repo.getLastFingerprint({
+      provider: 'claude',
+      providerSessionId: 'provider-session-1',
+    }),
+    '300:400',
+  );
+});
+
+test('getLastFingerprint returns empty string when latest run has no snapshot', () => {
+  const { repo } = createRepo();
+  const first = startRun(repo, {
+    runStartedAt: '2026-06-04T01:00:00.000Z',
+  });
+  startRun(repo, {
+    envFingerprint: 'env-latest-without-snapshot',
+    runStartedAt: '2026-06-04T02:00:00.000Z',
+  });
+  repo.addSnapshotDelta(first.id, { fileMtimeMs: 100, fileSize: 200, totalTokens: 10 });
+
+  assert.equal(
+    repo.getLastFingerprint({
+      provider: 'claude',
+      providerSessionId: 'provider-session-1',
+    }),
+    '',
+  );
+});
+
 test('getSummary returns models ordered by totalTokens descending with camelCase fields', () => {
   const { repo } = createRepo();
   const small = startRun(repo, { modelName: 'small-model', profileName: 'Small' });

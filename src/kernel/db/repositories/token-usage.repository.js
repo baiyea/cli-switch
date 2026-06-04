@@ -223,8 +223,14 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
     },
 
     getLastFingerprint({ provider, providerSessionId }) {
-      const row = getLatestRunByProviderSession({ provider, providerSessionId });
-      return text(row?.env_fingerprint);
+      const run = getLatestRunByProviderSession({ provider, providerSessionId });
+      if (!run?.id) return '';
+      const snapshot = getSnapshot(run.id);
+      if (!snapshot) return '';
+      const fileMtimeMs = Number(snapshot.file_mtime_ms);
+      const fileSize = Number(snapshot.file_size);
+      if (!Number.isFinite(fileMtimeMs) || !Number.isFinite(fileSize)) return '';
+      return `${Math.max(0, Math.floor(fileMtimeMs))}:${Math.max(0, Math.floor(fileSize))}`;
     },
 
     getSummary(filters = {}) {
