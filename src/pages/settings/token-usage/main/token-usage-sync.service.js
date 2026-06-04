@@ -29,6 +29,8 @@ function createTokenUsageSyncService({
     throw new TypeError('createTokenUsageSyncService: resolveRunMetadata must be a function');
   if (typeof now !== 'function') throw new TypeError('createTokenUsageSyncService: now must be a function');
 
+  const providerSessionAliases = new Map();
+
   function text(value, fallback = '') {
     if (value === null || value === undefined) return fallback;
     return String(value);
@@ -284,10 +286,29 @@ function createTokenUsageSyncService({
     const providerSessionId = text(sessionId).trim();
     if (!providerSessionId) return null;
     for (const provider of PROVIDERS_BY_FINISH_ORDER) {
-      const activeRun =
-        tokenUsageStore.getActiveRunByProviderSession({ provider, providerSessionId }) || null;
+      let targetProviderSessionId = providerSessionId;
+      let activeRun =
+        tokenUsageStore.getActiveRunByProviderSession({
+          provider,
+          providerSessionId: targetProviderSessionId,
+        }) || null;
+      if (!activeRun) {
+        const alias = providerSessionAliases.get(`${provider}:${providerSessionId}`);
+        if (alias) {
+          targetProviderSessionId = alias;
+          activeRun =
+            tokenUsageStore.getActiveRunByProviderSession({
+              provider,
+              providerSessionId: targetProviderSessionId,
+            }) || null;
+        }
+      }
       if (!activeRun) continue;
-      return finishActiveRunByProviderSession({ provider, providerSessionId, endedAt });
+      return finishActiveRunByProviderSession({
+        provider,
+        providerSessionId: targetProviderSessionId,
+        endedAt,
+      });
     }
     return null;
   }
@@ -311,12 +332,14 @@ function createTokenUsageSyncService({
         providerSessionId: toId,
       }) || null;
 
-    return tokenUsageStore.reconcileProviderSessionId({
+    const result = tokenUsageStore.reconcileProviderSessionId({
       provider: normalizedProvider,
       fromProviderSessionId: fromId,
       toProviderSessionId: toId,
       sessionFilePath: sessionFilePathFromRow(row),
     });
+    if (result?.changed) providerSessionAliases.set(`${normalizedProvider}:${fromId}`, toId);
+    return result;
   }
 
   return {

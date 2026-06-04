@@ -365,6 +365,62 @@ test('reconcileProviderSessionId updates token usage store with discovered sessi
   ]);
 });
 
+test('finishActiveRunByRuntimeSessionId finishes reconciled runs when PTY exits with local id', () => {
+  const deps = createDeps({
+    rows: [
+      {
+        id: 'session-1',
+        project_id: 'project-1',
+        provider: 'codex',
+        provider_session_id: 'real-provider-session',
+        session_file_path: '/tmp/real-session.jsonl',
+        updated_at: '2026-06-04T01:00:00.000Z',
+      },
+    ],
+    files: [{ path: '/tmp/real-session.jsonl', mtimeMs: 100, size: 200 }],
+    statsByPath: {
+      '/tmp/real-session.jsonl': {
+        endedAt: 1_780_000_000_000,
+        rounds: 1,
+        tokens: { input: 1, output: 2, cached: 0, reasoning: 0, tool: 0, total: 3 },
+      },
+    },
+  });
+  deps.runs.push({
+    id: 'run-local',
+    provider: 'codex',
+    provider_session_id: 'codex-1780016473299-015422',
+    run_ended_at: null,
+  });
+  deps.tokenUsageStore.reconcileProviderSessionId = ({
+    provider,
+    fromProviderSessionId,
+    toProviderSessionId,
+  }) => {
+    const run = deps.runs.find(
+      (item) => item.provider === provider && item.provider_session_id === fromProviderSessionId,
+    );
+    if (!run) return { changed: false, count: 0 };
+    run.provider_session_id = toProviderSessionId;
+    return { changed: true, count: 1 };
+  };
+  const service = createTokenUsageSyncService(deps);
+
+  service.reconcileProviderSessionId({
+    provider: 'codex',
+    fromProviderSessionId: 'codex-1780016473299-015422',
+    toProviderSessionId: 'real-provider-session',
+  });
+  const run = service.finishActiveRunByRuntimeSessionId(
+    'codex-1780016473299-015422',
+    '2026-06-04T04:00:00.000Z',
+  );
+
+  assert.equal(run.id, 'run-local');
+  assert.equal(run.run_ended_at, '2026-06-04T04:00:00.000Z');
+  assert.equal(deps.snapshots[0].delta.totalTokens, 3);
+});
+
 test('finishActiveRunByRuntimeSessionId finds and finishes non-claude active run', () => {
   const deps = createDeps({
     rows: [
