@@ -33,6 +33,43 @@ function createUnavailableResponse() {
   return { ok: false, reason: UNAVAILABLE_REASON };
 }
 
+function numberOrZero(value) {
+  const next = Number(value || 0);
+  if (!Number.isFinite(next)) return 0;
+  return next;
+}
+
+function arrayOrEmpty(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeTotals(totals = {}) {
+  return {
+    inputTokens: numberOrZero(totals.inputTokens),
+    outputTokens: numberOrZero(totals.outputTokens),
+    cachedTokens: numberOrZero(totals.cachedTokens),
+    reasoningTokens: numberOrZero(totals.reasoningTokens),
+    toolTokens: numberOrZero(totals.toolTokens),
+    totalTokens: numberOrZero(totals.totalTokens),
+    rounds: numberOrZero(totals.rounds),
+    sessionCount: numberOrZero(totals.sessionCount),
+    runCount: numberOrZero(totals.runCount),
+  };
+}
+
+function normalizeSummaryShape(summary, filters) {
+  const source = summary && typeof summary === 'object' ? summary : {};
+  return {
+    filters,
+    totals: normalizeTotals(source.totals),
+    models: arrayOrEmpty(source.models),
+    projects: arrayOrEmpty(source.projects),
+    daily: arrayOrEmpty(source.daily),
+    sessions: arrayOrEmpty(source.sessions),
+    status: refreshStatus,
+  };
+}
+
 function registerTokenUsageMain(context = {}) {
   const {
     registerIpc,
@@ -54,11 +91,7 @@ function registerTokenUsageMain(context = {}) {
     const summary = tokenUsageStore.getSummary(filters);
     return {
       ok: true,
-      summary: {
-        ...summary,
-        filters,
-        status: refreshStatus,
-      },
+      summary: normalizeSummaryShape(summary, filters),
     };
   });
 
