@@ -47,6 +47,27 @@ function ArchiveIcon({ size = 14 }) {
   );
 }
 
+function ChartIcon({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 3v18h18" />
+      <rect x="7" y="12" width="3" height="5" rx="1" />
+      <rect x="12" y="8" width="3" height="9" rx="1" />
+      <rect x="17" y="5" width="3" height="12" rx="1" />
+    </svg>
+  );
+}
+
 function InfoIcon({ size = 14 }) {
   return (
     <svg
@@ -83,6 +104,13 @@ export function SettingsSideNav() {
       >
         <ArchiveIcon />
         Archive
+      </TabsTrigger>
+      <TabsTrigger
+        value="token-usage"
+        className="h-8 w-full justify-start gap-2 rounded-[4px] bg-transparent px-2.5 text-[13px] font-normal text-[#8A8A90] transition-colors duration-150 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-[#EDEDEF]"
+      >
+        <ChartIcon />
+        Token 统计
       </TabsTrigger>
       <TabsTrigger
         value="about"

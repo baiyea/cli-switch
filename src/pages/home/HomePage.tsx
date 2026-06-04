@@ -281,6 +281,7 @@ export function HomePage() {
             setSettingsSection('archive');
             await loadArchivedSessions();
           }}
+          onSelectTokenUsage={() => setSettingsSection('token-usage')}
           onSelectAbout={() => setSettingsSection('about')}
           providerSectionProps={providerSectionProps}
           archivedSessions={archivedSessions}

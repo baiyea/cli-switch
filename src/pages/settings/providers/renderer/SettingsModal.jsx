@@ -8,6 +8,7 @@ import {
 import { Tabs, TabsContent } from '../../../../ui/tabs';
 import { AboutSettingsSection } from '../../about/renderer/AboutSettingsSection';
 import { ArchiveSettingsSection } from '../../archive/renderer/ArchiveSettingsSection';
+import { TokenUsageSettingsSection } from '../../token-usage/renderer/TokenUsageSettingsSection';
 import { ProviderSettingsSection } from './ProviderSettingsSection';
 import { SettingsSideNav } from './SettingsSideNav';
 
@@ -18,6 +19,7 @@ export function SettingsModal({
   settingsSection,
   onSelectProviders,
   onSelectArchive,
+  onSelectTokenUsage,
   onSelectAbout,
   providerSectionProps,
   archivedSessions,
@@ -50,6 +52,12 @@ export function SettingsModal({
         subtitle: 'Manage archived sessions and restore history.',
       };
     }
+    if (settingsSection === 'token-usage') {
+      return {
+        title: 'Token 统计',
+        subtitle: 'Review token usage by project, provider, model, and run segment.',
+      };
+    }
     return {
       title: 'Providers',
       subtitle: providerSectionProps?.isEditingOAuthProfile
@@ -65,6 +73,10 @@ export function SettingsModal({
     }
     if (value === 'about') {
       onSelectAbout();
+      return;
+    }
+    if (value === 'token-usage') {
+      onSelectTokenUsage();
       return;
     }
     onSelectProviders();
@@ -130,6 +142,10 @@ export function SettingsModal({
                 onRestoreArchivedSession={onRestoreArchivedSession}
                 onCleanupExpiredArchivedSessions={onCleanupExpiredArchivedSessions}
               />
+            </TabsContent>
+
+            <TabsContent value="token-usage" className="mt-0 h-full">
+              <TokenUsageSettingsSection />
             </TabsContent>
 
             <TabsContent value="about" className="mt-0 h-full">

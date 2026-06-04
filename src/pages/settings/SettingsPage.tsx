@@ -5,8 +5,9 @@ import { Button } from '../../ui/button';
 import { AboutSettingsSection } from './about/renderer/AboutSettingsSection';
 import { ArchiveSettingsSection } from './archive/renderer/ArchiveSettingsSection';
 import { ProviderSettingsSection } from './providers/renderer/ProviderSettingsSection';
+import { TokenUsageSettingsSection } from './token-usage/renderer/TokenUsageSettingsSection';
 
-type SettingsSection = 'providers' | 'archive' | 'about';
+type SettingsSection = 'providers' | 'archive' | 'token-usage' | 'about';
 
 export interface SettingsPageProps {
   onBack: () => void;
@@ -97,6 +98,7 @@ export function SettingsPage({
           {[
             { id: 'providers' as const, label: 'Providers' },
             { id: 'archive' as const, label: 'Archive' },
+            { id: 'token-usage' as const, label: 'Token 统计' },
             { id: 'about' as const, label: 'About' },
           ].map((item) => (
             <button
@@ -127,6 +129,7 @@ export function SettingsPage({
               onCleanupExpiredArchivedSessions={onCleanupExpiredArchivedSessions}
             />
           )}
+          {section === 'token-usage' && <TokenUsageSettingsSection />}
           {section === 'about' && (
             <AboutSettingsSection appVersion={appVersion} appLogo={appLogo} />
           )}
