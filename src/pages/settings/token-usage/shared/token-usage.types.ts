@@ -3,7 +3,7 @@ export type TokenUsageRange = '7d' | '30d' | 'all';
 export interface TokenUsageFilters {
   range?: TokenUsageRange;
   projectId?: string;
-  provider?: string;
+  provider?: 'claude' | 'codex' | 'gemini' | '';
   modelName?: string;
 }
 
@@ -31,6 +31,7 @@ export interface TokenUsageRefreshResult {
 
 export interface TokenUsageTotals {
   runCount: number;
+  sessionCount: number;
   inputTokens: number;
   outputTokens: number;
   cachedTokens: number;
@@ -54,9 +55,28 @@ export interface TokenUsageDailySummary {
   totalTokens: number;
 }
 
+export interface TokenUsageProjectSummary {
+  projectId: string;
+  projectName: string;
+  totalTokens: number;
+  sessionCount: number;
+}
+
+export interface TokenUsageSessionSummary {
+  sessionId: string;
+  title: string;
+  projectName: string;
+  provider: string;
+  modelName: string;
+  totalTokens: number;
+  lastActiveAt: string;
+}
+
 export interface TokenUsageSummary {
   filters: Required<TokenUsageFilters>;
   totals: TokenUsageTotals;
+  projects: TokenUsageProjectSummary[];
+  sessions: TokenUsageSessionSummary[];
   models: TokenUsageModelSummary[];
   daily: TokenUsageDailySummary[];
   status: TokenUsageRefreshStatus;

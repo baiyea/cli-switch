@@ -2,6 +2,8 @@
 
 `settings/token-usage` 是 Settings 页面内的 Page Block Capsule，负责 Token 统计的 IPC、preload API、renderer 私有 bridge 和后续 UI。
 
+统计范围只包含当前 SQLite 数据库中已登记的项目与会话；刷新时不扫描未登记到数据库的 CLI 历史文件。
+
 ## 边界
 
 - `shared/` 只定义本 block 的 IPC channel 和 TypeScript 协议类型。
