@@ -90,7 +90,7 @@ export function TokenUsageSettingsSection() {
             variant="secondary"
             size="sm"
             className="h-8 shrink-0 gap-2 rounded-lg border border-white/10 bg-white/[0.08] px-[14px] text-[13px] font-medium text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]"
-            disabled={isRefreshing}
+            disabled={refreshing}
             onClick={() => refresh({ force: true })}
           >
             <RefreshCcw size={14} className={isRefreshing ? 'animate-spin' : ''} />
