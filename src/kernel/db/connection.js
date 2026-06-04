@@ -9,10 +9,12 @@ const {
   ensureSessionUniqueIndex,
   ensureSessionSortOrder,
 } = require('./migrations/session-indexes');
+const { ensureTokenUsageTables } = require('./migrations/token-usage-tables');
 const { createProjectsRepo } = require('./repositories/project.repository');
 const { createSessionsRepo } = require('./repositories/session.repository');
 const { createSettingsRepo } = require('./repositories/settings.repository');
 const { createArchiveRepo } = require('./repositories/archive.repository');
+const { createTokenUsageRepo } = require('./repositories/token-usage.repository');
 
 let db = null;
 
@@ -41,6 +43,7 @@ function initDatabase(dbPathInput) {
   ensureLegacyColumns(db);
   ensureSessionUniqueIndex(db);
   ensureSessionSortOrder(db);
+  ensureTokenUsageTables(db);
   return db;
 }
 
@@ -90,6 +93,14 @@ function archiveRepo(conn) {
   });
 }
 
+function tokenUsageRepo(conn) {
+  return createTokenUsageRepo({
+    getDatabase: () => resolveConn(conn),
+    now,
+    genId,
+  });
+}
+
 module.exports = {
   initDatabase,
   getDatabase,
@@ -98,4 +109,5 @@ module.exports = {
   sessionsRepo,
   settingsRepo,
   archiveRepo,
+  tokenUsageRepo,
 };
