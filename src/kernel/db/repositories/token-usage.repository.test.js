@@ -9,13 +9,16 @@ function createRepo() {
   const conn = new Database(':memory:');
   conn.exec(`
     CREATE TABLE projects (
-      id TEXT PRIMARY KEY
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL
     );
     CREATE TABLE sessions (
-      id TEXT PRIMARY KEY
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
-    INSERT INTO projects (id) VALUES ('project-1'), ('project-2');
-    INSERT INTO sessions (id) VALUES ('session-1');
+    INSERT INTO projects (id, name) VALUES ('project-1', 'Project One'), ('project-2', 'Project Two');
+    INSERT INTO sessions (id, title, updated_at) VALUES ('session-1', 'Session One', '2026-06-04T01:10:00.000Z');
   `);
   ensureTokenUsageTables(conn);
 
@@ -303,6 +306,70 @@ test('getSummary returns models ordered by totalTokens descending with camelCase
       apiBaseHost: 'api.moonshot.cn',
       runCount: 1,
       totalTokens: 50,
+    },
+  ]);
+});
+
+test('getSummary returns session count plus project and session ranking aggregates', () => {
+  const { conn, repo } = createRepo();
+  conn
+    .prepare('INSERT INTO sessions (id, title, updated_at) VALUES (?, ?, ?)')
+    .run('session-2', 'Session Two', '2026-06-04T02:10:00.000Z');
+
+  const first = startRun(repo, {
+    sessionId: 'session-1',
+    projectId: 'project-1',
+    modelName: 'kimi-k2',
+    runStartedAt: '2026-06-04T01:00:00.000Z',
+  });
+  const second = startRun(repo, {
+    sessionId: 'session-2',
+    projectId: 'project-2',
+    providerSessionId: 'provider-session-2',
+    modelName: 'deepseek-v4-pro',
+    runStartedAt: '2026-06-04T02:00:00.000Z',
+  });
+
+  repo.addSnapshotDelta(first.id, {
+    statsEndedAt: '2026-06-04T01:05:00.000Z',
+    totalTokens: 50,
+    inputTokens: 30,
+    outputTokens: 20,
+    rounds: 1,
+  });
+  repo.addSnapshotDelta(second.id, {
+    statsEndedAt: '2026-06-04T02:05:00.000Z',
+    totalTokens: 120,
+    inputTokens: 70,
+    outputTokens: 50,
+    rounds: 2,
+  });
+
+  const summary = repo.getSummary({ range: 'all' });
+
+  assert.equal(summary.totals.sessionCount, 2);
+  assert.deepEqual(summary.projects, [
+    { projectId: 'project-2', projectName: 'Project Two', totalTokens: 120, sessionCount: 1 },
+    { projectId: 'project-1', projectName: 'Project One', totalTokens: 50, sessionCount: 1 },
+  ]);
+  assert.deepEqual(summary.sessions, [
+    {
+      sessionId: 'session-2',
+      title: 'Session Two',
+      projectName: 'Project Two',
+      provider: 'claude',
+      modelName: 'deepseek-v4-pro',
+      totalTokens: 120,
+      lastActiveAt: '2026-06-04T02:05:00.000Z',
+    },
+    {
+      sessionId: 'session-1',
+      title: 'Session One',
+      projectName: 'Project One',
+      provider: 'claude',
+      modelName: 'kimi-k2',
+      totalTokens: 50,
+      lastActiveAt: '2026-06-04T01:05:00.000Z',
     },
   ]);
 });

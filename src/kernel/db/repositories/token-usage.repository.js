@@ -283,6 +283,7 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
         .prepare(
           `SELECT
              COUNT(DISTINCT r.id) AS run_count,
+             COUNT(DISTINCT r.session_id) AS session_count,
              COALESCE(SUM(s.input_tokens), 0) AS input_tokens,
              COALESCE(SUM(s.output_tokens), 0) AS output_tokens,
              COALESCE(SUM(s.cached_tokens), 0) AS cached_tokens,
@@ -309,6 +310,20 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
            ORDER BY total_tokens DESC, r.provider ASC, r.model_name ASC`,
         )
         .all(...params);
+      const projectRows = conn
+        .prepare(
+          `SELECT
+             r.project_id,
+             COALESCE(p.name, r.project_id) AS project_name,
+             COUNT(DISTINCT r.session_id) AS session_count,
+             COALESCE(SUM(s.total_tokens), 0) AS total_tokens
+           FROM token_usage_runs r
+           LEFT JOIN token_usage_snapshots s ON s.run_id = r.id
+           LEFT JOIN projects p ON p.id = r.project_id${sql}
+           GROUP BY r.project_id, project_name
+           ORDER BY total_tokens DESC, project_name ASC`,
+        )
+        .all(...params);
       const dailyRows = conn
         .prepare(
           `SELECT
@@ -318,6 +333,24 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
            LEFT JOIN token_usage_snapshots s ON s.run_id = r.id${sql}
            GROUP BY date
            ORDER BY date ASC`,
+        )
+        .all(...params);
+      const sessionRows = conn
+        .prepare(
+          `SELECT
+             r.session_id,
+             COALESCE(sess.title, r.session_id) AS title,
+             COALESCE(p.name, r.project_id) AS project_name,
+             r.provider,
+             r.model_name,
+             COALESCE(SUM(s.total_tokens), 0) AS total_tokens,
+             MAX(COALESCE(s.stats_ended_at, r.run_ended_at, sess.updated_at, r.updated_at)) AS last_active_at
+           FROM token_usage_runs r
+           LEFT JOIN token_usage_snapshots s ON s.run_id = r.id
+           LEFT JOIN sessions sess ON sess.id = r.session_id
+           LEFT JOIN projects p ON p.id = r.project_id${sql}
+           GROUP BY r.session_id, title, project_name, r.provider, r.model_name
+           ORDER BY total_tokens DESC, last_active_at DESC, title ASC`,
         )
         .all(...params);
       const statusRow = conn
@@ -333,6 +366,7 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
       return {
         totals: {
           runCount: integer(totalsRow?.run_count),
+          sessionCount: integer(totalsRow?.session_count),
           ...totalsFromRow(totalsRow),
         },
         models: modelRows.map((row) => ({
@@ -343,9 +377,24 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
           runCount: integer(row.run_count),
           totalTokens: integer(row.total_tokens),
         })),
+        projects: projectRows.map((row) => ({
+          projectId: text(row.project_id),
+          projectName: text(row.project_name),
+          totalTokens: integer(row.total_tokens),
+          sessionCount: integer(row.session_count),
+        })),
         daily: dailyRows.map((row) => ({
           date: text(row.date),
           totalTokens: integer(row.total_tokens),
+        })),
+        sessions: sessionRows.map((row) => ({
+          sessionId: text(row.session_id),
+          title: text(row.title),
+          projectName: text(row.project_name),
+          provider: text(row.provider),
+          modelName: text(row.model_name),
+          totalTokens: integer(row.total_tokens),
+          lastActiveAt: text(row.last_active_at),
         })),
         status: {
           running: integer(statusRow?.running),

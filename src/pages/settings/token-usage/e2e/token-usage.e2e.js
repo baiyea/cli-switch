@@ -90,6 +90,8 @@ test.describe('@token-usage', () => {
       const modelSummary = panel.locator('section').filter({ hasText: '模型汇总' });
       await expect(modelSummary.getByText('kimi-for-coding')).toBeVisible({ timeout: 30000 });
       await expect(modelSummary.getByText('140')).toBeVisible();
+      await expect(panel.getByRole('option', { name: 'TokenProject' })).toHaveCount(1);
+      await expect(panel.getByText('1 个会话')).toBeVisible();
 
       const db = new DatabaseSync(launched.dbPath);
       try {
