@@ -193,6 +193,26 @@ test('getLastFingerprint returns empty string when latest run has no snapshot', 
   );
 });
 
+test('getLastFingerprint returns empty string for negative snapshot file values', () => {
+  const { conn, repo } = createRepo();
+  const run = startRun(repo);
+  conn
+    .prepare(
+      `INSERT INTO token_usage_snapshots (
+        run_id, file_mtime_ms, file_size, updated_at
+      ) VALUES (?, ?, ?, ?)`,
+    )
+    .run(run.id, -100, 200, '2026-06-04T00:00:00.000Z');
+
+  assert.equal(
+    repo.getLastFingerprint({
+      provider: 'claude',
+      providerSessionId: 'provider-session-1',
+    }),
+    '',
+  );
+});
+
 test('getSummary returns models ordered by totalTokens descending with camelCase fields', () => {
   const { repo } = createRepo();
   const small = startRun(repo, { modelName: 'small-model', profileName: 'Small' });

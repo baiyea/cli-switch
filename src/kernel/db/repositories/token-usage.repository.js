@@ -230,7 +230,10 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
       const fileMtimeMs = Number(snapshot.file_mtime_ms);
       const fileSize = Number(snapshot.file_size);
       if (!Number.isFinite(fileMtimeMs) || !Number.isFinite(fileSize)) return '';
-      return `${Math.max(0, Math.floor(fileMtimeMs))}:${Math.max(0, Math.floor(fileSize))}`;
+      const normalizedMtimeMs = Math.floor(fileMtimeMs);
+      const normalizedFileSize = Math.floor(fileSize);
+      if (normalizedMtimeMs < 0 || normalizedFileSize < 0) return '';
+      return `${normalizedMtimeMs}:${normalizedFileSize}`;
     },
 
     getSummary(filters = {}) {
