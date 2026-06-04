@@ -160,11 +160,11 @@ function createTokenUsageSyncService({
     };
   }
 
-  function writeErrorSnapshot(row, error, sourceMissing) {
+  function writeErrorSnapshot(row, error, sourceMissing, stat = null) {
     const run = startUnknownRunForSession(row);
     tokenUsageStore.addSnapshotDelta(run.id, {
-      fileMtimeMs: 0,
-      fileSize: 0,
+      fileMtimeMs: stat ? integer(stat.mtimeMs) : 0,
+      fileSize: stat ? integer(stat.size) : 0,
       statsEndedAt: text(row?.updated_at, now()),
       ...ZERO_TOTALS,
       sourceMissing,
@@ -209,7 +209,7 @@ function createTokenUsageSyncService({
         sessionFilePath,
         error: error instanceof Error ? error.message : text(error),
       });
-      writeErrorSnapshot(row, error, false);
+      writeErrorSnapshot(row, error, false, stat);
       return { status: 'failed', reason: 'parse_error' };
     }
 

@@ -281,6 +281,32 @@ test('refresh marks missing file as sourceMissing and failed', () => {
   assert.match(deps.snapshots[0].delta.lastError, /missing/);
 });
 
+test('parse error persists file fingerprint so unchanged non-force refresh skips retry', () => {
+  let readCount = 0;
+  const deps = createDeps({
+    files: [{ path: '/tmp/session.jsonl', mtimeMs: 123, size: 456 }],
+    deps: {
+      readSessionStats() {
+        readCount += 1;
+        throw new Error('bad jsonl');
+      },
+    },
+  });
+  const service = createTokenUsageSyncService(deps);
+
+  const first = service.refresh();
+  const second = service.refresh();
+  const forced = service.refresh({ force: true });
+
+  assert.deepEqual(first, { scanned: 1, updated: 0, skipped: 0, failed: 1 });
+  assert.equal(deps.snapshots[0].delta.fileMtimeMs, 123);
+  assert.equal(deps.snapshots[0].delta.fileSize, 456);
+  assert.deepEqual(second, { scanned: 1, updated: 0, skipped: 1, failed: 0 });
+  assert.deepEqual(forced, { scanned: 1, updated: 0, skipped: 0, failed: 1 });
+  assert.equal(readCount, 2);
+  assert.equal(deps.snapshots.length, 2);
+});
+
 test('finishActiveRunByRuntimeSessionId finds and finishes non-claude active run', () => {
   const deps = createDeps({
     rows: [
