@@ -27,6 +27,7 @@ function registerTerminalMain(context = {}) {
     suggestSessionTitleWithModel,
     normalizeProviderId,
     toSessionView,
+    tokenUsageRuntime,
     logInfo = () => {},
     logWarn = () => {},
   } = context;
@@ -151,6 +152,12 @@ function registerTerminalMain(context = {}) {
       provider,
       providerSessionId: localSessionId,
     });
+    if (tokenUsageRuntime && createdRecord) {
+      tokenUsageRuntime.startRunForSession({
+        row: createdRecord,
+        startedAt: new Date().toISOString(),
+      });
+    }
     sessionStore.updateStateByProviderSessionId({
       provider,
       providerSessionId: localSessionId,
@@ -216,6 +223,20 @@ function registerTerminalMain(context = {}) {
           sessionId: runtimeSessionId,
         });
         await waitForShellBootstrap(runtimeSessionId);
+        if (tokenUsageRuntime) {
+          tokenUsageRuntime.startRunForSession({
+            row:
+              record ||
+              {
+                id: parsed.sessionId,
+                project_id: project?.id || '',
+                provider,
+                provider_session_id: providerSessionId,
+                session_file_path: '',
+              },
+            startedAt: new Date().toISOString(),
+          });
+        }
         const resumeCommand = getResumeCommandForProvider(provider, providerSessionId);
         const startupCommand = resumeCommand || getStartupCommandForProvider(provider);
         if (startupCommand) {

@@ -65,6 +65,8 @@ const {
   createCliConfigSyncService,
   createProviderTestSyncService,
   createClaudeRuntimeSyncService,
+  createTokenRunMetadataResolver,
+  createTokenUsageSyncService,
   fetchWithTimeout,
   shortBody,
   shortBodyLong,
@@ -80,6 +82,7 @@ const {
   projectsRepo,
   sessionsRepo,
   settingsRepo,
+  tokenUsageRepo,
 } = require('../kernel/db/connection');
 const { createRuntimeDataCleaner } = require('../kernel/runtime-data-cleaner');
 const { resolveAssetPathFrom, pickExistingPath } = require('./asset-paths');
@@ -143,6 +146,7 @@ const db = initDatabase(dbPath);
 const projectStore = projectsRepo(db);
 const sessionStore = sessionsRepo(db);
 const appSettingsStore = settingsRepo(db);
+const tokenUsageStore = tokenUsageRepo(db);
 const conversationReader = createConversationReader({ readTailLines });
 const {
   extractTextFromContentValue,
@@ -186,6 +190,7 @@ const {
   INTERNAL_PROXY_URL_KEY,
   applyUnifiedProxyEnv,
   getMergedProviderProfileEnvVars,
+  getActiveProviderProfile,
   stripPresetValuesFromProviderSettings,
   getStartupEnvForProvider,
   buildEnvFromPairs,
@@ -311,6 +316,20 @@ const readSessionStats = createSessionStatsReader({
   extractTextFromContentValue,
   isSkippableConversationText,
 });
+const resolveTokenRunMetadata = createTokenRunMetadataResolver({
+  normalizeProviderId,
+  getActiveProviderProfile,
+  getStartupEnvForProvider,
+});
+const tokenUsageRuntime = createTokenUsageSyncService({
+  fs,
+  sessionStore,
+  tokenUsageStore,
+  readSessionStats,
+  resolveRunMetadata: resolveTokenRunMetadata,
+  now: () => new Date().toISOString(),
+  logWarn,
+});
 
 function getStartupCommandForProvider(provider = 'claude') {
   // Normal sessions should always launch provider CLI runtime.
@@ -357,6 +376,7 @@ const ptyService = new PtyService({
   },
   onExit: ({ sessionId, exitCode }) => {
     oauthLoginTracker.unregisterSession(sessionId);
+    void tokenUsageRuntime.finishActiveRunByRuntimeSessionId(sessionId, new Date().toISOString());
     logInfo('pty', 'Session exited', { sessionId, exitCode });
     sendToRenderer(TERMINAL_CHANNELS.EXIT, { sessionId, exitCode });
   },
@@ -402,6 +422,8 @@ function registerAppIpc() {
     projectStore,
     sessionStore,
     appSettingsStore,
+    tokenUsageStore,
+    tokenUsageRuntime,
     ptyService,
     providerSettingsSchema,
     providerTestSchema,

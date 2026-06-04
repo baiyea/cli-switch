@@ -18,6 +18,12 @@ const { createCliConfigSyncService } = require('./providers/main/cli-config-sync
 const { createProviderTestSyncService } = require('./providers/main/provider-test-sync.service');
 const { createClaudeRuntimeSyncService } = require('./providers/main/claude-runtime-sync');
 const {
+  createTokenRunMetadataResolver,
+} = require('./token-usage/main/token-run-metadata.service');
+const {
+  createTokenUsageSyncService,
+} = require('./token-usage/main/token-usage-sync.service');
+const {
   fetchWithTimeout,
   shortBody,
   shortBodyLong,
@@ -47,6 +53,8 @@ module.exports = {
   createCliConfigSyncService,
   createProviderTestSyncService,
   createClaudeRuntimeSyncService,
+  createTokenRunMetadataResolver,
+  createTokenUsageSyncService,
   fetchWithTimeout,
   shortBody,
   shortBodyLong,
