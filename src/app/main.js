@@ -366,6 +366,25 @@ const { syncClaudeSettingsEnv } = createClaudeRuntimeSyncService({
   toClaudeProjectKey,
 });
 
+function finishTokenUsageRunOnExit(sessionId, endedAt) {
+  try {
+    const result = tokenUsageRuntime.finishActiveRunByRuntimeSessionId(sessionId, endedAt);
+    if (result && typeof result.then === 'function') {
+      result.catch((error) => {
+        logWarn('token-usage', 'Failed to finish token usage run on PTY exit', {
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+  } catch (error) {
+    logWarn('token-usage', 'Failed to finish token usage run on PTY exit', {
+      sessionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 const ptyService = new PtyService({
   getStartupEnv: ({ provider, cwd }) =>
     syncClaudeSettingsEnv(provider, getStartupEnvForProvider(provider), cwd),
@@ -376,7 +395,7 @@ const ptyService = new PtyService({
   },
   onExit: ({ sessionId, exitCode }) => {
     oauthLoginTracker.unregisterSession(sessionId);
-    void tokenUsageRuntime.finishActiveRunByRuntimeSessionId(sessionId, new Date().toISOString());
+    finishTokenUsageRunOnExit(sessionId, new Date().toISOString());
     logInfo('pty', 'Session exited', { sessionId, exitCode });
     sendToRenderer(TERMINAL_CHANNELS.EXIT, { sessionId, exitCode });
   },

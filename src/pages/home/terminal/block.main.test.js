@@ -447,3 +447,286 @@ test('session start does not start a token usage run when PTY already exists', a
 
   assert.equal(starts.length, 0);
 });
+
+test('session create ignores token usage start failures and still returns session view', async () => {
+  const { registerTerminalMain } = loadBlockMainWithFakeElectron();
+  const warnings = [];
+  let stateUpdated = false;
+  const createdRecord = {
+    id: 'session-row-create-failure',
+    project_id: 'project-1',
+    provider: 'codex',
+    provider_session_id: 'codex-local-failure',
+    cwd: '/tmp/project',
+    session_file_path: '',
+  };
+
+  const { handlers, context } = createBaseContext({
+    sessionCreateSchema: {
+      parse(payload) {
+        return payload;
+      },
+    },
+    projectStore: {
+      getById(projectId) {
+        assert.equal(projectId, 'project-1');
+        return { id: 'project-1', path: '/tmp/project' };
+      },
+    },
+    sessionStore: {
+      create() {},
+      getByProviderSessionId({ provider, providerSessionId }) {
+        assert.equal(provider, 'codex');
+        assert.match(providerSessionId, /^codex-/);
+        return { ...createdRecord, provider_session_id: providerSessionId };
+      },
+      updateStateByProviderSessionId({ provider, providerSessionId, status }) {
+        assert.equal(provider, 'codex');
+        assert.match(providerSessionId, /^codex-/);
+        assert.equal(status, 'running');
+        stateUpdated = true;
+      },
+    },
+    getStartupCommandForProvider() {
+      return 'codex\n';
+    },
+    getStartupEnvForProvider() {
+      return {};
+    },
+    maskEnvForLog(env) {
+      return env;
+    },
+    async waitForShellBootstrap() {},
+    toSessionView(row) {
+      return row;
+    },
+    tokenUsageRuntime: {
+      startRunForSession() {
+        throw new Error('token usage unavailable');
+      },
+    },
+    logWarn(scope, message, meta) {
+      warnings.push({ scope, message, meta });
+    },
+  });
+
+  registerTerminalMain(context);
+  const handler = handlers.get(TERMINAL_CHANNELS.SESSION_CREATE);
+  const result = await handler(null, {
+    projectId: 'project-1',
+    title: 'New Codex',
+    provider: 'codex',
+  });
+
+  assert.equal(stateUpdated, true);
+  assert.equal(result.status, 'running');
+  assert.equal(result.provider, 'codex');
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].scope, 'token-usage');
+  assert.match(warnings[0].message, /Failed to start token usage run/);
+});
+
+test('session start ignores token usage start failures and still writes resume command', async () => {
+  const { registerTerminalMain } = loadBlockMainWithFakeElectron();
+  const warnings = [];
+  const writes = [];
+  let stateUpdated = false;
+  const record = {
+    id: 'session-row-start-failure',
+    project_id: 'project-1',
+    provider: 'gemini',
+    provider_session_id: 'provider-session-failure',
+    cwd: '/tmp/project',
+    session_file_path: '/tmp/session.jsonl',
+    title: 'Existing session',
+  };
+
+  const { handlers, context } = createBaseContext({
+    hasSession(sessionId) {
+      assert.equal(sessionId, 'provider-session-failure');
+      return false;
+    },
+    write(sessionId, data) {
+      writes.push({ sessionId, data });
+      return true;
+    },
+    sessionStartSchema: {
+      parse(payload) {
+        return payload;
+      },
+    },
+    runWithSessionStartLock(_lockKey, task) {
+      return task();
+    },
+    projectStore: {
+      getById(projectId) {
+        assert.equal(projectId, 'project-1');
+        return { id: 'project-1', path: '/tmp/project' };
+      },
+    },
+    sessionStore: {
+      getByProviderSessionId({ provider, providerSessionId }) {
+        assert.equal(provider, 'gemini');
+        assert.equal(providerSessionId, 'provider-session-failure');
+        return record;
+      },
+      updateStateByProviderSessionId({ provider, providerSessionId, status }) {
+        assert.equal(provider, 'gemini');
+        assert.equal(providerSessionId, 'provider-session-failure');
+        assert.equal(status, 'running');
+        stateUpdated = true;
+      },
+    },
+    isLocalGeneratedSessionId() {
+      return false;
+    },
+    getStartupEnvForProvider() {
+      return {};
+    },
+    maskEnvForLog(env) {
+      return env;
+    },
+    async waitForShellBootstrap() {},
+    getResumeCommandForProvider() {
+      return 'gemini resume provider-session-failure\n';
+    },
+    getStartupCommandForProvider() {
+      throw new Error('resume command should be used');
+    },
+    toSessionView(row) {
+      return row;
+    },
+    tokenUsageRuntime: {
+      startRunForSession() {
+        throw new Error('token usage unavailable');
+      },
+    },
+    logWarn(scope, message, meta) {
+      warnings.push({ scope, message, meta });
+    },
+  });
+
+  registerTerminalMain(context);
+  const handler = handlers.get(TERMINAL_CHANNELS.SESSION_START);
+  const result = await handler(null, {
+    sessionId: 'provider-session-failure',
+    providerSessionId: 'provider-session-failure',
+    provider: 'gemini',
+  });
+
+  assert.equal(stateUpdated, true);
+  assert.equal(result.status, 'running');
+  assert.deepEqual(writes, [
+    {
+      sessionId: 'provider-session-failure',
+      data: 'gemini resume provider-session-failure\n',
+    },
+  ]);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].scope, 'token-usage');
+  assert.match(warnings[0].message, /Failed to start token usage run/);
+});
+
+test('session start uses reconciled provider session id when starting token usage run', async () => {
+  const { registerTerminalMain } = loadBlockMainWithFakeElectron();
+  const starts = [];
+  const localRow = {
+    id: 'session-row-local',
+    project_id: 'project-1',
+    provider: 'codex',
+    provider_session_id: 'codex-1780016473299-015422',
+    cwd: '/tmp/project',
+    session_file_path: '',
+    title: 'Local session',
+  };
+  const realRow = {
+    ...localRow,
+    provider_session_id: '019e713f-fee4-7942-bfe0-51ee042b472e',
+    session_file_path: '/tmp/session.jsonl',
+  };
+
+  const { handlers, context } = createBaseContext({
+    hasSession(sessionId) {
+      assert.equal(sessionId, realRow.provider_session_id);
+      return false;
+    },
+    sessionStartSchema: {
+      parse(payload) {
+        return payload;
+      },
+    },
+    runWithSessionStartLock(_lockKey, task) {
+      return task();
+    },
+    projectStore: {
+      getById(projectId) {
+        assert.equal(projectId, 'project-1');
+        return { id: 'project-1', path: '/tmp/project' };
+      },
+    },
+    sessionStore: {
+      getByProviderSessionId({ provider, providerSessionId }) {
+        assert.equal(provider, 'codex');
+        if (providerSessionId === localRow.provider_session_id) return localRow;
+        if (providerSessionId === realRow.provider_session_id) return realRow;
+        return null;
+      },
+      updateStateByProviderSessionId({ provider, providerSessionId, status }) {
+        assert.equal(provider, 'codex');
+        assert.equal(providerSessionId, realRow.provider_session_id);
+        assert.equal(status, 'running');
+      },
+    },
+    isLocalGeneratedSessionId(provider, providerSessionId) {
+      return provider === 'codex' && providerSessionId === localRow.provider_session_id;
+    },
+    syncDiscoveredSessionsForProjects(projects) {
+      assert.deepEqual(projects, [{ id: 'project-1', path: '/tmp/project' }]);
+      return {
+        mappings: [
+          {
+            provider: 'codex',
+            fromProviderSessionId: localRow.provider_session_id,
+            toProviderSessionId: realRow.provider_session_id,
+          },
+        ],
+      };
+    },
+    getStartupEnvForProvider() {
+      return {};
+    },
+    maskEnvForLog(env) {
+      return env;
+    },
+    async waitForShellBootstrap(sessionId) {
+      assert.equal(sessionId, realRow.provider_session_id);
+    },
+    getResumeCommandForProvider(provider, providerSessionId) {
+      assert.equal(provider, 'codex');
+      assert.equal(providerSessionId, realRow.provider_session_id);
+      return 'codex resume\n';
+    },
+    getStartupCommandForProvider() {
+      throw new Error('resume command should be used');
+    },
+    toSessionView(row) {
+      return row;
+    },
+    tokenUsageRuntime: {
+      startRunForSession(payload) {
+        starts.push(payload);
+      },
+    },
+  });
+
+  registerTerminalMain(context);
+  const handler = handlers.get(TERMINAL_CHANNELS.SESSION_START);
+  await handler(null, {
+    sessionId: localRow.provider_session_id,
+    providerSessionId: localRow.provider_session_id,
+    provider: 'codex',
+  });
+
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].row.provider_session_id, realRow.provider_session_id);
+});

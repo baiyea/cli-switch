@@ -76,6 +76,30 @@ function registerTerminalMain(context = {}) {
     return { providerSessionId: nextProviderSessionId, row: nextRow };
   }
 
+  function safeStartTokenUsageRun({ row, startedAt, source }) {
+    if (!tokenUsageRuntime || !row) return;
+    try {
+      const result = tokenUsageRuntime.startRunForSession({ row, startedAt });
+      if (result && typeof result.then === 'function') {
+        result.catch((error) => {
+          logWarn('token-usage', 'Failed to start token usage run', {
+            source,
+            provider: row.provider || '',
+            providerSessionId: row.provider_session_id || row.providerSessionId || row.id || '',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
+    } catch (error) {
+      logWarn('token-usage', 'Failed to start token usage run', {
+        source,
+        provider: row.provider || '',
+        providerSessionId: row.provider_session_id || row.providerSessionId || row.id || '',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   registerIpc(TERMINAL_CHANNELS.SESSION_STATS, async (_event, payload) => {
     const parsed = sessionStatsSchema.parse(payload || {});
     const provider = normalizeProviderId(parsed.provider || 'claude');
@@ -152,12 +176,11 @@ function registerTerminalMain(context = {}) {
       provider,
       providerSessionId: localSessionId,
     });
-    if (tokenUsageRuntime && createdRecord) {
-      tokenUsageRuntime.startRunForSession({
-        row: createdRecord,
-        startedAt: new Date().toISOString(),
-      });
-    }
+    safeStartTokenUsageRun({
+      row: createdRecord,
+      startedAt: new Date().toISOString(),
+      source: 'session-create',
+    });
     sessionStore.updateStateByProviderSessionId({
       provider,
       providerSessionId: localSessionId,
@@ -223,20 +246,19 @@ function registerTerminalMain(context = {}) {
           sessionId: runtimeSessionId,
         });
         await waitForShellBootstrap(runtimeSessionId);
-        if (tokenUsageRuntime) {
-          tokenUsageRuntime.startRunForSession({
-            row:
-              record ||
-              {
-                id: parsed.sessionId,
-                project_id: project?.id || '',
-                provider,
-                provider_session_id: providerSessionId,
-                session_file_path: '',
-              },
-            startedAt: new Date().toISOString(),
-          });
-        }
+        safeStartTokenUsageRun({
+          row:
+            record ||
+            {
+              id: parsed.sessionId,
+              project_id: project?.id || '',
+              provider,
+              provider_session_id: providerSessionId,
+              session_file_path: '',
+            },
+          startedAt: new Date().toISOString(),
+          source: 'session-start',
+        });
         const resumeCommand = getResumeCommandForProvider(provider, providerSessionId);
         const startupCommand = resumeCommand || getStartupCommandForProvider(provider);
         if (startupCommand) {
