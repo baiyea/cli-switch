@@ -99,7 +99,8 @@ test.describe('@appearance', () => {
           timeout: 30000,
         })
         .toBe('en-US');
-      await expect(win.getByRole('tab', { name: 'Token Usage' })).toBeVisible();
+      await expect(panel.getByText('Language', { exact: true })).toBeVisible();
+      await expect(panel.getByText('Theme mode', { exact: true })).toBeVisible();
 
       await localeSelect.selectOption('zh-CN');
       await expect
@@ -108,7 +109,8 @@ test.describe('@appearance', () => {
           timeout: 30000,
         })
         .toBe('zh-CN');
-      await expect(win.getByRole('tab', { name: 'Token 统计' })).toBeVisible();
+      await expect(panel.getByText('语言', { exact: true })).toBeVisible();
+      await expect(panel.getByText('主题模式', { exact: true })).toBeVisible();
     } finally {
       await closeApp(launched);
     }
