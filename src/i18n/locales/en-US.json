@@ -1,0 +1,15 @@
+{
+  "common.save": "Save",
+  "common.cancel": "Cancel",
+  "common.close": "Close",
+  "common.delete": "Delete",
+  "common.restore": "Restore",
+  "common.loading": "Loading...",
+  "common.saving": "Saving...",
+  "common.saved": "Saved",
+  "common.synced": "Synced",
+  "common.failed": "Failed",
+  "language.zhCN": "简体中文",
+  "language.enUS": "English",
+  "settings.title": "Settings"
+}
