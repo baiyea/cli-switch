@@ -1,6 +1,7 @@
 function createSettingsRepo({ getDatabase, now }) {
   const conn = getDatabase();
   const SETTINGS_KEY = 'provider_startup_settings';
+  const APPEARANCE_SETTINGS_KEY = 'appearance_settings';
   const defaultValue = {
     providers: {
       claude: { defaultProfileId: '', enabledProfileId: '', profiles: [] },
@@ -8,6 +9,9 @@ function createSettingsRepo({ getDatabase, now }) {
       gemini: { defaultProfileId: '', enabledProfileId: '', profiles: [] },
     },
   };
+  const defaultAppearanceValue = { themeMode: 'system', locale: 'zh-CN' };
+  const validThemeModes = new Set(['system', 'dark', 'light']);
+  const validLocales = new Set(['zh-CN', 'en-US']);
 
   function ensureProviderShape(input) {
     const normalized = { ...defaultValue, ...(input || {}) };
@@ -35,6 +39,22 @@ function createSettingsRepo({ getDatabase, now }) {
       providers[p] = { defaultProfileId: dpId, enabledProfileId: epId, profiles };
     }
     return { providers };
+  }
+
+  function ensureAppearanceShape(input) {
+    const themeMode = validThemeModes.has(input?.themeMode) ? input.themeMode : 'system';
+    const locale = validLocales.has(input?.locale) ? input.locale : 'zh-CN';
+    return { themeMode, locale };
+  }
+
+  function upsertSetting(key, value) {
+    const timestamp = now();
+    conn
+      .prepare(
+        `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      )
+      .run(key, JSON.stringify(value), timestamp);
   }
 
   return {
@@ -81,13 +101,23 @@ function createSettingsRepo({ getDatabase, now }) {
     },
     setProviderStartupSettings(value) {
       const normalized = ensureProviderShape(value);
-      const timestamp = now();
-      conn
-        .prepare(
-          `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-        )
-        .run(SETTINGS_KEY, JSON.stringify(normalized), timestamp);
+      upsertSetting(SETTINGS_KEY, normalized);
+      return normalized;
+    },
+    getAppearanceSettings() {
+      const row = conn
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get(APPEARANCE_SETTINGS_KEY);
+      if (!row) return defaultAppearanceValue;
+      try {
+        return ensureAppearanceShape(JSON.parse(row.value || '{}'));
+      } catch {
+        return defaultAppearanceValue;
+      }
+    },
+    setAppearanceSettings(value) {
+      const normalized = ensureAppearanceShape(value);
+      upsertSetting(APPEARANCE_SETTINGS_KEY, normalized);
       return normalized;
     },
   };

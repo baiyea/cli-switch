@@ -344,6 +344,16 @@ declare global {
         refresh: (payload?: { force?: boolean }) => Promise<any>;
         status: () => Promise<any>;
       };
+      appearance: {
+        get: () => Promise<{ themeMode: 'system' | 'dark' | 'light'; locale: 'zh-CN' | 'en-US' }>;
+        set: (payload: {
+          themeMode?: 'system' | 'dark' | 'light';
+          locale?: 'zh-CN' | 'en-US';
+        }) => Promise<{
+          themeMode: 'system' | 'dark' | 'light';
+          locale: 'zh-CN' | 'en-US';
+        }>;
+      };
       windowControls: {
         setTrafficLightPosition: (payload: { x: number; y: number }) => Promise<{ ok: boolean }>;
         openExternal: (payload: { url: string }) => Promise<void>;
