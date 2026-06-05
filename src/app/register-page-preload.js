@@ -3,6 +3,7 @@ const { createSidebarPreloadApi } = require('../pages/home/sidebar/block.preload
 const { createFileTreePreloadApi } = require('../pages/home/file-tree/block.preload');
 const { createTopToolbarPreloadApi } = require('../pages/home/top-toolbar/block.preload');
 const { createProvidersPreloadApi } = require('../pages/settings/providers/block.preload');
+const { createAppearancePreloadApi } = require('../pages/settings/appearance/block.preload');
 const { createArchivePreloadApi } = require('../pages/settings/archive/block.preload');
 const { createTokenUsagePreloadApi } = require('../pages/settings/token-usage/block.preload');
 
@@ -34,6 +35,7 @@ function createPageApis() {
     createFileTreePreloadApi(),
     createTopToolbarPreloadApi(),
     createProvidersPreloadApi(),
+    createAppearancePreloadApi(),
     createArchivePreloadApi(),
     createTokenUsagePreloadApi(),
   );

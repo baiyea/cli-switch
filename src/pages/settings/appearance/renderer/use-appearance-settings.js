@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 
 import { useI18n } from '../../../../i18n/use-t';
 import { normalizeThemeMode, resolveEffectiveTheme, useThemeStore } from '../../../theme.store';
+import { appearanceBridge } from './appearance.bridge';
 
 function getSystemPrefersDark() {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -45,7 +46,7 @@ export function useAppearanceSettings() {
       setLastSavedMode(null);
 
       try {
-        const savedSettings = await window.electronAPI.appearance.set({
+        const savedSettings = await appearanceBridge.set({
           themeMode: normalizedThemeMode,
         });
         const savedThemeMode = normalizeThemeMode(savedSettings?.themeMode);
@@ -79,7 +80,7 @@ export function useAppearanceSettings() {
       setSaveError('');
 
       try {
-        const savedSettings = await window.electronAPI.appearance.set({
+        const savedSettings = await appearanceBridge.set({
           locale: nextLocale,
         });
 
