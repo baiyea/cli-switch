@@ -55,10 +55,10 @@ export function useAppearanceSettings() {
         setThemeMode(savedThemeMode, getSystemPrefersDark());
         applyDocumentTheme(resolveEffectiveTheme(savedThemeMode, getSystemPrefersDark()));
         setLastSavedMode(savedThemeMode);
-      } catch (error) {
+      } catch {
         if (saveSequenceRef.current !== saveSequence) return;
 
-        setSaveError(error?.message || t('settings.appearance.saveFailed'));
+        setSaveError(t('settings.appearance.saveFailed'));
       } finally {
         if (saveSequenceRef.current === saveSequence) {
           setSavingMode(null);

@@ -13,24 +13,24 @@ function getThemeOptions(t) {
       id: 'system',
       label: t('settings.appearance.theme.system.label'),
       description: t('settings.appearance.theme.system.description'),
-      meta: 'System',
+      meta: t('settings.appearance.theme.system.meta'),
     },
     {
       id: 'dark',
       label: t('settings.appearance.theme.dark.label'),
       description: t('settings.appearance.theme.dark.description'),
-      meta: 'Dark',
+      meta: t('settings.appearance.theme.dark.meta'),
     },
     {
       id: 'light',
       label: t('settings.appearance.theme.light.label'),
       description: t('settings.appearance.theme.light.description'),
-      meta: 'Light',
+      meta: t('settings.appearance.theme.light.meta'),
     },
   ];
 }
 
-function TerminalPreview({ variant, active }) {
+function TerminalPreview({ variant, active, label, t }) {
   return (
     <div
       className={`appearance-terminal-preview appearance-terminal-preview--${variant} rounded-xl border p-3 shadow-[0_18px_60px_rgba(0,0,0,0.18)] ${active ? 'is-active' : ''}`}
@@ -42,23 +42,31 @@ function TerminalPreview({ variant, active }) {
           <span className="appearance-window-dot appearance-window-dot--maximize h-2.5 w-2.5 rounded-full" />
         </div>
         <span className="appearance-terminal-muted text-[11px] uppercase tracking-[0.18em]">
-          {variant}
+          {label}
         </span>
       </div>
       <div className="space-y-1.5 font-mono text-[12px] leading-5">
         <div>
           <span className="appearance-terminal-prompt">cli-switch</span>
-          <span className="appearance-terminal-muted"> ~/workspace </span>
+          <span className="appearance-terminal-muted">
+            {' '}
+            {t('settings.appearance.preview.cwd')}{' '}
+          </span>
           <span>pnpm dev</span>
         </div>
         <div>
           <span className="appearance-terminal-accent">vite</span>
-          <span className="appearance-terminal-muted"> renderer ready on </span>
+          <span className="appearance-terminal-muted">
+            {' '}
+            {t('settings.appearance.preview.rendererReady')}{' '}
+          </span>
           <span>5073</span>
         </div>
         <div>
-          <span className="appearance-terminal-muted">terminal </span>
-          <span>theme preview active</span>
+          <span className="appearance-terminal-muted">
+            {t('settings.appearance.preview.terminal')}{' '}
+          </span>
+          <span>{t('settings.appearance.preview.themeActive')}</span>
         </div>
       </div>
     </div>
@@ -195,8 +203,18 @@ export function AppearanceSettingsSection() {
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <TerminalPreview variant="dark" active={effectiveTheme === 'dark'} />
-            <TerminalPreview variant="light" active={effectiveTheme === 'light'} />
+            <TerminalPreview
+              variant="dark"
+              active={effectiveTheme === 'dark'}
+              label={t('settings.appearance.theme.dark.name')}
+              t={t}
+            />
+            <TerminalPreview
+              variant="light"
+              active={effectiveTheme === 'light'}
+              label={t('settings.appearance.theme.light.name')}
+              t={t}
+            />
           </div>
         </section>
       </div>
