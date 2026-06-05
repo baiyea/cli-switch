@@ -17,6 +17,6 @@ test('formatDate helpers handle valid and invalid dates', () => {
   assert.equal(formatDateLabel('2026-06-05T08:09:00.000Z', 'en-US'), '06/05');
   assert.equal(formatDateLabel('', 'zh-CN'), '--');
   assert.match(formatDateTime('2026-06-05T08:09:00.000Z', 'zh-CN'), /\d{2}\/\d{2}/);
-  assert.equal(formatDateTime('', 'zh-CN'), '尚未同步');
-  assert.equal(formatDateTime('', 'en-US'), 'Not synced yet');
+  assert.equal(formatDateTime('', 'zh-CN'), '--');
+  assert.equal(formatDateTime('', 'en-US'), '--');
 });

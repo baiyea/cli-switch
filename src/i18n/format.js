@@ -37,7 +37,7 @@ function formatDateTime(value, locale = 'zh-CN') {
   const normalizedLocale = normalizeLocale(locale);
   const date = toValidDate(value);
   if (!date) {
-    return normalizedLocale === 'en-US' ? 'Not synced yet' : '尚未同步';
+    return '--';
   }
 
   return new Intl.DateTimeFormat(normalizedLocale, {
