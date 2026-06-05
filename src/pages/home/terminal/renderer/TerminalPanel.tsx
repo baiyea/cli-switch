@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+import { useThemeStore } from '../../../theme.store';
 import { useHomeWorkspaceStore, useSessionStore } from '../../home.store';
 import { type SessionStats, terminalSessionBridge } from './terminal.bridge';
 import { TerminalPane } from './TerminalPane';
@@ -11,7 +12,8 @@ export function TerminalPanel() {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const activeProjectId = useHomeWorkspaceStore((state) => state.activeProjectId);
   const activeCwd = useHomeWorkspaceStore((state) => state.activeCwd);
-  const { setPaneRef, activeScrolledUp, scrollActiveToBottom } = usePty();
+  const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
+  const { setPaneRef, activeScrolledUp, scrollActiveToBottom } = usePty(effectiveTheme);
   void activeProjectId;
   void activeCwd;
   const activeSession = sessions.find((session) => session.sessionId === activeSessionId) || null;

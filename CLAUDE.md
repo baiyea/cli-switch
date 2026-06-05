@@ -169,6 +169,7 @@ src/pages/home/terminal/
    - 单元测试：`{模块名}.test.ts` 或 `{模块名}.test.js`
 
 ## Commands
+uvm use $(cat .nvmrc)
 
 | Command         | Description         |
 | --------------- | ------------------- |
@@ -186,3 +187,7 @@ src/pages/home/terminal/
 - `pages/pages.store.ts` 只做跨页面共享状态。
 - `pages/home/home.store.ts` 只做 Home 内区块共享状态。
 - `features/` 只放跨页面/跨窗口复杂能力。
+
+## superpowers
+superpowers 目录设置为当前项目 docs/superpowers 中，参考：docs/superpowers/brainstorm
+过程中禁止提交git

@@ -184,6 +184,22 @@ export function SidebarProjectsPanel({
                           </Button>
                         ))}
                         <div className="project-create-divider" />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="project-create-item"
+                          onClick={async () => {
+                            setOpenCreateMenuProjectId(null);
+                            setActiveProjectId(p.id);
+                            await onSyncProjectHistory(p);
+                          }}
+                        >
+                          <span className="project-create-history-icon" aria-hidden="true">
+                            ↻
+                          </span>
+                          <span>读取历史会话</span>
+                        </Button>
                         {hiddenSessionCount > 0 && (
                           <Button
                             type="button"
@@ -204,23 +220,6 @@ export function SidebarProjectsPanel({
                             <span>{showAllSessions ? '收起会话列表' : '展开全部会话'}</span>
                           </Button>
                         )}
-                        {hiddenSessionCount > 0 && <div className="project-create-divider" />}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="project-create-item"
-                          onClick={async () => {
-                            setOpenCreateMenuProjectId(null);
-                            setActiveProjectId(p.id);
-                            await onSyncProjectHistory(p);
-                          }}
-                        >
-                          <span className="project-create-history-icon" aria-hidden="true">
-                            ↻
-                          </span>
-                          <span>读取历史会话</span>
-                        </Button>
                       </div>
                     )}
                   </div>

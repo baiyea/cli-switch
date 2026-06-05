@@ -26,6 +26,7 @@
     "dist:mac:x64": "node scripts/guard-dist-mac-env.js x64 && pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=darwin CLI_TARGET_ARCH=x64 pnpm prepare:cli-runtime && pnpm build && electron-builder --mac --x64 --config electron-builder.json",
     "dist:mac:arm64": "node scripts/guard-dist-mac-env.js arm64 && pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=darwin CLI_TARGET_ARCH=arm64 pnpm prepare:cli-runtime && pnpm build && electron-builder --mac --arm64 --config electron-builder.json",
     "dist:win": "node scripts/guard-dist-win-env.js x64 && pnpm prepack:electron && cross-env CLI_TARGET_PLATFORM=win32 CLI_TARGET_ARCH=x64 pnpm prepare:cli-runtime && pnpm build && electron-builder --win --x64 --config electron-builder.json",
+    "release:github": "node scripts/github-release.js",
     "start": "node scripts/run-electron.js",
     "check:architecture": "node scripts/check-architecture.js",
     "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron --test src/**/*.test.js",
