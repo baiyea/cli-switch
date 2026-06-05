@@ -1,4 +1,5 @@
 const { APPEARANCE_CHANNELS } = require('../shared/appearance.channels');
+const { setMainLocale, t } = require('../../../../i18n/main');
 
 function registerAppearanceIpc(context = {}) {
   const { registerIpc, appSettingsStore } = context;
@@ -13,7 +14,7 @@ function registerAppearanceIpc(context = {}) {
   if (!hasAppearanceSettingsStore) {
     const unavailable = {
       ok: false,
-      reason: 'appearance settings unavailable',
+      reason: t('main.settings.appearanceUnavailable'),
       themeMode: 'system',
       locale: 'zh-CN',
     };
@@ -22,12 +23,16 @@ function registerAppearanceIpc(context = {}) {
     return;
   }
 
-  registerIpc(APPEARANCE_CHANNELS.APPEARANCE_GET, async () =>
-    appSettingsStore.getAppearanceSettings(),
-  );
-  registerIpc(APPEARANCE_CHANNELS.APPEARANCE_SET, async (_event, payload) =>
-    appSettingsStore.setAppearanceSettings(payload),
-  );
+  registerIpc(APPEARANCE_CHANNELS.APPEARANCE_GET, async () => {
+    const settings = appSettingsStore.getAppearanceSettings();
+    setMainLocale(settings?.locale);
+    return settings;
+  });
+  registerIpc(APPEARANCE_CHANNELS.APPEARANCE_SET, async (_event, payload) => {
+    const settings = appSettingsStore.setAppearanceSettings(payload);
+    setMainLocale(settings?.locale);
+    return settings;
+  });
 }
 
 module.exports = { registerAppearanceIpc };

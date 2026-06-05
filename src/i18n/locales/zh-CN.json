@@ -20,13 +20,13 @@
   "settings.modal.close": "关闭设置",
   "settings.guard.providerRequired": "请先配置并启用至少一个服务商。",
   "settings.section.providers.title": "服务商",
-  "settings.section.providers.subtitle": "配置 CLI 服务商、认证方式和连接参数。",
-  "settings.section.providers.oauthSubtitle": "管理 OAuth 登录状态和会话复用。",
+  "settings.section.providers.subtitle": "配置 AI Provider 的 API Key、OAuth 与环境变量。",
+  "settings.section.providers.oauthSubtitle": "配置 AI Provider 的 OAuth 认证。",
   "settings.section.archive.title": "归档",
-  "settings.section.archive.subtitle": "查看、恢复或清理已归档的会话。",
-  "settings.section.tokenUsage.title": "Token 用量",
-  "settings.section.tokenUsage.subtitle": "查看模型调用的 Token 消耗和同步状态。",
+  "settings.section.archive.subtitle": "管理已归档会话并恢复历史记录。",
+  "settings.section.tokenUsage.title": "Token 统计",
+  "settings.section.tokenUsage.subtitle": "按项目、Provider、模型和运行段查看 token 使用量。",
   "settings.section.about.title": "关于",
-  "settings.section.about.subtitle": "查看应用版本、项目说明和支持信息。",
-  "settings.page.back": "返回"
+  "settings.section.about.subtitle": "应用详情与系统信息。",
+  "settings.page.back": "返回主页"
 }

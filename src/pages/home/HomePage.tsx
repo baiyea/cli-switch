@@ -4,12 +4,13 @@ import packageJson from '../../../package.json';
 import appLogo from '../../assets/brand/app-logo.png';
 import { Button } from '../../ui/button';
 import { ExplorerToggleIcon, SettingsIcon } from '../../ui/icon-registry';
+import { useAppTheme } from '../renderer/use-app-theme';
 import { useArchiveList } from '../settings/archive/renderer/use-archive-list';
-import { SettingsModal } from '../settings/SettingsModal';
 import {
   isProviderConfigured,
   useProviderSettings,
 } from '../settings/providers/renderer/use-provider-settings';
+import { SettingsModal } from '../settings/SettingsModal';
 import { ExplorerPane } from './file-tree/block.renderer';
 import { useFileTree } from './file-tree/renderer/use-file-tree';
 import { useHomeWorkspace } from './renderer/use-home-workspace';
@@ -37,6 +38,8 @@ const PROVIDER_LABEL = {
 const APP_VERSION = String(packageJson?.version || '0.1.0');
 
 export function HomePage() {
+  useAppTheme();
+
   const isWindows =
     typeof navigator !== 'undefined' &&
     /win/i.test(String(navigator.platform || navigator.userAgent || ''));
@@ -282,6 +285,7 @@ export function HomePage() {
             await loadArchivedSessions();
           }}
           onSelectTokenUsage={() => setSettingsSection('token-usage')}
+          onSelectAppearance={() => setSettingsSection('appearance')}
           onSelectAbout={() => setSettingsSection('about')}
           providerSectionProps={providerSectionProps}
           archivedSessions={archivedSessions}

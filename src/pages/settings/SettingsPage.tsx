@@ -1,13 +1,15 @@
 import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 
+import { useT } from '../../i18n/use-t';
 import { Button } from '../../ui/button';
-import { AboutSettingsSection } from './about/renderer/AboutSettingsSection';
-import { ArchiveSettingsSection } from './archive/renderer/ArchiveSettingsSection';
-import { ProviderSettingsSection } from './providers/renderer/ProviderSettingsSection';
+import { AboutSettingsSection } from './about/block.renderer';
+import { AppearanceSettingsSection } from './appearance/block.renderer';
+import { ArchiveSettingsSection } from './archive/block.renderer';
+import { ProviderSettingsSection } from './providers/block.renderer';
 import { TokenUsageSettingsSection } from './token-usage/block.renderer';
 
-type SettingsSection = 'providers' | 'archive' | 'token-usage' | 'about';
+type SettingsSection = 'providers' | 'archive' | 'token-usage' | 'appearance' | 'about';
 
 export interface SettingsPageProps {
   onBack: () => void;
@@ -71,7 +73,9 @@ export function SettingsPage({
   appVersion,
   appLogo,
 }: SettingsPageProps) {
+  const t = useT();
   const [section, setSection] = useState<SettingsSection>(initialSection || 'providers');
+  const backLabel = t('settings.page.back');
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -83,12 +87,12 @@ export function SettingsPage({
           size="icon"
           className="h-8 w-8 rounded-md"
           onClick={onBack}
-          aria-label="返回主页"
-          title="返回主页"
+          aria-label={backLabel}
+          title={backLabel}
         >
           <ArrowLeft size={18} />
         </Button>
-        <h1 className="text-[16px] font-semibold text-[var(--text-main)]">Settings</h1>
+        <h1 className="text-[16px] font-semibold text-[var(--text-main)]">{t('settings.title')}</h1>
       </header>
 
       {/* Body: sidebar nav + content */}
@@ -96,10 +100,11 @@ export function SettingsPage({
         {/* Left sidebar navigation */}
         <nav className="flex w-[180px] shrink-0 flex-col gap-1 border-r border-white/[0.08] bg-white/[0.04] p-2">
           {[
-            { id: 'providers' as const, label: 'Providers' },
-            { id: 'archive' as const, label: 'Archive' },
-            { id: 'token-usage' as const, label: 'Token 统计' },
-            { id: 'about' as const, label: 'About' },
+            { id: 'providers' as const, label: t('settings.sideNav.providers') },
+            { id: 'archive' as const, label: t('settings.sideNav.archive') },
+            { id: 'token-usage' as const, label: t('settings.sideNav.tokenUsage') },
+            { id: 'appearance' as const, label: t('settings.sideNav.appearance') },
+            { id: 'about' as const, label: t('settings.sideNav.about') },
           ].map((item) => (
             <button
               key={item.id}
@@ -130,6 +135,7 @@ export function SettingsPage({
             />
           )}
           {section === 'token-usage' && <TokenUsageSettingsSection />}
+          {section === 'appearance' && <AppearanceSettingsSection />}
           {section === 'about' && (
             <AboutSettingsSection appVersion={appVersion} appLogo={appLogo} />
           )}

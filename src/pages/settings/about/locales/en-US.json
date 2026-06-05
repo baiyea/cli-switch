@@ -1,1 +1,20 @@
-{}
+{
+  "settings.about.tagline": "Seamlessly switch between AI coding assistants.",
+  "settings.about.platform": "Platform",
+  "settings.about.terminalCore": "Terminal Core",
+  "settings.about.storage": "Storage",
+  "settings.about.version": "Version",
+  "settings.about.appData": "App Data",
+  "settings.about.cleanRuntimeData": "Clean up",
+  "settings.about.cleaning": "Cleaning...",
+  "settings.about.cleanFailed": "Failed to clean runtime data",
+  "settings.about.cleanSuccess": "Runtime data cleanup completed",
+  "settings.about.cleanResultPaths": ": {paths}",
+  "settings.about.cleanResultPathSeparator": ", ",
+  "settings.about.checkUpdates": "Check for Updates",
+  "settings.about.documentation": "Documentation",
+  "settings.about.github": "GitHub",
+  "settings.about.confirmCleanTitle": "Clean runtime data?",
+  "settings.about.confirmCleanDescription": "This removes the local runtime database and cache files. Production data usually lives in ~/.cli-switch and development data usually lives in ~/.cli-switch-dev. This action cannot be undone.",
+  "settings.about.continueClean": "Continue cleanup"
+}

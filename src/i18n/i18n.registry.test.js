@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
+const enUSGlobalMessages = require('./locales/en-US.json');
+const zhCNGlobalMessages = require('./locales/zh-CN.json');
 
 const {
   createMessageRegistry,
@@ -7,6 +10,28 @@ const {
   normalizeLocale,
 } = require('./i18n.registry');
 const { I18nService } = require('./i18n.service');
+
+test('global zh-CN and en-US locale files contain the same keys', () => {
+  assert.deepEqual(
+    Object.keys(enUSGlobalMessages).sort(),
+    Object.keys(zhCNGlobalMessages).sort(),
+  );
+});
+
+test('settings block zh-CN and en-US locale files contain the same keys', () => {
+  const blocks = ['about', 'appearance', 'archive', 'providers', 'token-usage'];
+
+  for (const block of blocks) {
+    const enUSMessages = require(path.join('..', 'pages', 'settings', block, 'locales', 'en-US.json'));
+    const zhCNMessages = require(path.join('..', 'pages', 'settings', block, 'locales', 'zh-CN.json'));
+
+    assert.deepEqual(
+      Object.keys(enUSMessages).sort(),
+      Object.keys(zhCNMessages).sort(),
+      `${block} locale keys should match`,
+    );
+  }
+});
 
 test('normalizeLocale accepts supported locales and falls back to zh-CN', () => {
   assert.equal(normalizeLocale('zh-CN'), 'zh-CN');

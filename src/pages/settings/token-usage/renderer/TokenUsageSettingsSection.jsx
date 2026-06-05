@@ -1,43 +1,21 @@
 import { RefreshCcw } from 'lucide-react';
 
+import {
+  formatDateLabel,
+  formatDateTime,
+  formatNumber,
+  formatTokenCount,
+} from '../../../../i18n/format.renderer';
+import { useI18n } from '../../../../i18n/use-t';
 import { Button } from '../../../../ui/button';
 import { useTokenUsage } from './use-token-usage';
 
-function formatCount(value) {
-  return new Intl.NumberFormat('en-US').format(Math.max(0, Math.floor(Number(value || 0))));
-}
-
-function formatTokenValue(value) {
-  const next = Number(value || 0);
-  const normalized = Number.isFinite(next) ? Math.max(0, next) : 0;
-  return `${(normalized / 1_000_000).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}M`;
-}
-
-function formatDateLabel(value) {
-  if (!value) return '--';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '--';
-  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function formatDateTime(value) {
-  if (!value) return '尚未同步';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '尚未同步';
-  return `${formatDateLabel(value)} ${String(date.getHours()).padStart(2, '0')}:${String(
-    date.getMinutes(),
-  ).padStart(2, '0')}`;
-}
-
-function MetricCard({ label, value, hint, formatter = formatCount }) {
+function MetricCard({ label, value, hint, formatter }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-3">
       <div className="mb-2 text-[11px] text-[var(--text-muted)]">{label}</div>
       <strong className="block text-[18px] leading-none text-[var(--text-main)]">
-        {formatter(value)}
+        {formatter ? formatter(value) : value}
       </strong>
       {hint ? <div className="mt-2 text-[11px] text-[var(--text-muted)]">{hint}</div> : null}
     </div>
@@ -78,6 +56,7 @@ function EmptyState({ children }) {
 }
 
 export function TokenUsageSettingsSection() {
+  const { locale, t } = useI18n();
   const {
     filters,
     setFilters,
@@ -98,21 +77,33 @@ export function TokenUsageSettingsSection() {
   const maxDaily = Math.max(1, ...daily.map((item) => Number(item?.totalTokens || 0)));
   const selectClassName =
     'h-[31px] rounded-lg border border-white/10 bg-[#15181D] px-3 text-[12px] text-[var(--text-muted)] outline-none transition-colors duration-150 hover:text-[var(--text-main)] disabled:cursor-not-allowed disabled:opacity-55';
+  const formatCount = (value) => formatNumber(value, locale);
+  const formatTokenValue = (value) => formatTokenCount(value, locale);
+  const rangeOptions = [
+    ['7d', t('settings.tokenUsage.range7d')],
+    ['30d', t('settings.tokenUsage.range30d')],
+    ['all', t('settings.tokenUsage.rangeAll')],
+  ];
+  const unknownLabel = t('settings.tokenUsage.unknown');
 
   return (
     <div className="space-y-3 pb-4 text-[var(--text-main)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[22px] font-bold leading-tight text-[var(--text-main)]">
-            Token 统计
+            {t('settings.tokenUsage.title')}
           </h2>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            只统计当前数据库已登记的项目与会话，模型按运行段快照归属。
+            {t('settings.tokenUsage.description')}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="rounded-lg border border-white/10 bg-white/[0.045] px-2.5 py-1.5 text-[12px] text-[var(--text-muted)]">
-            {isRefreshing ? '同步中...' : `上次同步：${formatDateTime(status.lastFinishedAt)}`}
+            {isRefreshing
+              ? t('settings.tokenUsage.syncing')
+              : t('settings.tokenUsage.lastSync', {
+                  time: formatDateTime(status.lastFinishedAt, locale),
+                })}
           </span>
           <Button
             type="button"
@@ -123,19 +114,19 @@ export function TokenUsageSettingsSection() {
             onClick={() => refresh({ force: true })}
           >
             <RefreshCcw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-            {isRefreshing ? '扫描中...' : '重新扫描'}
+            {isRefreshing ? t('settings.tokenUsage.scanning') : t('settings.tokenUsage.scan')}
           </Button>
         </div>
       </div>
 
       <div
-        aria-label="Token 使用筛选"
+        aria-label={t('settings.tokenUsage.filters')}
         role="group"
         className="flex flex-wrap items-end gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2"
       >
-        <FilterField label="项目">
+        <FilterField label={t('settings.tokenUsage.project')}>
           <select
-            aria-label="项目"
+            aria-label={t('settings.tokenUsage.project')}
             className={selectClassName}
             disabled={!projectOptions.length}
             value={filters.projectId || ''}
@@ -148,7 +139,11 @@ export function TokenUsageSettingsSection() {
               );
             }}
           >
-            <option value="">{projectOptions.length ? '选择项目' : '暂无项目'}</option>
+            <option value="">
+              {projectOptions.length
+                ? t('settings.tokenUsage.selectProject')
+                : t('settings.tokenUsage.noProjects')}
+            </option>
             {projectOptions.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}
@@ -157,9 +152,9 @@ export function TokenUsageSettingsSection() {
           </select>
         </FilterField>
 
-        <FilterField label="Provider">
+        <FilterField label={t('settings.tokenUsage.provider')}>
           <select
-            aria-label="Provider"
+            aria-label={t('settings.tokenUsage.provider')}
             className={selectClassName}
             disabled={!filters.projectId || !providerOptions.length}
             value={filters.provider || ''}
@@ -170,7 +165,11 @@ export function TokenUsageSettingsSection() {
               );
             }}
           >
-            <option value="">{providerOptions.length ? '选择 Provider' : '暂无 Provider'}</option>
+            <option value="">
+              {providerOptions.length
+                ? t('settings.tokenUsage.selectProvider')
+                : t('settings.tokenUsage.noProviders')}
+            </option>
             {providerOptions.map((provider) => (
               <option key={provider.value} value={provider.value}>
                 {provider.label}
@@ -179,9 +178,9 @@ export function TokenUsageSettingsSection() {
           </select>
         </FilterField>
 
-        <FilterField label="Profile">
+        <FilterField label={t('settings.tokenUsage.profile')}>
           <select
-            aria-label="Profile"
+            aria-label={t('settings.tokenUsage.profile')}
             className={`${selectClassName} min-w-[190px]`}
             disabled={!filters.provider || !profileOptions.length}
             value={filters.profileId || ''}
@@ -192,7 +191,11 @@ export function TokenUsageSettingsSection() {
               );
             }}
           >
-            <option value="">{profileOptions.length ? '选择 Profile' : '暂无 Profile'}</option>
+            <option value="">
+              {profileOptions.length
+                ? t('settings.tokenUsage.selectProfile')
+                : t('settings.tokenUsage.noProfiles')}
+            </option>
             {profileOptions.map((profile) => (
               <option key={profile.value} value={profile.value}>
                 {profile.label}
@@ -202,13 +205,9 @@ export function TokenUsageSettingsSection() {
         </FilterField>
 
         <div className="grid gap-1 text-[11px] text-[var(--text-muted)]">
-          <span>时间</span>
+          <span>{t('settings.tokenUsage.time')}</span>
           <div className="flex flex-wrap gap-2">
-            {[
-              ['7d', '最近 7 天'],
-              ['30d', '最近 30 天'],
-              ['all', '全部时间'],
-            ].map(([range, label]) => (
+            {rangeOptions.map(([range, label]) => (
               <SelectButton
                 key={range}
                 active={filters.range === range}
@@ -228,36 +227,62 @@ export function TokenUsageSettingsSection() {
           {error}
         </div>
       ) : null}
-      {loading ? <div className="text-xs text-[var(--text-muted)]">加载中...</div> : null}
+      {loading ? (
+        <div className="text-xs text-[var(--text-muted)]">{t('settings.tokenUsage.loading')}</div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
         <MetricCard
-          label="总 Token"
+          label={t('settings.tokenUsage.totalTokens')}
           value={totals.totalTokens}
-          hint={`${formatCount(totals.runCount)} 个运行段`}
+          hint={t('settings.tokenUsage.runCount', { count: formatCount(totals.runCount) })}
           formatter={formatTokenValue}
         />
-        <MetricCard label="输入" value={totals.inputTokens} formatter={formatTokenValue} />
-        <MetricCard label="输出" value={totals.outputTokens} formatter={formatTokenValue} />
-        <MetricCard label="缓存" value={totals.cachedTokens} formatter={formatTokenValue} />
-        <MetricCard label="Reasoning" value={totals.reasoningTokens} formatter={formatTokenValue} />
         <MetricCard
-          label="轮次"
+          label={t('settings.tokenUsage.input')}
+          value={totals.inputTokens}
+          formatter={formatTokenValue}
+        />
+        <MetricCard
+          label={t('settings.tokenUsage.output')}
+          value={totals.outputTokens}
+          formatter={formatTokenValue}
+        />
+        <MetricCard
+          label={t('settings.tokenUsage.cache')}
+          value={totals.cachedTokens}
+          formatter={formatTokenValue}
+        />
+        <MetricCard
+          label={t('settings.tokenUsage.reasoning')}
+          value={totals.reasoningTokens}
+          formatter={formatTokenValue}
+        />
+        <MetricCard
+          label={t('settings.tokenUsage.rounds')}
           value={totals.rounds}
-          hint={`${formatCount(totals.sessionCount)} 个会话`}
+          hint={t('settings.tokenUsage.sessionCount', { count: formatCount(totals.sessionCount) })}
+          formatter={formatCount}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,.8fr)]">
         <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]">
           <div className="flex h-[42px] items-center justify-between border-b border-white/10 px-3">
-            <h3 className="text-[13px] font-semibold text-[var(--text-main)]">日趋势</h3>
-            <span className="text-[11px] text-[var(--text-muted)]">按最后活跃日期归属</span>
+            <h3 className="text-[13px] font-semibold text-[var(--text-main)]">
+              {t('settings.tokenUsage.dailyTrend')}
+            </h3>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              {t('settings.tokenUsage.byLastActiveDate')}
+            </span>
           </div>
           {daily.length ? (
             <div className="grid h-[202px] grid-cols-7 items-end gap-2 p-4 md:grid-cols-14">
               {daily.map((item, index) => {
-                const dailyLabel = `${formatDateLabel(item.date)} · ${formatTokenValue(item.totalTokens)}`;
+                const dailyLabel = t('settings.tokenUsage.dailyPointLabel', {
+                  date: formatDateLabel(item.date, locale),
+                  tokens: formatTokenValue(item.totalTokens),
+                });
                 return (
                   <div
                     key={item.date || `daily-${index}`}
@@ -274,22 +299,26 @@ export function TokenUsageSettingsSection() {
                       }}
                       title={dailyLabel}
                     />
-                    <span>{formatDateLabel(item.date)}</span>
+                    <span>{formatDateLabel(item.date, locale)}</span>
                   </div>
                 );
               })}
             </div>
           ) : (
             <div className="p-3">
-              <EmptyState>暂无趋势数据。完成一次会话扫描后会显示每日 Token 消耗。</EmptyState>
+              <EmptyState>{t('settings.tokenUsage.emptyTrend')}</EmptyState>
             </div>
           )}
         </section>
 
         <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]">
           <div className="flex h-[42px] items-center justify-between border-b border-white/10 px-3">
-            <h3 className="text-[13px] font-semibold text-[var(--text-main)]">模型汇总</h3>
-            <span className="text-[11px] text-[var(--text-muted)]">按运行段聚合</span>
+            <h3 className="text-[13px] font-semibold text-[var(--text-main)]">
+              {t('settings.tokenUsage.modelSummary')}
+            </h3>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              {t('settings.tokenUsage.byRunSegment')}
+            </span>
           </div>
           {models.length ? (
             <div className="grid gap-2 p-2.5">
@@ -301,13 +330,13 @@ export function TokenUsageSettingsSection() {
                   <div className="min-w-0">
                     <div className="truncate text-[12px] font-semibold text-[var(--text-main)]">
                       <span className="mr-2 rounded-[5px] border border-white/10 bg-white/[0.07] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
-                        {item.provider || 'unknown'}
+                        {item.provider || unknownLabel}
                       </span>
-                      {item.modelName || 'unknown'}
+                      {item.modelName || unknownLabel}
                     </div>
                     <div className="mt-1 truncate text-[11px] text-[var(--text-muted)]">
-                      {item.profileName || 'unknown'} · {item.apiBaseHost || 'unknown'} ·{' '}
-                      {formatCount(item.runCount)} 段
+                      {item.profileName || unknownLabel} · {item.apiBaseHost || unknownLabel} ·{' '}
+                      {t('settings.tokenUsage.segmentCount', { count: formatCount(item.runCount) })}
                     </div>
                   </div>
                   <strong className="text-[13px] text-[var(--text-main)]">
@@ -318,7 +347,7 @@ export function TokenUsageSettingsSection() {
             </div>
           ) : (
             <div className="p-3">
-              <EmptyState>暂无模型统计。点击重新扫描或等待后台同步完成。</EmptyState>
+              <EmptyState>{t('settings.tokenUsage.emptyModels')}</EmptyState>
             </div>
           )}
         </section>

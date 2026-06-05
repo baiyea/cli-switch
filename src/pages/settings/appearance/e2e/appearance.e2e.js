@@ -1,4 +1,5 @@
 const { DatabaseSync } = require('node:sqlite');
+const fs = require('node:fs');
 const path = require('node:path');
 const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
@@ -28,15 +29,31 @@ function readAppearanceLocale(dbPath) {
   return readAppearanceSettings(dbPath).locale || '';
 }
 
-async function launchAppearanceApp() {
-  return launchApp({
-    cwd: path.resolve(__dirname, '../../../../../'),
-    rootPrefix: 'cliswitch-appearance-',
-    projectDirName: 'appearance-project',
-    projectId: 'p-appearance',
-    projectName: 'AppearanceProject',
-    unsetEnvKeys: ['VITE_DEV_SERVER_URL'],
-  });
+async function launchAppearanceApp({ dbPath } = {}) {
+  const previousDbPath = process.env.ZEELIN_DB_PATH;
+
+  if (dbPath) {
+    process.env.ZEELIN_DB_PATH = dbPath;
+  } else {
+    delete process.env.ZEELIN_DB_PATH;
+  }
+
+  try {
+    return await launchApp({
+      cwd: path.resolve(__dirname, '../../../../../'),
+      rootPrefix: 'cliswitch-appearance-',
+      projectDirName: 'appearance-project',
+      projectId: 'p-appearance',
+      projectName: 'AppearanceProject',
+      unsetEnvKeys: ['VITE_DEV_SERVER_URL'],
+    });
+  } finally {
+    if (previousDbPath === undefined) {
+      delete process.env.ZEELIN_DB_PATH;
+    } else {
+      process.env.ZEELIN_DB_PATH = previousDbPath;
+    }
+  }
 }
 
 async function openAppearanceSettings(win) {
@@ -85,7 +102,9 @@ test.describe('@appearance', () => {
   });
 
   test('switches settings language', async () => {
-    const launched = await launchAppearanceApp();
+    let launched = await launchAppearanceApp();
+    let relaunched = null;
+    const rootToCleanup = launched.root;
 
     try {
       const { window: win } = launched;
@@ -102,17 +121,36 @@ test.describe('@appearance', () => {
       await expect(panel.getByText('Language', { exact: true })).toBeVisible();
       await expect(panel.getByText('Theme mode', { exact: true })).toBeVisible();
 
-      await localeSelect.selectOption('zh-CN');
+      await closeApp({ ...launched, keepRoot: true });
+      relaunched = await launchAppearanceApp({ dbPath: launched.dbPath });
+      launched = null;
+
+      const relaunchedPanel = await openAppearanceSettings(relaunched.window);
+      await expect(relaunchedPanel.getByText('Language', { exact: true })).toBeVisible();
+      await expect(relaunchedPanel.getByText('Theme mode', { exact: true })).toBeVisible();
+
+      launched = relaunched;
+      relaunched = null;
+      const zhPanel = relaunchedPanel;
+      await zhPanel.getByTestId('appearance-locale-select').selectOption('zh-CN');
       await expect
         .poll(() => readAppearanceLocale(launched.dbPath), {
           message: 'appearance settings persist zh-CN locale',
           timeout: 30000,
         })
         .toBe('zh-CN');
-      await expect(panel.getByText('语言', { exact: true })).toBeVisible();
-      await expect(panel.getByText('主题模式', { exact: true })).toBeVisible();
+      await expect(zhPanel.getByText('语言', { exact: true })).toBeVisible();
+      await expect(zhPanel.getByText('主题模式', { exact: true })).toBeVisible();
     } finally {
-      await closeApp(launched);
+      if (relaunched) {
+        await closeApp({ ...relaunched, keepRoot: true });
+      }
+      if (launched) {
+        await closeApp({ ...launched, keepRoot: true });
+      }
+      if (rootToCleanup) {
+        fs.rmSync(rootToCleanup, { recursive: true, force: true });
+      }
     }
   });
 });

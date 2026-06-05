@@ -1,1 +1,20 @@
-{}
+{
+  "settings.about.tagline": "在多个 AI 编码助手之间无缝切换。",
+  "settings.about.platform": "平台",
+  "settings.about.terminalCore": "终端核心",
+  "settings.about.storage": "存储",
+  "settings.about.version": "版本",
+  "settings.about.appData": "应用数据",
+  "settings.about.cleanRuntimeData": "一键清理",
+  "settings.about.cleaning": "清理中...",
+  "settings.about.cleanFailed": "运行数据清理失败",
+  "settings.about.cleanSuccess": "运行数据已清理完成",
+  "settings.about.cleanResultPaths": "：{paths}",
+  "settings.about.cleanResultPathSeparator": "、",
+  "settings.about.checkUpdates": "检查更新",
+  "settings.about.documentation": "文档",
+  "settings.about.github": "GitHub",
+  "settings.about.confirmCleanTitle": "确认清理运行数据",
+  "settings.about.confirmCleanDescription": "这会清理本地运行数据库和缓存文件（正式环境通常位于 ~/.cli-switch，开发环境通常位于 ~/.cli-switch-dev），该操作不可撤销。",
+  "settings.about.continueClean": "继续清理"
+}

@@ -11,9 +11,10 @@ import {
   AlertDialogTitle,
 } from '../../../../ui/alert-dialog';
 import { Button } from '../../../../ui/button';
-import { settingsBridge } from '../../providers/renderer/providers.bridge';
+import { useT } from '../../../../i18n/use-t';
 
 export function AboutSettingsSection({ appVersion, appLogo }) {
+  const t = useT();
   const [cleaning, setCleaning] = useState(false);
   const [cleanConfirmOpen, setCleanConfirmOpen] = useState(false);
   const [cleanResult, setCleanResult] = useState({ type: '', message: '', paths: [] });
@@ -33,22 +34,28 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
     setCleaning(true);
     setCleanResult({ type: '', message: '', paths: [] });
     try {
-      const result = await settingsBridge.cleanRuntimeData();
+      const cleanRuntimeData =
+        typeof window !== 'undefined' ? window.electronAPI?.settings?.cleanRuntimeData : null;
+      if (typeof cleanRuntimeData !== 'function') {
+        throw new Error(t('settings.about.cleanFailed'));
+      }
+
+      const result = await cleanRuntimeData();
       if (!result?.ok) {
-        throw new Error(result?.message || '运行数据清理失败');
+        throw new Error(result?.message || t('settings.about.cleanFailed'));
       }
       const uniquePaths = Array.from(
         new Set([...(result.runtimeDirs || []), result.dbPath].filter(Boolean)),
       );
       setCleanResult({
         type: 'success',
-        message: '运行数据已清理完成',
+        message: t('settings.about.cleanSuccess'),
         paths: uniquePaths.map((item) => toDisplayPath(item)),
       });
     } catch (error) {
       setCleanResult({
         type: 'error',
-        message: error instanceof Error ? error.message : String(error),
+        message: error instanceof Error ? error.message : t('settings.about.cleanFailed'),
         paths: [],
       });
     } finally {
@@ -76,7 +83,7 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
               Cli-Switch
             </div>
             <div className="text-[12px] text-[#8A8A90]">
-              Seamlessly switch between AI coding assistants.
+              {t('settings.about.tagline')}
             </div>
           </div>
         </div>
@@ -85,21 +92,23 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
 
         <div className="flex flex-col gap-2.5">
           <div className="flex justify-between items-center">
-            <span className="text-[12px] text-[#8A8A90]">Platform</span>
+            <span className="text-[12px] text-[#8A8A90]">{t('settings.about.platform')}</span>
             <span className="text-[12px] font-semibold text-[#EDEDEF]">
               Electron + React + TypeScript
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[12px] text-[#8A8A90]">Terminal Core</span>
+            <span className="text-[12px] text-[#8A8A90]">
+              {t('settings.about.terminalCore')}
+            </span>
             <span className="text-[12px] font-semibold text-[#EDEDEF]">@xterm/xterm v5.x</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[12px] text-[#8A8A90]">Storage</span>
+            <span className="text-[12px] text-[#8A8A90]">{t('settings.about.storage')}</span>
             <span className="text-[12px] font-semibold text-[#EDEDEF]">SQLite 3 (Local)</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[12px] text-[#8A8A90]">Version</span>
+            <span className="text-[12px] text-[#8A8A90]">{t('settings.about.version')}</span>
             <span className="text-[12px] font-semibold text-[#EDEDEF]">{appVersion}</span>
           </div>
         </div>
@@ -107,7 +116,7 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
         <div className="flex flex-col gap-2.5">
           <div className="h-px w-full bg-white/10" />
           <div className="flex items-center justify-between">
-            <span className="text-[12px] text-[#8A8A90]">应用数据</span>
+            <span className="text-[12px] text-[#8A8A90]">{t('settings.about.appData')}</span>
             <Button
               type="button"
               variant="secondary"
@@ -116,7 +125,7 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
               disabled={cleaning}
               className="h-7 rounded-[4px] border border-white/10 bg-white/[0.08] px-3 text-[12px] font-semibold text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]"
             >
-              {cleaning ? '清理中...' : '一键清理'}
+              {cleaning ? t('settings.about.cleaning') : t('settings.about.cleanRuntimeData')}
             </Button>
           </div>
           {cleanResult.message ? (
@@ -124,7 +133,11 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
               className={`text-xs ${cleanResult.type === 'error' ? 'text-[#f6a3ad]' : 'text-[#8A8A90]'}`}
             >
               {cleanResult.message}
-              {cleanResult.paths.length > 0 ? `：${cleanResult.paths.join('、')}` : ''}
+              {cleanResult.paths.length > 0
+                ? t('settings.about.cleanResultPaths', {
+                    paths: cleanResult.paths.join(t('settings.about.cleanResultPathSeparator')),
+                  })
+                : ''}
             </div>
           ) : null}
           <div className="h-px w-full bg-white/[0.08]" />
@@ -136,21 +149,21 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
             size="sm"
             className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#5E6AD2] hover:bg-transparent hover:text-[#5E6AD2] hover:opacity-80"
           >
-            Check for Updates
+            {t('settings.about.checkUpdates')}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#8A8A90] hover:bg-transparent hover:text-[#EDEDEF]"
           >
-            Documentation
+            {t('settings.about.documentation')}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#8A8A90] hover:bg-transparent hover:text-[#EDEDEF]"
           >
-            GitHub
+            {t('settings.about.github')}
           </Button>
         </div>
       </div>
@@ -158,14 +171,13 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
       <AlertDialog open={cleanConfirmOpen} onOpenChange={setCleanConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认清理运行数据</AlertDialogTitle>
+            <AlertDialogTitle>{t('settings.about.confirmCleanTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              这会清理本地运行数据库和缓存文件（正式环境通常位于 ~/.cli-switch，开发环境通常位于
-              ~/.cli-switch-dev），该操作不可撤销。
+              {t('settings.about.confirmCleanDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cleaning}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={cleaning}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault();
@@ -174,7 +186,7 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
               }}
               disabled={cleaning}
             >
-              继续清理
+              {t('settings.about.continueClean')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

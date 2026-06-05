@@ -5,6 +5,7 @@ import { terminalRenderer } from '../pages/home/terminal/block.renderer';
 import { topToolbarRenderer } from '../pages/home/top-toolbar/block.renderer';
 import { registerSettingsI18n } from '../pages/settings/settings.i18n';
 import { aboutRenderer } from '../pages/settings/about/block.renderer';
+import { appearanceRenderer } from '../pages/settings/appearance/block.renderer';
 import { archiveRenderer } from '../pages/settings/archive/block.renderer';
 import { providersRenderer } from '../pages/settings/providers/block.renderer';
 import { tokenUsageRenderer } from '../pages/settings/token-usage/block.renderer';
@@ -18,6 +19,7 @@ export const pageRenderers = {
   fileTree: fileTreeRenderer,
   topToolbar: topToolbarRenderer,
   providers: providersRenderer,
+  appearance: appearanceRenderer,
   archive: archiveRenderer,
   about: aboutRenderer,
   tokenUsage: tokenUsageRenderer,

@@ -20,13 +20,13 @@
   "settings.modal.close": "Close settings",
   "settings.guard.providerRequired": "Configure and enable at least one provider first.",
   "settings.section.providers.title": "Providers",
-  "settings.section.providers.subtitle": "Configure CLI providers, authentication, and connection settings.",
-  "settings.section.providers.oauthSubtitle": "Manage OAuth login status and session reuse.",
+  "settings.section.providers.subtitle": "Configure API keys, OAuth, and environment variables for AI providers.",
+  "settings.section.providers.oauthSubtitle": "Configure OAuth authentication for AI providers.",
   "settings.section.archive.title": "Archive",
-  "settings.section.archive.subtitle": "View, restore, or clean up archived sessions.",
-  "settings.section.tokenUsage.title": "Token usage",
-  "settings.section.tokenUsage.subtitle": "Review token consumption and sync status for model calls.",
+  "settings.section.archive.subtitle": "Manage archived sessions and restore history.",
+  "settings.section.tokenUsage.title": "Token Usage",
+  "settings.section.tokenUsage.subtitle": "Review token usage by project, provider, model, and run segment.",
   "settings.section.about.title": "About",
-  "settings.section.about.subtitle": "View app version, project details, and support information.",
-  "settings.page.back": "Back"
+  "settings.section.about.subtitle": "Application details and system information.",
+  "settings.page.back": "Back to home"
 }

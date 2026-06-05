@@ -5,8 +5,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../ui/dialog';
+import { useT } from '../../i18n/use-t';
 import { Tabs, TabsContent } from '../../ui/tabs';
 import { AboutSettingsSection } from './about/block.renderer';
+import { AppearanceSettingsSection } from './appearance/block.renderer';
 import { ArchiveSettingsSection } from './archive/block.renderer';
 import { ProviderSettingsSection } from './providers/block.renderer';
 import { SettingsSideNav } from './SettingsSideNav';
@@ -20,6 +22,7 @@ export function SettingsModal({
   onSelectProviders,
   onSelectArchive,
   onSelectTokenUsage,
+  onSelectAppearance,
   onSelectAbout,
   providerSectionProps,
   archivedSessions,
@@ -31,38 +34,45 @@ export function SettingsModal({
   appVersion,
   appLogo,
 }) {
+  const t = useT();
   const headerMeta = (() => {
     if (settingsSection === 'about') {
       return {
-        title: 'About',
-        subtitle: 'Application details and system information.',
+        title: t('settings.section.about.title'),
+        subtitle: t('settings.section.about.subtitle'),
+      };
+    }
+    if (settingsSection === 'appearance') {
+      return {
+        title: t('settings.appearance.title'),
+        subtitle: t('settings.appearance.subtitle'),
       };
     }
     if (settingsSection === 'providers') {
       return {
-        title: 'Providers',
+        title: t('settings.section.providers.title'),
         subtitle: providerSectionProps?.isEditingOAuthProfile
-          ? 'Configure OAuth authentication for AI providers.'
-          : 'Configure your AI provider API keys and settings.',
+          ? t('settings.section.providers.oauthSubtitle')
+          : t('settings.section.providers.subtitle'),
       };
     }
     if (settingsSection === 'archive') {
       return {
-        title: 'Archive',
-        subtitle: 'Manage archived sessions and restore history.',
+        title: t('settings.section.archive.title'),
+        subtitle: t('settings.section.archive.subtitle'),
       };
     }
     if (settingsSection === 'token-usage') {
       return {
-        title: 'Token 统计',
-        subtitle: 'Review token usage by project, provider, model, and run segment.',
+        title: t('settings.section.tokenUsage.title'),
+        subtitle: t('settings.section.tokenUsage.subtitle'),
       };
     }
     return {
-      title: 'Providers',
+      title: t('settings.section.providers.title'),
       subtitle: providerSectionProps?.isEditingOAuthProfile
-        ? 'Configure OAuth authentication for AI providers.'
-        : 'Configure your AI provider API keys and settings.',
+        ? t('settings.section.providers.oauthSubtitle')
+        : t('settings.section.providers.subtitle'),
     };
   })();
 
@@ -77,6 +87,10 @@ export function SettingsModal({
     }
     if (value === 'token-usage') {
       onSelectTokenUsage();
+      return;
+    }
+    if (value === 'appearance') {
+      onSelectAppearance();
       return;
     }
     onSelectProviders();
@@ -96,13 +110,13 @@ export function SettingsModal({
         showClose={false}
         className="settings-modal flex flex-col h-[min(763px,calc(100vh-32px))] max-h-[calc(100vh-32px)] p-0 gap-0"
       >
-        <div className="settings-modal-header relative border-b border-white/[0.08] px-5 pt-2.5 pb-4">
+        <div className="settings-modal-header relative border-b px-5 pt-2.5 pb-4">
           {!forceLock && (
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close settings"
-              className="absolute right-5 top-2 text-[18px] leading-none text-[#8A8A90] transition-opacity duration-150 hover:opacity-80"
+              aria-label={t('settings.modal.close')}
+              className="settings-modal-close-btn absolute right-5 top-2 text-[18px] leading-none transition-opacity duration-150 hover:opacity-80"
             >
               ✕
             </button>
@@ -117,7 +131,7 @@ export function SettingsModal({
 
         {forceLock && (
           <div className="provider-guard-banner">
-            请先配置并启用至少一个大模型 Provider，方可使用 Cli-Switch
+            {t('settings.guard.providerRequired')}
           </div>
         )}
 
@@ -146,6 +160,10 @@ export function SettingsModal({
 
             <TabsContent value="token-usage" className="mt-0 h-full">
               <TokenUsageSettingsSection />
+            </TabsContent>
+
+            <TabsContent value="appearance" className="mt-0 h-full">
+              <AppearanceSettingsSection />
             </TabsContent>
 
             <TabsContent value="about" className="mt-0 h-full">

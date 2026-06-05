@@ -1,5 +1,6 @@
 import { Button } from '../../../../ui/button';
 import { Card, CardContent } from '../../../../ui/card';
+import { useT } from '../../../../i18n/use-t';
 
 export function ArchiveSettingsSection({
   archivedSessions,
@@ -9,34 +10,46 @@ export function ArchiveSettingsSection({
   archiveCleanupRunning = false,
   archiveCleanupResult,
 }) {
+  const t = useT();
   const cleanupMessage = archiveCleanupResult
     ? archiveCleanupResult.ok === false
-      ? archiveCleanupResult.message || '归档清理失败'
-      : `已清理 ${archiveCleanupResult.deletedRecords || 0} 条过期归档，删除 ${archiveCleanupResult.deletedFiles || 0} 个原始会话文件${
-          archiveCleanupResult.missingFiles ? `，${archiveCleanupResult.missingFiles} 个文件已不存在` : ''
-        }${archiveCleanupResult.skipped ? `，跳过 ${archiveCleanupResult.skipped} 条` : ''}。`
+      ? archiveCleanupResult.message || t('settings.archive.cleanupFailed')
+      : `${t('settings.archive.cleanupResult', {
+          deletedRecords: archiveCleanupResult.deletedRecords || 0,
+          deletedFiles: archiveCleanupResult.deletedFiles || 0,
+        })}${
+          archiveCleanupResult.missingFiles
+            ? t('settings.archive.cleanupMissingFiles', {
+                missingFiles: archiveCleanupResult.missingFiles,
+              })
+            : ''
+        }${
+          archiveCleanupResult.skipped
+            ? t('settings.archive.cleanupSkipped', { skipped: archiveCleanupResult.skipped })
+            : ''
+        }`
     : '';
 
   return (
-    <div className="space-y-3 text-[var(--text-main)]">
+    <div className="archive-settings-section space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-[22px] font-bold leading-tight text-[var(--text-main)]">
-            Archived Sessions
+          <h3 className="archive-title text-[22px] font-bold leading-tight">
+            {t('settings.archive.title')}
           </h3>
           <div className="mt-1 text-xs text-[var(--text-muted)]">
-            一键清理只会删除归档超过 30 天的 provider 原始会话文件和数据库记录。
+            {t('settings.archive.description')}
           </div>
         </div>
         <Button
           type="button"
           variant="secondary"
           size="sm"
-          className="h-8 shrink-0 rounded-lg border border-white/10 bg-white/[0.08] px-[14px] text-[13px] font-medium text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]"
+          className="archive-action-btn h-8 shrink-0 rounded-lg border px-[14px] text-[13px] font-medium transition-colors duration-150"
           disabled={archiveCleanupRunning || typeof onCleanupExpiredArchivedSessions !== 'function'}
           onClick={() => onCleanupExpiredArchivedSessions?.()}
         >
-          {archiveCleanupRunning ? '清理中...' : '一键清理'}
+          {archiveCleanupRunning ? t('settings.archive.cleaning') : t('settings.archive.cleanup')}
         </Button>
       </div>
       {cleanupMessage ? (
@@ -51,9 +64,9 @@ export function ArchiveSettingsSection({
         </div>
       ) : null}
       {archivedSessions.length === 0 ? (
-        <Card className="rounded-lg border border-white/10 bg-white/[0.03]">
+        <Card className="archive-card rounded-lg border">
           <CardContent className="pt-4 text-sm text-[var(--text-muted)]">
-            暂无已归档会话。
+            {t('settings.archive.empty')}
           </CardContent>
         </Card>
       ) : (
@@ -61,11 +74,11 @@ export function ArchiveSettingsSection({
           {archivedSessions.map((item) => (
             <Card
               key={item.archiveId || `${item.provider}:${item.sessionId}`}
-              className="rounded-lg border border-white/10 bg-white/[0.03]"
+              className="archive-card rounded-lg border"
             >
               <div className="flex items-center justify-between p-4">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold truncate">
+                  <div className="archive-item-title text-sm font-semibold truncate">
                     {item.name} · {providerLabel[item.provider] || item.provider}
                   </div>
                   <div className="text-xs text-[var(--text-muted)] truncate mt-0.5">{item.cwd}</div>
@@ -74,10 +87,10 @@ export function ArchiveSettingsSection({
                   type="button"
                   variant="secondary"
                   size="sm"
-                  className="h-8 rounded-lg border border-white/10 bg-white/[0.08] px-[14px] text-[13px] font-medium text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]"
+                  className="archive-action-btn h-8 rounded-lg border px-[14px] text-[13px] font-medium transition-colors duration-150"
                   onClick={() => onRestoreArchivedSession(item.archiveId || item.sessionId)}
                 >
-                  恢复
+                  {t('common.restore')}
                 </Button>
               </div>
             </Card>

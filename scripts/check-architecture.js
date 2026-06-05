@@ -63,6 +63,16 @@ function resolveImportPath(fromRelativePath, specifier) {
   return path.posix.normalize(path.posix.join(importerDir, specifier));
 }
 
+function sameSettingsBlock(ownerRelativePath, targetRelativePath) {
+  const owner = ownerRelativePath.match(/^src\/pages\/settings\/([^/]+)\//)?.[1];
+  const target = targetRelativePath.match(/^src\/pages\/settings\/([^/]+)\//)?.[1];
+  return owner && target && owner === target;
+}
+
+function isTestFile(relativePath) {
+  return /\.(?:test|spec)\.[jt]sx?$/.test(relativePath) || relativePath.includes('/e2e/');
+}
+
 const srcFiles = walk(path.join(root, 'src')).filter((filePath) =>
   /\.(js|jsx|ts|tsx)$/.test(filePath),
 );
@@ -103,10 +113,38 @@ for (const filePath of srcFiles) {
   if (relative.startsWith('src/pages/settings/token-usage/') && /terminal\.bridge/.test(source)) {
     violations.push(`${relative}: token-usage block must not import terminal.bridge`);
   }
+  if (
+    relative.startsWith('src/pages/settings/appearance/') &&
+    /providers\/renderer\/providers\.bridge|settingsBridge/.test(source)
+  ) {
+    violations.push(
+      `${relative}: appearance block must not import providers renderer bridge or use settingsBridge`,
+    );
+  }
 
   for (const importPath of imports) {
     const resolved = resolveImportPath(relative, importPath);
     if (!resolved) continue;
+    if (
+      relative.startsWith('src/i18n/') &&
+      !isTestFile(relative) &&
+      resolved.startsWith('src/pages/')
+    ) {
+      violations.push(`${relative}: src/i18n must not import page or block implementation`);
+    }
+
+    if (
+      resolved.includes('/locales') &&
+      resolved.startsWith('src/pages/settings/') &&
+      relative.startsWith('src/pages/settings/') &&
+      !sameSettingsBlock(relative, resolved) &&
+      relative !== 'src/pages/settings/settings.i18n.ts'
+    ) {
+      violations.push(
+        `${relative}: settings block locale imports must stay inside the owning block or settings.i18n.ts`,
+      );
+    }
+
     if (
       resolved.startsWith('src/pages/settings/token-usage/renderer/') &&
       !relative.startsWith('src/pages/settings/token-usage/')

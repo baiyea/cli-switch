@@ -1,1 +1,11 @@
-{}
+{
+  "settings.archive.title": "Archived Sessions",
+  "settings.archive.description": "One-click cleanup only removes provider session files and database records archived for more than 30 days.",
+  "settings.archive.cleanup": "Clean up",
+  "settings.archive.cleaning": "Cleaning...",
+  "settings.archive.cleanupFailed": "Archive cleanup failed",
+  "settings.archive.cleanupResult": "Cleaned {deletedRecords} expired archive records and deleted {deletedFiles} original session files",
+  "settings.archive.cleanupMissingFiles": ", {missingFiles} files were already missing",
+  "settings.archive.cleanupSkipped": ", skipped {skipped}",
+  "settings.archive.empty": "No archived sessions yet."
+}

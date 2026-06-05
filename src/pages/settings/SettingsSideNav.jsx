@@ -1,4 +1,8 @@
+import { useT } from '../../i18n/use-t';
 import { TabsList, TabsTrigger } from '../../ui/tabs';
+
+const SETTINGS_NAV_TRIGGER_CLASS =
+  'h-8 w-full justify-start gap-2 rounded-[4px] bg-transparent px-2.5 text-[13px] font-normal transition-colors duration-150 data-[state=active]:bg-transparent data-[state=active]:font-semibold';
 
 function CpuIcon({ size = 14 }) {
   return (
@@ -68,6 +72,32 @@ function ChartIcon({ size = 14 }) {
   );
 }
 
+function AppearanceIcon({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="M4.93 4.93l1.41 1.41" />
+      <path d="M17.66 17.66l1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="M4.93 19.07l1.41-1.41" />
+      <path d="M17.66 6.34l1.41-1.41" />
+    </svg>
+  );
+}
+
 function InfoIcon({ size = 14 }) {
   return (
     <svg
@@ -89,35 +119,29 @@ function InfoIcon({ size = 14 }) {
 }
 
 export function SettingsSideNav() {
+  const t = useT();
+
   return (
-    <TabsList className="settings-side-nav h-full w-full flex-col items-stretch justify-start gap-1 rounded-none border-r border-white/[0.08] bg-white/[0.08] p-1.5">
-      <TabsTrigger
-        value="providers"
-        className="h-8 w-full justify-start gap-2 rounded-[4px] bg-transparent px-2.5 text-[13px] font-normal text-[#8A8A90] transition-colors duration-150 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-[#EDEDEF]"
-      >
+    <TabsList className="settings-side-nav h-full w-full flex-col items-stretch justify-start gap-1 rounded-none border-r p-1.5">
+      <TabsTrigger value="providers" className={SETTINGS_NAV_TRIGGER_CLASS}>
         <CpuIcon />
-        Providers
+        {t('settings.sideNav.providers')}
       </TabsTrigger>
-      <TabsTrigger
-        value="archive"
-        className="h-8 w-full justify-start gap-2 rounded-[4px] bg-transparent px-2.5 text-[13px] font-normal text-[#8A8A90] transition-colors duration-150 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-[#EDEDEF]"
-      >
+      <TabsTrigger value="archive" className={SETTINGS_NAV_TRIGGER_CLASS}>
         <ArchiveIcon />
-        Archive
+        {t('settings.sideNav.archive')}
       </TabsTrigger>
-      <TabsTrigger
-        value="token-usage"
-        className="h-8 w-full justify-start gap-2 rounded-[4px] bg-transparent px-2.5 text-[13px] font-normal text-[#8A8A90] transition-colors duration-150 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-[#EDEDEF]"
-      >
+      <TabsTrigger value="token-usage" className={SETTINGS_NAV_TRIGGER_CLASS}>
         <ChartIcon />
-        Token 统计
+        {t('settings.sideNav.tokenUsage')}
       </TabsTrigger>
-      <TabsTrigger
-        value="about"
-        className="h-8 w-full justify-start gap-2 rounded-[4px] bg-transparent px-2.5 text-[13px] font-normal text-[#8A8A90] transition-colors duration-150 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-[#EDEDEF]"
-      >
+      <TabsTrigger value="appearance" className={SETTINGS_NAV_TRIGGER_CLASS}>
+        <AppearanceIcon />
+        {t('settings.sideNav.appearance')}
+      </TabsTrigger>
+      <TabsTrigger value="about" className={SETTINGS_NAV_TRIGGER_CLASS}>
         <InfoIcon />
-        About
+        {t('settings.sideNav.about')}
       </TabsTrigger>
     </TabsList>
   );

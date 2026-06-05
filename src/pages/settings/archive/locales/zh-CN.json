@@ -1,1 +1,11 @@
-{}
+{
+  "settings.archive.title": "已归档会话",
+  "settings.archive.description": "一键清理只会删除归档超过 30 天的 provider 原始会话文件和数据库记录。",
+  "settings.archive.cleanup": "一键清理",
+  "settings.archive.cleaning": "清理中...",
+  "settings.archive.cleanupFailed": "归档清理失败",
+  "settings.archive.cleanupResult": "已清理 {deletedRecords} 条过期归档，删除 {deletedFiles} 个原始会话文件",
+  "settings.archive.cleanupMissingFiles": "，{missingFiles} 个文件已不存在",
+  "settings.archive.cleanupSkipped": "，跳过 {skipped} 条",
+  "settings.archive.empty": "暂无已归档会话。"
+}
