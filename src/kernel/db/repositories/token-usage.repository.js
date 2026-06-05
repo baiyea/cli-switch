@@ -61,6 +61,10 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
       clauses.push('r.provider = ?');
       params.push(String(filters.provider));
     }
+    if (filters.profileId) {
+      clauses.push('r.profile_id = ?');
+      params.push(String(filters.profileId));
+    }
     if (filters.modelName) {
       clauses.push('r.model_name = ?');
       params.push(String(filters.modelName));
@@ -299,6 +303,7 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
         .prepare(
           `SELECT
              r.provider,
+             r.profile_id,
              r.model_name,
              r.profile_name,
              r.api_base_host,
@@ -306,7 +311,7 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
              COALESCE(SUM(s.total_tokens), 0) AS total_tokens
            FROM token_usage_runs r
            LEFT JOIN token_usage_snapshots s ON s.run_id = r.id${sql}
-           GROUP BY r.provider, r.model_name, r.profile_name, r.api_base_host
+           GROUP BY r.provider, r.profile_id, r.model_name, r.profile_name, r.api_base_host
            ORDER BY total_tokens DESC, r.provider ASC, r.model_name ASC`,
         )
         .all(...params);
@@ -371,6 +376,7 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
         },
         models: modelRows.map((row) => ({
           provider: text(row.provider),
+          profileId: text(row.profile_id),
           modelName: text(row.model_name),
           profileName: text(row.profile_name),
           apiBaseHost: text(row.api_base_host),

@@ -338,6 +338,7 @@ declare global {
           range?: '7d' | '30d' | 'all';
           projectId?: string;
           provider?: string;
+          profileId?: string;
           modelName?: string;
         }) => Promise<any>;
         refresh: (payload?: { force?: boolean }) => Promise<any>;

@@ -4,6 +4,7 @@ export interface TokenUsageFilters {
   range?: TokenUsageRange;
   projectId?: string;
   provider?: 'claude' | 'codex' | 'gemini' | '';
+  profileId?: string;
   modelName?: string;
 }
 
@@ -43,6 +44,7 @@ export interface TokenUsageTotals {
 
 export interface TokenUsageModelSummary {
   provider: string;
+  profileId: string;
   modelName: string;
   profileName: string;
   apiBaseHost: string;

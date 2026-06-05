@@ -152,6 +152,7 @@ function createIpcSchemas(z) {
     range: z.enum(['7d', '30d', 'all']).optional().default('30d'),
     projectId: z.string().optional().default(''),
     provider: z.string().optional().default(''),
+    profileId: z.string().optional().default(''),
     modelName: z.string().optional().default(''),
   });
   const tokenUsageRefreshSchema = z.object({

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const z = require('zod');
 
+const { createIpcSchemas } = require('../../../app/ipc-schemas');
 const { TOKEN_USAGE_CHANNELS } = require('./shared/token-usage.channels');
 
 function loadRegisterTokenUsageMain() {
@@ -18,6 +19,7 @@ function registerHandlers(context = {}) {
       range: z.enum(['7d', '30d', 'all']).optional().default('30d'),
       projectId: z.string().optional().default(''),
       provider: z.string().optional().default(''),
+      profileId: z.string().optional().default(''),
       modelName: z.string().optional().default(''),
     }),
     tokenUsageRefreshSchema: z.object({
@@ -49,6 +51,7 @@ test('summary handler normalizes missing optional summary fields to safe default
     range: '30d',
     projectId: '',
     provider: '',
+    profileId: '',
     modelName: '',
   });
   assert.equal(result.summary.totals.totalTokens, 123);
@@ -65,6 +68,25 @@ test('summary handler normalizes missing optional summary fields to safe default
   assert.deepEqual(result.summary.daily, []);
   assert.deepEqual(result.summary.sessions, []);
   assert.equal(result.summary.status.running, false);
+});
+
+test('app ipc schema accepts token usage profileId filter with safe defaults', () => {
+  const { tokenUsageFiltersSchema } = createIpcSchemas(z);
+
+  assert.deepEqual(tokenUsageFiltersSchema.parse({}), {
+    range: '30d',
+    projectId: '',
+    provider: '',
+    profileId: '',
+    modelName: '',
+  });
+  assert.deepEqual(tokenUsageFiltersSchema.parse({ profileId: 'deepseek-api' }), {
+    range: '30d',
+    projectId: '',
+    provider: '',
+    profileId: 'deepseek-api',
+    modelName: '',
+  });
 });
 
 test('refresh handler writes top-level counters without returning result payload', async () => {

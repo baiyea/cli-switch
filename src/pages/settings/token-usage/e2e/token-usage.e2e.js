@@ -90,6 +90,13 @@ test.describe('@token-usage', () => {
       const modelSummary = panel.locator('section').filter({ hasText: '模型汇总' });
       await expect(modelSummary.getByText('kimi-for-coding')).toBeVisible({ timeout: 30000 });
       await expect(modelSummary.getByText('140')).toBeVisible();
+      const filterBar = panel.getByRole('group', { name: 'Token 使用筛选' });
+      await expect(filterBar).toContainText(/项目[\s\S]*Provider[\s\S]*Profile[\s\S]*时间/);
+      await expect(panel.getByRole('combobox', { name: '项目' })).toHaveValue('p-token');
+      await expect(panel.getByRole('combobox', { name: 'Provider' })).toHaveValue('claude');
+      const profileSelect = panel.getByRole('combobox', { name: 'Profile' });
+      await expect(profileSelect).toHaveValue('kimi');
+      await expect(profileSelect.getByRole('option', { name: 'Kimi' })).toHaveCount(1);
       await expect(panel.getByRole('option', { name: 'TokenProject' })).toHaveCount(1);
       await expect(panel.getByText('1 个会话')).toBeVisible();
 

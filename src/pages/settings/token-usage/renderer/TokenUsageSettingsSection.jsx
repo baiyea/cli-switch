@@ -51,6 +51,15 @@ function SelectButton({ children, active, onClick }) {
   );
 }
 
+function FilterField({ label, children }) {
+  return (
+    <label className="grid min-w-[150px] gap-1 text-[11px] text-[var(--text-muted)]">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
 function EmptyState({ children }) {
   return (
     <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.025] px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">
@@ -60,15 +69,26 @@ function EmptyState({ children }) {
 }
 
 export function TokenUsageSettingsSection() {
-  const { filters, setFilters, summary, loading, refreshing, error, modelOptions, refresh } =
-    useTokenUsage();
+  const {
+    filters,
+    setFilters,
+    summary,
+    projectOptions,
+    providerOptions,
+    profileOptions,
+    loading,
+    refreshing,
+    error,
+    refresh,
+  } = useTokenUsage();
   const totals = summary?.totals || {};
   const daily = Array.isArray(summary?.daily) ? summary.daily : [];
   const models = Array.isArray(summary?.models) ? summary.models : [];
-  const projects = Array.isArray(summary?.projects) ? summary.projects : [];
   const status = summary?.status || {};
   const isRefreshing = refreshing || Boolean(status.running);
   const maxDaily = Math.max(1, ...daily.map((item) => Number(item?.totalTokens || 0)));
+  const selectClassName =
+    'h-[31px] rounded-lg border border-white/10 bg-[#15181D] px-3 text-[12px] text-[var(--text-muted)] outline-none transition-colors duration-150 hover:text-[var(--text-main)] disabled:cursor-not-allowed disabled:opacity-55';
 
   return (
     <div className="space-y-3 pb-4 text-[var(--text-main)]">
@@ -99,61 +119,99 @@ export function TokenUsageSettingsSection() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
-        {[
-          ['7d', '最近 7 天'],
-          ['30d', '最近 30 天'],
-          ['all', '全部时间'],
-        ].map(([range, label]) => (
-          <SelectButton
-            key={range}
-            active={filters.range === range}
-            onClick={() => setFilters((prev) => (prev.range === range ? prev : { ...prev, range }))}
+      <div
+        aria-label="Token 使用筛选"
+        role="group"
+        className="flex flex-wrap items-end gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2"
+      >
+        <FilterField label="项目">
+          <select
+            aria-label="项目"
+            className={selectClassName}
+            disabled={!projectOptions.length}
+            value={filters.projectId || ''}
+            onChange={(event) => {
+              const projectId = event.target.value;
+              setFilters((prev) =>
+                prev.projectId === projectId
+                  ? prev
+                  : { ...prev, projectId, provider: '', profileId: '', modelName: '' },
+              );
+            }}
           >
-            {label}
-          </SelectButton>
-        ))}
-        {['', 'claude', 'codex', 'gemini'].map((provider) => (
-          <SelectButton
-            key={provider || 'all-provider'}
-            active={filters.provider === provider}
-            onClick={() =>
-              setFilters((prev) => (prev.provider === provider ? prev : { ...prev, provider }))
-            }
+            <option value="">{projectOptions.length ? '选择项目' : '暂无项目'}</option>
+            {projectOptions.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+
+        <FilterField label="Provider">
+          <select
+            aria-label="Provider"
+            className={selectClassName}
+            disabled={!filters.projectId || !providerOptions.length}
+            value={filters.provider || ''}
+            onChange={(event) => {
+              const provider = event.target.value;
+              setFilters((prev) =>
+                prev.provider === provider ? prev : { ...prev, provider, profileId: '', modelName: '' },
+              );
+            }}
           >
-            {provider || '全部 Provider'}
-          </SelectButton>
-        ))}
-        <select
-          className="h-[31px] rounded-lg border border-white/10 bg-[#15181D] px-3 text-[12px] text-[var(--text-muted)] outline-none transition-colors duration-150 hover:text-[var(--text-main)]"
-          value={filters.projectId || ''}
-          onChange={(event) => {
-            const projectId = event.target.value;
-            setFilters((prev) => (prev.projectId === projectId ? prev : { ...prev, projectId }));
-          }}
-        >
-          <option value="">全部项目</option>
-          {projects.map((project) => (
-            <option key={project.projectId || project.projectName} value={project.projectId || ''}>
-              {project.projectName || project.projectId || 'unknown'}
-            </option>
-          ))}
-        </select>
-        <select
-          className="h-[31px] rounded-lg border border-white/10 bg-[#15181D] px-3 text-[12px] text-[var(--text-muted)] outline-none transition-colors duration-150 hover:text-[var(--text-main)]"
-          value={filters.modelName || ''}
-          onChange={(event) => {
-            const modelName = event.target.value;
-            setFilters((prev) => (prev.modelName === modelName ? prev : { ...prev, modelName }));
-          }}
-        >
-          <option value="">全部模型</option>
-          {modelOptions.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-        </select>
+            <option value="">{providerOptions.length ? '选择 Provider' : '暂无 Provider'}</option>
+            {providerOptions.map((provider) => (
+              <option key={provider.value} value={provider.value}>
+                {provider.label}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+
+        <FilterField label="Profile">
+          <select
+            aria-label="Profile"
+            className={`${selectClassName} min-w-[190px]`}
+            disabled={!filters.provider || !profileOptions.length}
+            value={filters.profileId || ''}
+            onChange={(event) => {
+              const profileId = event.target.value;
+              setFilters((prev) =>
+                prev.profileId === profileId ? prev : { ...prev, profileId, modelName: '' },
+              );
+            }}
+          >
+            <option value="">{profileOptions.length ? '选择 Profile' : '暂无 Profile'}</option>
+            {profileOptions.map((profile) => (
+              <option key={profile.value} value={profile.value}>
+                {profile.label}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+
+        <div className="grid gap-1 text-[11px] text-[var(--text-muted)]">
+          <span>时间</span>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['7d', '最近 7 天'],
+              ['30d', '最近 30 天'],
+              ['all', '全部时间'],
+            ].map(([range, label]) => (
+              <SelectButton
+                key={range}
+                active={filters.range === range}
+                onClick={() =>
+                  setFilters((prev) => (prev.range === range ? prev : { ...prev, range, modelName: '' }))
+                }
+              >
+                {label}
+              </SelectButton>
+            ))}
+          </div>
+        </div>
       </div>
 
       {error ? (

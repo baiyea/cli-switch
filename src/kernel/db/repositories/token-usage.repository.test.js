@@ -293,6 +293,7 @@ test('getSummary returns models ordered by totalTokens descending with camelCase
   assert.deepEqual(summary.models, [
     {
       provider: 'claude',
+      profileId: 'profile-1',
       modelName: 'large-model',
       profileName: 'Large',
       apiBaseHost: 'api.example.com',
@@ -301,11 +302,54 @@ test('getSummary returns models ordered by totalTokens descending with camelCase
     },
     {
       provider: 'claude',
+      profileId: 'profile-1',
       modelName: 'small-model',
       profileName: 'Small',
       apiBaseHost: 'api.moonshot.cn',
       runCount: 1,
       totalTokens: 50,
+    },
+  ]);
+});
+
+test('getSummary filters by profileId and keeps model summaries scoped to that profile', () => {
+  const { repo } = createRepo();
+  const matching = startRun(repo, {
+    profileId: 'deepseek-api',
+    profileName: 'DeepSeek',
+    modelName: 'deepseek-v4-pro',
+  });
+  const other = startRun(repo, {
+    profileId: 'kimi-api',
+    profileName: 'Kimi',
+    modelName: 'kimi-k2',
+    runStartedAt: '2026-06-04T02:00:00.000Z',
+  });
+  repo.addSnapshotDelta(matching.id, {
+    totalTokens: 80,
+    inputTokens: 50,
+    outputTokens: 30,
+    rounds: 1,
+  });
+  repo.addSnapshotDelta(other.id, {
+    totalTokens: 120,
+    inputTokens: 70,
+    outputTokens: 50,
+    rounds: 2,
+  });
+
+  const summary = repo.getSummary({ range: 'all', profileId: 'deepseek-api' });
+
+  assert.equal(summary.totals.totalTokens, 80);
+  assert.deepEqual(summary.models, [
+    {
+      provider: 'claude',
+      profileId: 'deepseek-api',
+      modelName: 'deepseek-v4-pro',
+      profileName: 'DeepSeek',
+      apiBaseHost: 'api.moonshot.cn',
+      runCount: 1,
+      totalTokens: 80,
     },
   ]);
 });
