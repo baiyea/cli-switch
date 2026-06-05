@@ -22,16 +22,13 @@ function createMessageRegistry() {
     'zh-CN': {},
     'en-US': {},
   };
-  const owners = {
-    'zh-CN': {},
-    'en-US': {},
-  };
+  const owners = {};
 
   function registerMessages(namespace, bundle = {}) {
     const normalizedNamespace = normalizeNamespace(namespace);
     for (const locale of SUPPORTED_LOCALES) {
       for (const key of Object.keys(bundle[locale] || {})) {
-        const owner = owners[locale][key];
+        const owner = owners[key];
         if (owner && owner !== normalizedNamespace) {
           throw new Error(
             `Duplicate i18n key "${key}" from namespace "${normalizedNamespace}"; already registered by "${owner}"`,
@@ -43,7 +40,7 @@ function createMessageRegistry() {
     for (const locale of SUPPORTED_LOCALES) {
       const localeMessages = bundle[locale] || {};
       for (const key of Object.keys(localeMessages)) {
-        owners[locale][key] = normalizedNamespace;
+        owners[key] = normalizedNamespace;
       }
       messages[locale] = {
         ...messages[locale],
@@ -70,7 +67,9 @@ function createMessageRegistry() {
   function clear() {
     for (const locale of SUPPORTED_LOCALES) {
       messages[locale] = {};
-      owners[locale] = {};
+    }
+    for (const key of Object.keys(owners)) {
+      delete owners[key];
     }
   }
 

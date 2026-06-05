@@ -80,6 +80,49 @@ test('different namespace duplicate key throws', () => {
   );
 });
 
+test('empty namespace and global namespace are the same owner', () => {
+  const registry = createMessageRegistry();
+  registry.registerMessages('', {
+    'zh-CN': { 'common.save': '保存' },
+  });
+  registry.registerMessages('global', {
+    'en-US': { 'common.save': 'Save' },
+  });
+
+  assert.equal(registry.t('zh-CN', 'common.save'), '保存');
+  assert.equal(registry.t('en-US', 'common.save'), 'Save');
+});
+
+test('other namespace cannot reuse key first registered by empty namespace', () => {
+  const registry = createMessageRegistry();
+  registry.registerMessages('', {
+    'zh-CN': { 'common.save': '保存' },
+  });
+
+  assert.throws(
+    () =>
+      registry.registerMessages('settings', {
+        'zh-CN': { 'common.save': '保存' },
+      }),
+    /Duplicate i18n key "common\.save" from namespace "settings"; already registered by "global"/,
+  );
+});
+
+test('different namespaces cannot register the same key in different locales', () => {
+  const registry = createMessageRegistry();
+  registry.registerMessages('settings', {
+    'zh-CN': { 'settings.title': '设置' },
+  });
+
+  assert.throws(
+    () =>
+      registry.registerMessages('appearance', {
+        'en-US': { 'settings.title': 'Settings' },
+      }),
+    /Duplicate i18n key "settings\.title" from namespace "appearance"; already registered by "settings"/,
+  );
+});
+
 test('service does not notify when same locale is set', () => {
   const service = new I18nService(createMessageRegistry());
   let calls = 0;
