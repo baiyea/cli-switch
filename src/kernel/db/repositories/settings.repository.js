@@ -57,6 +57,18 @@ function createSettingsRepo({ getDatabase, now }) {
       .run(key, JSON.stringify(value), timestamp);
   }
 
+  function getAppearanceSettings() {
+    const row = conn
+      .prepare('SELECT value FROM app_settings WHERE key = ?')
+      .get(APPEARANCE_SETTINGS_KEY);
+    if (!row) return defaultAppearanceValue;
+    try {
+      return ensureAppearanceShape(JSON.parse(row.value || '{}'));
+    } catch {
+      return defaultAppearanceValue;
+    }
+  }
+
   return {
     getProviderStartupSettings() {
       const row = conn.prepare('SELECT value FROM app_settings WHERE key = ?').get(SETTINGS_KEY);
@@ -105,18 +117,10 @@ function createSettingsRepo({ getDatabase, now }) {
       return normalized;
     },
     getAppearanceSettings() {
-      const row = conn
-        .prepare('SELECT value FROM app_settings WHERE key = ?')
-        .get(APPEARANCE_SETTINGS_KEY);
-      if (!row) return defaultAppearanceValue;
-      try {
-        return ensureAppearanceShape(JSON.parse(row.value || '{}'));
-      } catch {
-        return defaultAppearanceValue;
-      }
+      return getAppearanceSettings();
     },
     setAppearanceSettings(value) {
-      const normalized = ensureAppearanceShape(value);
+      const normalized = ensureAppearanceShape({ ...getAppearanceSettings(), ...(value || {}) });
       upsertSetting(APPEARANCE_SETTINGS_KEY, normalized);
       return normalized;
     },

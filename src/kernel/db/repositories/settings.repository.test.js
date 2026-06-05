@@ -15,6 +15,12 @@ function createRepo() {
   return { conn, repo };
 }
 
+function insertAppearanceSettings(conn, value) {
+  conn
+    .prepare('INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)')
+    .run('appearance_settings', JSON.stringify(value), '2026-06-05T00:00:00.000Z');
+}
+
 test('getAppearanceSettings returns default appearance settings', () => {
   const { repo } = createRepo();
 
@@ -48,7 +54,7 @@ test('setAppearanceSettings persists a valid theme mode and locale without chang
   assert.deepEqual(JSON.parse(rows[0].value), { themeMode: 'dark', locale: 'en-US' });
 });
 
-test('appearance settings normalize invalid and missing theme modes to system', () => {
+test('appearance settings normalize invalid theme modes to system', () => {
   const { repo } = createRepo();
 
   assert.deepEqual(repo.setAppearanceSettings({ themeMode: 'sepia' }), {
@@ -56,6 +62,47 @@ test('appearance settings normalize invalid and missing theme modes to system', 
     locale: 'zh-CN',
   });
   assert.deepEqual(repo.getAppearanceSettings(), { themeMode: 'system', locale: 'zh-CN' });
+});
+
+test('getAppearanceSettings fills zh-CN locale for legacy theme-only data', () => {
+  const { conn, repo } = createRepo();
+  insertAppearanceSettings(conn, { themeMode: 'dark' });
+
+  assert.deepEqual(repo.getAppearanceSettings(), { themeMode: 'dark', locale: 'zh-CN' });
+});
+
+test('setAppearanceSettings keeps existing locale when patching theme mode', () => {
+  const { repo } = createRepo();
+  repo.setAppearanceSettings({ themeMode: 'dark', locale: 'en-US' });
+
+  assert.deepEqual(repo.setAppearanceSettings({ themeMode: 'light' }), {
+    themeMode: 'light',
+    locale: 'en-US',
+  });
+  assert.deepEqual(repo.getAppearanceSettings(), { themeMode: 'light', locale: 'en-US' });
+});
+
+test('setAppearanceSettings keeps existing theme mode when patching locale', () => {
+  const { repo } = createRepo();
+  repo.setAppearanceSettings({ themeMode: 'dark', locale: 'en-US' });
+
+  assert.deepEqual(repo.setAppearanceSettings({ locale: 'zh-CN' }), {
+    themeMode: 'dark',
+    locale: 'zh-CN',
+  });
+  assert.deepEqual(repo.getAppearanceSettings(), { themeMode: 'dark', locale: 'zh-CN' });
+});
+
+test('setAppearanceSettings keeps existing settings for an empty patch', () => {
+  const { repo } = createRepo();
+  repo.setAppearanceSettings({ themeMode: 'dark', locale: 'en-US' });
+
+  assert.deepEqual(repo.setAppearanceSettings({}), { themeMode: 'dark', locale: 'en-US' });
+  assert.deepEqual(repo.getAppearanceSettings(), { themeMode: 'dark', locale: 'en-US' });
+});
+
+test('setAppearanceSettings uses defaults for an initial empty patch', () => {
+  const { repo } = createRepo();
 
   assert.deepEqual(repo.setAppearanceSettings({}), { themeMode: 'system', locale: 'zh-CN' });
   assert.deepEqual(repo.getAppearanceSettings(), { themeMode: 'system', locale: 'zh-CN' });

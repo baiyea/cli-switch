@@ -5,3 +5,5 @@ export interface AppearanceSettings {
   themeMode: AppearanceThemeMode;
   locale: AppearanceLocale;
 }
+
+export type AppearanceSettingsPatch = Partial<AppearanceSettings>;
