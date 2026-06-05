@@ -1,10 +1,6 @@
-import registryModule from './i18n.registry.js';
-import serviceModule from './i18n.service.js';
+import { i18nService, normalizeLocale } from './i18n.renderer-runtime.js';
 import enUSMessages from './locales/en-US.json';
 import zhCNMessages from './locales/zh-CN.json';
-
-const { normalizeLocale } = registryModule;
-const { i18nService } = serviceModule;
 
 function registerGlobalI18n() {
   i18nService.registerMessages('global', {
