@@ -13,17 +13,41 @@ function interpolateMessage(message, params = {}) {
   return next;
 }
 
+function normalizeNamespace(namespace) {
+  return namespace || 'global';
+}
+
 function createMessageRegistry() {
   const messages = {
     'zh-CN': {},
     'en-US': {},
   };
+  const owners = {
+    'zh-CN': {},
+    'en-US': {},
+  };
 
-  function registerMessages(_namespace, bundle = {}) {
+  function registerMessages(namespace, bundle = {}) {
+    const normalizedNamespace = normalizeNamespace(namespace);
     for (const locale of SUPPORTED_LOCALES) {
+      for (const key of Object.keys(bundle[locale] || {})) {
+        const owner = owners[locale][key];
+        if (owner && owner !== normalizedNamespace) {
+          throw new Error(
+            `Duplicate i18n key "${key}" from namespace "${normalizedNamespace}"; already registered by "${owner}"`,
+          );
+        }
+      }
+    }
+
+    for (const locale of SUPPORTED_LOCALES) {
+      const localeMessages = bundle[locale] || {};
+      for (const key of Object.keys(localeMessages)) {
+        owners[locale][key] = normalizedNamespace;
+      }
       messages[locale] = {
         ...messages[locale],
-        ...(bundle[locale] || {}),
+        ...localeMessages,
       };
     }
   }
@@ -46,6 +70,7 @@ function createMessageRegistry() {
   function clear() {
     for (const locale of SUPPORTED_LOCALES) {
       messages[locale] = {};
+      owners[locale] = {};
     }
   }
 

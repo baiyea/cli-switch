@@ -11,6 +11,16 @@ class I18nService {
     return this.locale;
   }
 
+  notify() {
+    for (const listener of Array.from(this.listeners)) {
+      try {
+        listener(this.locale);
+      } catch (error) {
+        console.warn('[i18n] listener failed', error);
+      }
+    }
+  }
+
   setLocale(locale) {
     const nextLocale = normalizeLocale(locale);
     if (this.locale === nextLocale) {
@@ -18,14 +28,13 @@ class I18nService {
     }
 
     this.locale = nextLocale;
-    for (const listener of this.listeners) {
-      listener(this.locale);
-    }
+    this.notify();
     return this.locale;
   }
 
   registerMessages(namespace, bundle) {
     this.registry.registerMessages(namespace, bundle);
+    this.notify();
   }
 
   t(key, params) {
