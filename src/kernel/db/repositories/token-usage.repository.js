@@ -40,6 +40,11 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
     };
   }
 
+  function isUnknownValue(value) {
+    const normalized = text(value).trim().toLowerCase();
+    return !normalized || normalized === 'unknown';
+  }
+
   function buildSummaryWhere(filters = {}) {
     const clauses = [];
     const params = [];
@@ -238,6 +243,48 @@ function createTokenUsageRepo({ getDatabase, now, genId }) {
       const normalizedFileSize = Math.floor(fileSize);
       if (normalizedMtimeMs < 0 || normalizedFileSize < 0) return '';
       return `${normalizedMtimeMs}:${normalizedFileSize}`;
+    },
+
+    updateRunMetadataIfUnknown(runId, metadata = {}) {
+      const id = text(runId).trim();
+      if (!id) return null;
+      const row = conn.prepare('SELECT * FROM token_usage_runs WHERE id = ?').get(id);
+      if (!row) return null;
+      const next = {
+        profile_id: isUnknownValue(row.profile_id) ? text(metadata.profileId) || 'unknown' : row.profile_id,
+        profile_name: isUnknownValue(row.profile_name)
+          ? text(metadata.profileName || metadata.profileId) || 'unknown'
+          : row.profile_name,
+        model_name: isUnknownValue(row.model_name) ? text(metadata.modelName) || 'unknown' : row.model_name,
+        api_base_host: isUnknownValue(row.api_base_host)
+          ? text(metadata.apiBaseHost) || 'unknown'
+          : row.api_base_host,
+        env_fingerprint: text(row.env_fingerprint) || text(metadata.envFingerprint),
+      };
+      const changed =
+        next.profile_id !== row.profile_id ||
+        next.profile_name !== row.profile_name ||
+        next.model_name !== row.model_name ||
+        next.api_base_host !== row.api_base_host ||
+        next.env_fingerprint !== row.env_fingerprint;
+      if (!changed) return row;
+      conn
+        .prepare(
+          `UPDATE token_usage_runs
+           SET profile_id = @profile_id,
+               profile_name = @profile_name,
+               model_name = @model_name,
+               api_base_host = @api_base_host,
+               env_fingerprint = @env_fingerprint,
+               updated_at = @updated_at
+           WHERE id = @id`,
+        )
+        .run({
+          id,
+          ...next,
+          updated_at: now(),
+        });
+      return conn.prepare('SELECT * FROM token_usage_runs WHERE id = ?').get(id);
     },
 
     reconcileProviderSessionId({

@@ -114,6 +114,20 @@ function createDeps(overrides = {}) {
           .find((item) => item.provider === provider && item.provider_session_id === providerSessionId);
         return run ? fingerprints[run.id] || '' : '';
       },
+      updateRunMetadataIfUnknown(runId, metadata) {
+        const run = runs.find((item) => item.id === runId);
+        if (!run) return null;
+        const isUnknown = (value) => {
+          const normalized = String(value || '').trim().toLowerCase();
+          return !normalized || normalized === 'unknown';
+        };
+        if (isUnknown(run.profile_id)) run.profile_id = metadata.profileId;
+        if (isUnknown(run.profile_name)) run.profile_name = metadata.profileName;
+        if (isUnknown(run.model_name)) run.model_name = metadata.modelName;
+        if (isUnknown(run.api_base_host)) run.api_base_host = metadata.apiBaseHost;
+        if (!run.env_fingerprint) run.env_fingerprint = metadata.envFingerprint;
+        return run;
+      },
     },
     readSessionStats({ row }) {
       const value = statsByPath[row.session_file_path];
@@ -143,7 +157,7 @@ function createDeps(overrides = {}) {
   return deps;
 }
 
-test('refresh creates unknown run and writes cumulative delta when no active run exists', () => {
+test('refresh creates metadata run and writes cumulative delta when no active run exists', () => {
   const deps = createDeps({
     files: [{ path: '/tmp/session.jsonl', mtimeMs: 100, size: 200 }],
     statsByPath: {
@@ -166,10 +180,41 @@ test('refresh creates unknown run and writes cumulative delta when no active run
   const result = service.refresh();
 
   assert.deepEqual(result, { scanned: 1, updated: 1, skipped: 0, failed: 0 });
-  assert.equal(deps.runs[0].model_name, 'unknown');
-  assert.equal(deps.runs[0].profile_name, 'unknown');
+  assert.equal(deps.runs[0].model_name, 'model-one');
+  assert.equal(deps.runs[0].profile_id, 'profile-1');
+  assert.equal(deps.runs[0].profile_name, 'Profile One');
+  assert.equal(deps.runs[0].api_base_host, 'api.example.com');
   assert.equal(deps.snapshots[0].delta.totalTokens, 168);
   assert.equal(deps.snapshots[0].delta.statsEndedAt, new Date(1_780_000_000_000).toISOString());
+});
+
+test('syncSession repairs unknown active run metadata before unchanged fingerprint skip', () => {
+  const deps = createDeps({
+    files: [{ path: '/tmp/session.jsonl', mtimeMs: 100, size: 200 }],
+    fingerprints: { 'run-1': '100:200' },
+  });
+  deps.runs.push({
+    id: 'run-1',
+    provider: 'claude',
+    provider_session_id: 'provider-session-1',
+    profile_id: 'unknown',
+    profile_name: 'unknown',
+    model_name: 'unknown',
+    api_base_host: 'unknown',
+    env_fingerprint: '',
+    run_ended_at: null,
+  });
+  const service = createTokenUsageSyncService(deps);
+
+  const result = service.syncSession(deps.activeRows[0]);
+
+  assert.equal(result.status, 'skipped');
+  assert.equal(deps.runs[0].profile_id, 'profile-1');
+  assert.equal(deps.runs[0].profile_name, 'Profile One');
+  assert.equal(deps.runs[0].model_name, 'model-one');
+  assert.equal(deps.runs[0].api_base_host, 'api.example.com');
+  assert.equal(deps.runs[0].env_fingerprint, 'metadata-fingerprint');
+  assert.equal(deps.snapshots.length, 0);
 });
 
 test('syncSession skips unchanged file fingerprint without writing delta', () => {

@@ -3,8 +3,17 @@ import { RefreshCcw } from 'lucide-react';
 import { Button } from '../../../../ui/button';
 import { useTokenUsage } from './use-token-usage';
 
-function formatNumber(value) {
+function formatCount(value) {
   return new Intl.NumberFormat('en-US').format(Math.max(0, Math.floor(Number(value || 0))));
+}
+
+function formatTokenValue(value) {
+  const next = Number(value || 0);
+  const normalized = Number.isFinite(next) ? Math.max(0, next) : 0;
+  return `${(normalized / 1_000_000).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}M`;
 }
 
 function formatDateLabel(value) {
@@ -23,12 +32,12 @@ function formatDateTime(value) {
   ).padStart(2, '0')}`;
 }
 
-function MetricCard({ label, value, hint }) {
+function MetricCard({ label, value, hint, formatter = formatCount }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-3">
       <div className="mb-2 text-[11px] text-[var(--text-muted)]">{label}</div>
       <strong className="block text-[18px] leading-none text-[var(--text-main)]">
-        {formatNumber(value)}
+        {formatter(value)}
       </strong>
       {hint ? <div className="mt-2 text-[11px] text-[var(--text-muted)]">{hint}</div> : null}
     </div>
@@ -222,12 +231,21 @@ export function TokenUsageSettingsSection() {
       {loading ? <div className="text-xs text-[var(--text-muted)]">加载中...</div> : null}
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
-        <MetricCard label="总 Token" value={totals.totalTokens} hint={`${formatNumber(totals.runCount)} 个运行段`} />
-        <MetricCard label="输入" value={totals.inputTokens} />
-        <MetricCard label="输出" value={totals.outputTokens} />
-        <MetricCard label="缓存" value={totals.cachedTokens} />
-        <MetricCard label="Reasoning" value={totals.reasoningTokens} />
-        <MetricCard label="轮次" value={totals.rounds} hint={`${formatNumber(totals.sessionCount)} 个会话`} />
+        <MetricCard
+          label="总 Token"
+          value={totals.totalTokens}
+          hint={`${formatCount(totals.runCount)} 个运行段`}
+          formatter={formatTokenValue}
+        />
+        <MetricCard label="输入" value={totals.inputTokens} formatter={formatTokenValue} />
+        <MetricCard label="输出" value={totals.outputTokens} formatter={formatTokenValue} />
+        <MetricCard label="缓存" value={totals.cachedTokens} formatter={formatTokenValue} />
+        <MetricCard label="Reasoning" value={totals.reasoningTokens} formatter={formatTokenValue} />
+        <MetricCard
+          label="轮次"
+          value={totals.rounds}
+          hint={`${formatCount(totals.sessionCount)} 个会话`}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,.8fr)]">
@@ -238,21 +256,28 @@ export function TokenUsageSettingsSection() {
           </div>
           {daily.length ? (
             <div className="grid h-[202px] grid-cols-7 items-end gap-2 p-4 md:grid-cols-14">
-              {daily.map((item, index) => (
-                <div
-                  key={item.date || `daily-${index}`}
-                  className="grid h-full items-end gap-1 text-center text-[10px] text-[var(--text-muted)]"
-                >
+              {daily.map((item, index) => {
+                const dailyLabel = `${formatDateLabel(item.date)} · ${formatTokenValue(item.totalTokens)}`;
+                return (
                   <div
-                    className="min-h-[5px] rounded-t-[4px] bg-[#6FD6A5] shadow-[0_0_18px_rgba(111,214,165,0.18)]"
-                    style={{
-                      height: `${Math.max(5, (Number(item.totalTokens || 0) / maxDaily) * 100)}%`,
-                    }}
-                    title={`${formatDateLabel(item.date)} · ${formatNumber(item.totalTokens)}`}
-                  />
-                  <span>{formatDateLabel(item.date)}</span>
-                </div>
-              ))}
+                    key={item.date || `daily-${index}`}
+                    className="group relative grid h-full items-end gap-1 text-center text-[10px] text-[var(--text-muted)]"
+                  >
+                    <span className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 rounded-md border border-white/10 bg-[#11151A] px-2 py-1 text-[10px] font-medium text-[var(--text-main)] opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                      {formatTokenValue(item.totalTokens)}
+                    </span>
+                    <div
+                      aria-label={dailyLabel}
+                      className="min-h-[5px] rounded-t-[4px] bg-[#6FD6A5] shadow-[0_0_18px_rgba(111,214,165,0.18)]"
+                      style={{
+                        height: `${Math.max(5, (Number(item.totalTokens || 0) / maxDaily) * 100)}%`,
+                      }}
+                      title={dailyLabel}
+                    />
+                    <span>{formatDateLabel(item.date)}</span>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="p-3">
@@ -282,11 +307,11 @@ export function TokenUsageSettingsSection() {
                     </div>
                     <div className="mt-1 truncate text-[11px] text-[var(--text-muted)]">
                       {item.profileName || 'unknown'} · {item.apiBaseHost || 'unknown'} ·{' '}
-                      {formatNumber(item.runCount)} 段
+                      {formatCount(item.runCount)} 段
                     </div>
                   </div>
                   <strong className="text-[13px] text-[var(--text-main)]">
-                    {formatNumber(item.totalTokens)}
+                    {formatTokenValue(item.totalTokens)}
                   </strong>
                 </div>
               ))}

@@ -72,6 +72,31 @@ function createTokenUsageSyncService({
     };
   }
 
+  function metadataForProvider(provider) {
+    const source = resolveRunMetadata(provider) || {};
+    return {
+      profileId: text(source.profileId) || 'unknown',
+      profileName: text(source.profileName || source.profileId) || 'unknown',
+      modelName: text(source.modelName) || 'unknown',
+      apiBaseHost: text(source.apiBaseHost) || 'unknown',
+      envFingerprint: text(source.envFingerprint),
+    };
+  }
+
+  function isUnknownAttribution(run) {
+    const profileId = text(run?.profile_id).trim().toLowerCase();
+    const profileName = text(run?.profile_name).trim().toLowerCase();
+    return !profileId || profileId === 'unknown' || !profileName || profileName === 'unknown';
+  }
+
+  function repairUnknownRunAttribution(row, run = null) {
+    const targetRun = run || getActiveRun(row);
+    if (!targetRun || !isUnknownAttribution(targetRun)) return targetRun;
+    if (typeof tokenUsageStore.updateRunMetadataIfUnknown !== 'function') return targetRun;
+    const metadata = metadataForProvider(providerFromRow(row));
+    return tokenUsageStore.updateRunMetadataIfUnknown(targetRun.id, metadata) || targetRun;
+  }
+
   function getActiveRun(row) {
     const provider = providerFromRow(row);
     const providerSessionId = providerSessionIdFromRow(row);
@@ -85,7 +110,7 @@ function createTokenUsageSyncService({
     if (!providerSessionId) throw new Error('provider_session_id is required');
 
     const activeRun = getActiveRun(row);
-    if (activeRun) return activeRun;
+    if (activeRun) return repairUnknownRunAttribution(row, activeRun);
 
     const metadata = resolveRunMetadata(provider) || {};
     return tokenUsageStore.startRun(runPayloadFromRow(row, metadata, startedAt));
@@ -93,17 +118,12 @@ function createTokenUsageSyncService({
 
   function startUnknownRunForSession(row) {
     const activeRun = getActiveRun(row);
-    if (activeRun) return activeRun;
+    if (activeRun) return repairUnknownRunAttribution(row, activeRun);
+    const metadata = metadataForProvider(providerFromRow(row));
     return tokenUsageStore.startRun(
       runPayloadFromRow(
         row,
-        {
-          profileId: 'unknown',
-          profileName: 'unknown',
-          modelName: 'unknown',
-          apiBaseHost: 'unknown',
-          envFingerprint: '',
-        },
+        metadata,
         row?.updated_at || now(),
       ),
     );
@@ -193,6 +213,7 @@ function createTokenUsageSyncService({
     }
 
     const fingerprint = fileFingerprint(stat);
+    repairUnknownRunAttribution(row);
     if (!force && getLastFingerprint(row) === fingerprint) {
       return { status: 'skipped', reason: 'unchanged' };
     }

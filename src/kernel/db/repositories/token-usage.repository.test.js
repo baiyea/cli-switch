@@ -276,6 +276,52 @@ test('reconcileProviderSessionId moves existing run attribution to the discovere
   );
 });
 
+test('updateRunMetadataIfUnknown repairs unknown attribution without overwriting known values', () => {
+  const { repo } = createRepo();
+  const unknown = startRun(repo, {
+    profileId: 'unknown',
+    profileName: 'unknown',
+    modelName: 'unknown',
+    apiBaseHost: 'unknown',
+    envFingerprint: '',
+  });
+  const known = startRun(repo, {
+    providerSessionId: 'provider-session-2',
+    profileId: 'known-profile',
+    profileName: 'Known Profile',
+    modelName: 'known-model',
+    apiBaseHost: 'known.example.com',
+    envFingerprint: 'known-fingerprint',
+    runStartedAt: '2026-06-04T02:00:00.000Z',
+  });
+
+  const repaired = repo.updateRunMetadataIfUnknown(unknown.id, {
+    profileId: 'oauth-login',
+    profileName: 'OAuth 登录',
+    modelName: 'gpt-5-codex',
+    apiBaseHost: 'api.openai.com',
+    envFingerprint: 'oauth-fingerprint',
+  });
+  const untouched = repo.updateRunMetadataIfUnknown(known.id, {
+    profileId: 'oauth-login',
+    profileName: 'OAuth 登录',
+    modelName: 'gpt-5-codex',
+    apiBaseHost: 'api.openai.com',
+    envFingerprint: 'oauth-fingerprint',
+  });
+
+  assert.equal(repaired.profile_id, 'oauth-login');
+  assert.equal(repaired.profile_name, 'OAuth 登录');
+  assert.equal(repaired.model_name, 'gpt-5-codex');
+  assert.equal(repaired.api_base_host, 'api.openai.com');
+  assert.equal(repaired.env_fingerprint, 'oauth-fingerprint');
+  assert.equal(untouched.profile_id, 'known-profile');
+  assert.equal(untouched.profile_name, 'Known Profile');
+  assert.equal(untouched.model_name, 'known-model');
+  assert.equal(untouched.api_base_host, 'known.example.com');
+  assert.equal(untouched.env_fingerprint, 'known-fingerprint');
+});
+
 test('getSummary returns models ordered by totalTokens descending with camelCase fields', () => {
   const { repo } = createRepo();
   const small = startRun(repo, { modelName: 'small-model', profileName: 'Small' });
