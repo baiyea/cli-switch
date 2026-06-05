@@ -1,0 +1,20 @@
+{
+  "settings.appearance.title": "Appearance",
+  "settings.appearance.subtitle": "Adjust the interface theme, language, and preview.",
+  "settings.appearance.themeMode": "Theme mode",
+  "settings.appearance.themeDescription": "Choose how the settings interface and terminal workspace are displayed. Changes preview immediately and save in the background.",
+  "settings.appearance.theme.system.label": "Follow system",
+  "settings.appearance.theme.system.description": "Automatically match the system light or dark preference.",
+  "settings.appearance.theme.dark.label": "Dark",
+  "settings.appearance.theme.dark.description": "Best for long terminal sessions and low-light environments.",
+  "settings.appearance.theme.dark.name": "Dark",
+  "settings.appearance.theme.light.label": "Light",
+  "settings.appearance.theme.light.description": "Improves clarity for daytime reading, review, and demos.",
+  "settings.appearance.theme.light.name": "Light",
+  "settings.appearance.language": "Language",
+  "settings.appearance.languageDescription": "Choose the display language for the app interface.",
+  "settings.appearance.previewTitle": "Terminal preview",
+  "settings.appearance.previewCurrent": "Currently active",
+  "settings.appearance.saveFailed": "Save failed",
+  "settings.appearance.saveLocaleFailed": "Language save failed"
+}

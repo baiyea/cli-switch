@@ -11,5 +11,22 @@
   "common.failed": "Failed",
   "language.zhCN": "简体中文",
   "language.enUS": "English",
-  "settings.title": "Settings"
+  "settings.title": "Settings",
+  "settings.sideNav.providers": "Providers",
+  "settings.sideNav.archive": "Archive",
+  "settings.sideNav.tokenUsage": "Token usage",
+  "settings.sideNav.appearance": "Appearance",
+  "settings.sideNav.about": "About",
+  "settings.modal.close": "Close settings",
+  "settings.guard.providerRequired": "Configure and enable at least one provider first.",
+  "settings.section.providers.title": "Providers",
+  "settings.section.providers.subtitle": "Configure CLI providers, authentication, and connection settings.",
+  "settings.section.providers.oauthSubtitle": "Manage OAuth login status and session reuse.",
+  "settings.section.archive.title": "Archive",
+  "settings.section.archive.subtitle": "View, restore, or clean up archived sessions.",
+  "settings.section.tokenUsage.title": "Token usage",
+  "settings.section.tokenUsage.subtitle": "Review token consumption and sync status for model calls.",
+  "settings.section.about.title": "About",
+  "settings.section.about.subtitle": "View app version, project details, and support information.",
+  "settings.page.back": "Back"
 }

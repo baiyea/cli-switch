@@ -1,0 +1,20 @@
+{
+  "settings.appearance.title": "外观",
+  "settings.appearance.subtitle": "调整界面主题、语言和预览效果。",
+  "settings.appearance.themeMode": "主题模式",
+  "settings.appearance.themeDescription": "选择设置界面与终端工作区的显示方式。点击后立即预览，并在后台保存。",
+  "settings.appearance.theme.system.label": "跟随系统",
+  "settings.appearance.theme.system.description": "自动匹配系统深浅色偏好。",
+  "settings.appearance.theme.dark.label": "暗色系",
+  "settings.appearance.theme.dark.description": "适合长时间终端工作和低光环境。",
+  "settings.appearance.theme.dark.name": "暗色系",
+  "settings.appearance.theme.light.label": "亮色系",
+  "settings.appearance.theme.light.description": "提高白天阅读、审阅与演示时的清晰度。",
+  "settings.appearance.theme.light.name": "亮色系",
+  "settings.appearance.language": "语言",
+  "settings.appearance.languageDescription": "选择应用界面显示语言。",
+  "settings.appearance.previewTitle": "终端预览",
+  "settings.appearance.previewCurrent": "当前生效",
+  "settings.appearance.saveFailed": "保存失败",
+  "settings.appearance.saveLocaleFailed": "语言保存失败"
+}
