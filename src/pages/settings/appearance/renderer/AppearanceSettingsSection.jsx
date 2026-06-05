@@ -1,11 +1,7 @@
 import { useMemo } from 'react';
 
-import { registerMessages } from '../../../../i18n/renderer';
 import { useT } from '../../../../i18n/use-t';
-import { appearanceMessages } from '../locales';
 import { useAppearanceSettings } from './use-appearance-settings';
-
-registerMessages('settings.appearance', appearanceMessages);
 
 function getThemeOptions(t) {
   return [

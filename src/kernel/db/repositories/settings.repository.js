@@ -1,5 +1,6 @@
 function createSettingsRepo({ getDatabase, now }) {
   const conn = getDatabase();
+  const { DEFAULT_LOCALE, SUPPORTED_LOCALES } = require('../../../i18n/main');
   const SETTINGS_KEY = 'provider_startup_settings';
   const APPEARANCE_SETTINGS_KEY = 'appearance_settings';
   const defaultValue = {
@@ -9,9 +10,9 @@ function createSettingsRepo({ getDatabase, now }) {
       gemini: { defaultProfileId: '', enabledProfileId: '', profiles: [] },
     },
   };
-  const defaultAppearanceValue = { themeMode: 'system', locale: 'zh-CN' };
+  const defaultAppearanceValue = { themeMode: 'system', locale: DEFAULT_LOCALE };
   const validThemeModes = new Set(['system', 'dark', 'light']);
-  const validLocales = new Set(['zh-CN', 'en-US']);
+  const validLocales = new Set(SUPPORTED_LOCALES);
 
   function ensureProviderShape(input) {
     const normalized = { ...defaultValue, ...(input || {}) };

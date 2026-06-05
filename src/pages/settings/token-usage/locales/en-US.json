@@ -37,5 +37,9 @@
   "settings.tokenUsage.byRunSegment": "Grouped by run segment",
   "settings.tokenUsage.emptyModels": "No model statistics yet. Rescan or wait for background sync to finish.",
   "settings.tokenUsage.unknown": "unknown",
-  "settings.tokenUsage.segmentCount": "{count} segments"
+  "settings.tokenUsage.segmentCount": "{count} segments",
+  "settings.tokenUsage.readFailed": "Failed to read token statistics",
+  "settings.tokenUsage.refreshFailed": "Failed to refresh token statistics",
+  "settings.tokenUsage.refreshStatusFailed": "Failed to read token refresh status",
+  "settings.tokenUsage.refreshTimeout": "Token refresh timed out, please try again later"
 }

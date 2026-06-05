@@ -37,5 +37,9 @@
   "settings.tokenUsage.byRunSegment": "按运行段聚合",
   "settings.tokenUsage.emptyModels": "暂无模型统计。点击重新扫描或等待后台同步完成。",
   "settings.tokenUsage.unknown": "unknown",
-  "settings.tokenUsage.segmentCount": "{count} 段"
+  "settings.tokenUsage.segmentCount": "{count} 段",
+  "settings.tokenUsage.readFailed": "Token 统计读取失败",
+  "settings.tokenUsage.refreshFailed": "Token 统计刷新失败",
+  "settings.tokenUsage.refreshStatusFailed": "Token 统计刷新状态读取失败",
+  "settings.tokenUsage.refreshTimeout": "Token 统计刷新超时，请稍后重试"
 }

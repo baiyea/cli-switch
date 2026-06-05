@@ -55,6 +55,15 @@ function createMessageRegistry() {
     return interpolateMessage(message, params);
   }
 
+  function findMissingKeys(locale, baseLocale = DEFAULT_LOCALE) {
+    const normalizedLocale = normalizeLocale(locale);
+    const normalizedBaseLocale = normalizeLocale(baseLocale);
+    const targetKeys = new Set(Object.keys(messages[normalizedLocale]));
+    return Object.keys(messages[normalizedBaseLocale])
+      .filter((key) => !targetKeys.has(key))
+      .sort();
+  }
+
   function clear() {
     for (const locale of SUPPORTED_LOCALES) {
       messages[locale] = {};
@@ -66,6 +75,7 @@ function createMessageRegistry() {
 
   return {
     clear,
+    findMissingKeys,
     registerMessages,
     t,
   };

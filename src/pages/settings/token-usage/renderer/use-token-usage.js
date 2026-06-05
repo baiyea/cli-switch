@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { tokenUsageBridge } from './token-usage.bridge';
+import { i18nService } from '../../../../i18n/renderer';
 
 const FILTER_STORAGE_KEY = 'cli-switch.token-usage.filters';
 const DEFAULT_FILTERS = { range: '30d', projectId: '', provider: '', profileId: '', modelName: '' };
@@ -173,7 +174,7 @@ function buildProfileOptions(models = []) {
 
 async function fetchSummary(filters) {
   const result = await tokenUsageBridge.summary(normalizeFilters(filters));
-  if (!result?.ok) throw new Error(result?.reason || 'Token 统计读取失败');
+  if (!result?.ok) throw new Error(result?.reason || i18nService.t('settings.tokenUsage.readFailed'));
   return normalizeSummary(result.summary);
 }
 
@@ -267,7 +268,7 @@ export function useTokenUsage() {
         }
       } catch (err) {
         if (mountedRef.current && summaryRequestSeqRef.current === requestSeq) {
-          setError(toErrorMessage(err, 'Token 统计读取失败'));
+          setError(toErrorMessage(err, i18nService.t('settings.tokenUsage.readFailed')));
         }
       } finally {
         if (mountedRef.current && summaryRequestSeqRef.current === requestSeq) {
@@ -294,7 +295,7 @@ export function useTokenUsage() {
       }
       try {
         const result = await tokenUsageBridge.refresh({ force });
-        if (!result?.ok) throw new Error(result?.reason || 'Token 统计刷新失败');
+        if (!result?.ok) throw new Error(result?.reason || i18nService.t('settings.tokenUsage.refreshFailed'));
         updateStatus(result.status);
 
         let currentStatus = result.status;
@@ -302,13 +303,13 @@ export function useTokenUsage() {
           await wait(REFRESH_POLL_INTERVAL_MS);
           if (!isCurrentRefresh()) return;
           const statusResult = await tokenUsageBridge.status();
-          if (!statusResult?.ok) throw new Error(statusResult?.reason || 'Token 统计刷新状态读取失败');
+          if (!statusResult?.ok) throw new Error(statusResult?.reason || i18nService.t('settings.tokenUsage.refreshStatusFailed'));
           currentStatus = statusResult.status;
           updateStatus(currentStatus);
         }
 
         if (currentStatus?.running) {
-          throw new Error('Token 统计刷新超时，请稍后重试');
+          throw new Error(i18nService.t('settings.tokenUsage.refreshTimeout'));
         }
         if (currentStatus?.error) {
           throw new Error(currentStatus.error);
@@ -316,7 +317,7 @@ export function useTokenUsage() {
         await loadSummary(filtersRef.current);
       } catch (err) {
         if (isCurrentRefresh()) {
-          setError(toErrorMessage(err, 'Token 统计刷新失败'));
+          setError(toErrorMessage(err, i18nService.t('settings.tokenUsage.refreshFailed')));
         }
       } finally {
         if (isCurrentRefresh()) {

@@ -1,4 +1,5 @@
 const { PROVIDERS_CHANNELS } = require('./shared/providers.channels');
+const { t } = require('../../../i18n/main');
 
 function registerProvidersMain(context = {}) {
   const {
@@ -45,7 +46,7 @@ function registerProvidersMain(context = {}) {
       logError('provider-test', 'Unhandled provider connection test error', error, {
         provider: parsed?.provider || '',
       });
-      return { ok: false, message: `连接测试异常: ${message}` };
+      return { ok: false, message: t('main.provider.connectionTestError', { message }) };
     }
   });
   registerIpc(PROVIDERS_CHANNELS.SETTINGS_PROVIDER_OAUTH_LOGIN, async (_event, payload) => {
@@ -58,7 +59,7 @@ function registerProvidersMain(context = {}) {
         provider: parsed?.provider || '',
         profileId: parsed?.profileId || '',
       });
-      return { ok: false, message: `OAuth 登录启动异常: ${message}` };
+      return { ok: false, message: t('main.provider.oauthLoginError', { message }) };
     }
   });
   registerIpc(PROVIDERS_CHANNELS.SETTINGS_PROVIDER_OAUTH_PROBE, async (_event, payload) => {
@@ -73,7 +74,7 @@ function registerProvidersMain(context = {}) {
         provider: parsed?.provider || '',
         profileId: parsed?.profileId || '',
       });
-      return { ok: false, message: `OAuth 探测异常: ${message}` };
+      return { ok: false, message: t('main.provider.oauthProbeError', { message }) };
     }
   });
   registerIpc(PROVIDERS_CHANNELS.SETTINGS_PROVIDER_OAUTH_LINKS, async (_event, payload) => {
@@ -100,7 +101,7 @@ function registerProvidersMain(context = {}) {
         provider: parsed?.provider || '',
         profileId: parsed?.profileId || '',
       });
-      return { ok: false, message: `代理测试异常: ${message}` };
+      return { ok: false, message: t('main.provider.proxyTestError', { message }) };
     }
   });
 
@@ -120,7 +121,7 @@ function registerProvidersMain(context = {}) {
       logError('settings', 'Runtime data cleanup failed', error);
       return {
         ok: false,
-        message: `运行数据清理失败: ${message}`,
+        message: t('main.provider.runtimeCleanError', { message }),
         runtimeDirs: [],
         dbPath,
         cleanedDirectories: [],
