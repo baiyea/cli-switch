@@ -1,5 +1,4 @@
 build/*
-!build/entitlements.mac.plist
 release/
 node_modules
 dist

@@ -88,10 +88,14 @@ test('selectReleaseArtifacts selects only current version installers and matchin
   try {
     const files = {
       'cli-switch-0.1.8-arm64.dmg': '',
+      'cli-switch-0.1.8-arm64.dmg.blockmap': '',
       'cli-switch-0.1.8-x64.dmg': '',
       'cli-switch Setup 0.1.8.exe': '',
+      'cli-switch Setup 0.1.8.exe.blockmap': '',
       'cli-switch-0.1.7-arm64.dmg': '',
+      'cli-switch-0.1.7-arm64.dmg.blockmap': '',
       'cli-switch-0.1.80-arm64.dmg': '',
+      'cli-switch-0.1.80-arm64.dmg.blockmap': '',
       'cli-switch-10.1.8-arm64.dmg': '',
       'cli-switch Setup 0.1.7.exe': '',
       'latest-mac.yml': 'version: 0.1.8\npath: cli-switch-0.1.8-arm64.dmg\n',
@@ -107,7 +111,9 @@ test('selectReleaseArtifacts selects only current version installers and matchin
 
     assert.deepEqual(selectReleaseArtifacts(dir, '0.1.8'), [
       path.join(dir, 'cli-switch Setup 0.1.8.exe'),
+      path.join(dir, 'cli-switch Setup 0.1.8.exe.blockmap'),
       path.join(dir, 'cli-switch-0.1.8-arm64.dmg'),
+      path.join(dir, 'cli-switch-0.1.8-arm64.dmg.blockmap'),
       path.join(dir, 'cli-switch-0.1.8-x64.dmg'),
       path.join(dir, 'latest-mac.yml'),
       path.join(dir, 'latest.yml'),

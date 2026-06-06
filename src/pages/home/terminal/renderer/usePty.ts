@@ -87,6 +87,12 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
   const replayMutedRef = useRef<Set<string>>(new Set());
   const pasteCleanupRef = useRef<Map<string, () => void>>(new Map());
   const pasteInFlightRef = useRef<Set<string>>(new Set());
+  const nativeImagePasteInFlightRef = useRef<Set<string>>(new Set());
+  const suppressNextTextPasteUntilRef = useRef<Map<string, number>>(new Map());
+  const skipWindowsTextPasteUntilRef = useRef<Map<string, number>>(new Map());
+  const pendingWindowsTextPasteRef = useRef<Map<string, { timer: number; text: string }>>(
+    new Map(),
+  );
   const activeSessionIdRef = useRef<string | null>(null);
   const [activeScrolledUp, setActiveScrolledUp] = useState(false);
 
@@ -175,6 +181,92 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     scrollToBottomIfActive(sessionId, entry.term);
     entry.term.focus();
     return true;
+  }
+
+  function clearPendingWindowsTextPaste(sessionId: string) {
+    const pending = pendingWindowsTextPasteRef.current.get(sessionId);
+    if (!pending) return;
+    window.clearTimeout(pending.timer);
+    pendingWindowsTextPasteRef.current.delete(sessionId);
+  }
+
+  function scheduleWindowsTextPaste(sessionId: string, text: string) {
+    clearPendingWindowsTextPaste(sessionId);
+    const timer = window.setTimeout(() => {
+      const pending = pendingWindowsTextPasteRef.current.get(sessionId);
+      if (!pending || pending.timer !== timer) return;
+      pendingWindowsTextPasteRef.current.delete(sessionId);
+      ptyBridge.input(sessionId, pending.text);
+    }, 250);
+    pendingWindowsTextPasteRef.current.set(sessionId, { timer, text });
+  }
+
+  function waitForWindowsPasteEvent() {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, 100);
+    });
+  }
+
+  async function saveNativeClipboardImage(sessionId: string, cwd: string, source: string) {
+    const skipUntil = skipWindowsTextPasteUntilRef.current.get(sessionId) || 0;
+    if (
+      skipUntil >= Date.now() ||
+      pasteInFlightRef.current.has(sessionId) ||
+      nativeImagePasteInFlightRef.current.has(sessionId)
+    ) {
+      logBridge.write({
+        level: 'info',
+        scope: 'terminal',
+        message: '[key] native image paste skipped: image paste already handling',
+        meta: { sessionId, source },
+      });
+      return true;
+    }
+
+    nativeImagePasteInFlightRef.current.add(sessionId);
+    try {
+      const result = await fileAttachmentBridge.saveAttachmentImage({ cwd, sessionId });
+      if (result?.ok && result.relPath) {
+        const skipAfterSaveUntil = skipWindowsTextPasteUntilRef.current.get(sessionId) || 0;
+        if (skipAfterSaveUntil >= Date.now() || pasteInFlightRef.current.has(sessionId)) {
+          logBridge.write({
+            level: 'info',
+            scope: 'terminal',
+            message: '[key] native clipboard image skipped: paste event took precedence',
+            meta: { sessionId, source, relPath: result.relPath },
+          });
+          return true;
+        }
+        suppressNextTextPasteUntilRef.current.delete(sessionId);
+        skipWindowsTextPasteUntilRef.current.set(sessionId, Date.now() + 1500);
+        clearPendingWindowsTextPaste(sessionId);
+        logBridge.write({
+          level: 'info',
+          scope: 'terminal',
+          message: '[key] native clipboard image pasted',
+          meta: { sessionId, source, relPath: result.relPath },
+        });
+        ptyBridge.input(sessionId, `@${result.relPath}`);
+        return true;
+      }
+      logBridge.write({
+        level: 'info',
+        scope: 'terminal',
+        message: '[key] no native clipboard image found',
+        meta: { sessionId, source, reason: result?.reason },
+      });
+      return false;
+    } catch (error) {
+      logBridge.write({
+        level: 'warn',
+        scope: 'terminal',
+        message: '[key] native image paste failed',
+        meta: { sessionId, source, error: error instanceof Error ? error.message : String(error) },
+      });
+      return false;
+    } finally {
+      nativeImagePasteInFlightRef.current.delete(sessionId);
+    }
   }
 
   function writeLiveTerminalData(sessionId: string, term: Terminal, data: string) {
@@ -303,8 +395,9 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
           session.provider,
           navigator.platform,
         );
+        const isWindows = /Win32|Win64/i.test(String(navigator.platform || ''));
 
-        if (supportsImagePaste) {
+        if (supportsImagePaste && !isWindows) {
           // 先尝试 IPC 读取剪贴板图片（主进程有完整权限）
           logBridge.write({
             level: 'info',
@@ -354,26 +447,51 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
                 .catch(() => {});
             });
         } else {
-          // 不支持图片粘贴的 provider，直接文本粘贴
+          // Windows 下先给 renderer paste 事件一个短窗口处理图片；若没有事件接管，
+          // 再通过主进程读取系统剪贴板图片，最后才发送文本，避免 xterm 默认 paste 重复。
+          suppressNextTextPasteUntilRef.current.set(sessionId, Date.now() + 1500);
           navigator.clipboard
             .readText()
-            .then((text) => {
+            .then(async (text) => {
               logBridge.write({
                 level: 'info',
                 scope: 'terminal',
                 message: '[key] text pasted',
                 meta: { sessionId, textLength: text?.length ?? 0 },
               });
-              if (text) ptyBridge.input(sessionId, text);
+              if (supportsImagePaste) {
+                await waitForWindowsPasteEvent();
+                const imagePasted = await saveNativeClipboardImage(
+                  sessionId,
+                  session.cwd,
+                  'windows-key-handler',
+                );
+                if (imagePasted) return;
+              }
+              if (!text) return;
+              const skipUntil = skipWindowsTextPasteUntilRef.current.get(sessionId) || 0;
+              if (skipUntil >= Date.now()) {
+                logBridge.write({
+                  level: 'info',
+                  scope: 'terminal',
+                  message: '[key] text paste skipped because image paste took precedence',
+                  meta: { sessionId, textLength: text.length },
+                });
+                return;
+              }
+              scheduleWindowsTextPaste(sessionId, text);
             })
-            .catch((err) =>
+            .catch(async (err) => {
               logBridge.write({
                 level: 'warn',
                 scope: 'terminal',
                 message: '[key] text paste failed',
                 meta: { sessionId, error: err instanceof Error ? err.message : String(err) },
-              }),
-            );
+              });
+              if (!supportsImagePaste) return;
+              await waitForWindowsPasteEvent();
+              await saveNativeClipboardImage(sessionId, session.cwd, 'windows-key-handler-error');
+            });
         }
         return false;
       }
@@ -462,6 +580,30 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
           .toLowerCase()
           .startsWith('image/'),
       );
+      if (imageItem) {
+        suppressNextTextPasteUntilRef.current.delete(sessionId);
+        skipWindowsTextPasteUntilRef.current.set(sessionId, Date.now() + 1500);
+        clearPendingWindowsTextPaste(sessionId);
+      }
+
+      const suppressUntil = suppressNextTextPasteUntilRef.current.get(sessionId) || 0;
+      const shouldSuppressTextPaste = suppressUntil >= Date.now();
+      if (!imageItem && shouldSuppressTextPaste) {
+        const text = event.clipboardData?.getData('text/plain') || '';
+        suppressNextTextPasteUntilRef.current.delete(sessionId);
+        if (text) {
+          event.preventDefault();
+          event.stopPropagation();
+          logBridge.write({
+            level: 'info',
+            scope: 'terminal',
+            message: '[paste] text paste suppressed after key handler',
+            meta: { sessionId, textLength: text.length, types },
+          });
+          return;
+        }
+      }
+
       if (!imageItem) {
         logBridge.write({
           level: 'info',
@@ -702,6 +844,10 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
         pasteCleanup();
         pasteCleanupRef.current.delete(sessionId);
       }
+      clearPendingWindowsTextPaste(sessionId);
+      suppressNextTextPasteUntilRef.current.delete(sessionId);
+      skipWindowsTextPasteUntilRef.current.delete(sessionId);
+      nativeImagePasteInFlightRef.current.delete(sessionId);
       const raf = fitRafRef.current.get(sessionId);
       if (typeof raf === 'number') {
         window.cancelAnimationFrame(raf);
@@ -855,6 +1001,13 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
       terminals.clear();
       containers.clear();
       replayMuted.clear();
+      for (const pending of pendingWindowsTextPasteRef.current.values()) {
+        window.clearTimeout(pending.timer);
+      }
+      pendingWindowsTextPasteRef.current.clear();
+      suppressNextTextPasteUntilRef.current.clear();
+      skipWindowsTextPasteUntilRef.current.clear();
+      nativeImagePasteInFlightRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ingestOutput, markExited, refreshRuntimeStatuses]);

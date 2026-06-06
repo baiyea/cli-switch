@@ -7,6 +7,10 @@ const { resolveSessionsRoot } = require('./writer');
 
 test('resolveSessionsRoot uses the shared project APP_ID directory', () => {
   const projectPath = path.join(path.sep, 'tmp', 'demo-project');
+  const resolvedProjectPath = path.resolve(projectPath);
 
-  assert.equal(resolveSessionsRoot(projectPath), path.join(projectPath, `.${APP_ID}`, 'sessions'));
+  assert.equal(
+    resolveSessionsRoot(projectPath),
+    path.join(resolvedProjectPath, `.${APP_ID}`, 'sessions'),
+  );
 });

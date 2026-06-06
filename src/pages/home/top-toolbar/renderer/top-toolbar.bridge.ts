@@ -82,5 +82,8 @@ export const topToolbarBridge = {
     close(): Promise<{ ok: boolean }> {
       return window.electronAPI.windowControls.close();
     },
+    quitApp(): Promise<{ ok: boolean }> {
+      return window.electronAPI.windowControls.quitApp();
+    },
   },
 };

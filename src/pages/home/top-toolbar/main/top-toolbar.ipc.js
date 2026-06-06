@@ -38,8 +38,11 @@ function registerTopToolbarIpc(context = {}) {
     registerIpcOn,
     BrowserWindow,
     shell,
+    app,
+    ptyService,
     getMainWindow,
     logByLevel = () => {},
+    logInfo = () => {},
     logWarn = () => {},
   } = context;
 
@@ -69,6 +72,19 @@ function registerTopToolbarIpc(context = {}) {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || win.isDestroyed()) return { ok: false };
     win.close();
+    return { ok: true };
+  });
+
+  registerIpc(TOP_TOOLBAR_CHANNELS.APP_QUIT, async () => {
+    logInfo('app', 'Quit requested from renderer');
+    try {
+      ptyService?.destroyAll?.({ quiet: process.platform === 'win32' });
+    } catch (error) {
+      logWarn('app', 'Failed to destroy PTY sessions before quit', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    app?.quit?.();
     return { ok: true };
   });
 

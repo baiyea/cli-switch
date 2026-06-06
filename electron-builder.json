@@ -4,7 +4,8 @@
   "executableName": "Cli-Switch",
   "npmRebuild": false,
   "directories": {
-    "output": "release"
+    "output": "release",
+    "buildResources": "scripts"
   },
   "files": [
     "package.json",
@@ -41,8 +42,8 @@
       "CFBundleIconName": "app",
       "LSUIElement": true
     },
-    "entitlements": "build/entitlements.mac.plist",
-    "entitlementsInherit": "build/entitlements.mac.plist"
+    "entitlements": "scripts/entitlements.mac.plist",
+    "entitlementsInherit": "scripts/entitlements.mac.plist"
   },
   "dmg": {
     "sign": false,
@@ -59,6 +60,7 @@
     "allowToChangeInstallationDirectory": true,
     "runAfterFinish": true,
     "deleteAppDataOnUninstall": true,
+    "include": "scripts/installer.nsh",
     "artifactName": "${productName}-${os}-${arch}-${version}.${ext}"
   },
   "asarUnpack": [

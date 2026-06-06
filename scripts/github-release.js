@@ -148,6 +148,10 @@ function isInstallerArtifact(fileName, version) {
   return INSTALLER_EXTENSIONS.has(extension) && fileNameHasVersion(fileName, version);
 }
 
+function isBlockmapArtifact(fileName, version) {
+  return /\.blockmap$/i.test(fileName) && fileNameHasVersion(fileName, version);
+}
+
 function selectReleaseArtifacts(distDir, version) {
   return fs
     .readdirSync(distDir, { withFileTypes: true })
@@ -160,7 +164,7 @@ function selectReleaseArtifacts(distDir, version) {
         return isCurrentVersionLatestYml(filePath, version);
       }
 
-      return isInstallerArtifact(fileName, version);
+      return isInstallerArtifact(fileName, version) || isBlockmapArtifact(fileName, version);
     })
     .sort()
     .map((fileName) => path.join(distDir, fileName));

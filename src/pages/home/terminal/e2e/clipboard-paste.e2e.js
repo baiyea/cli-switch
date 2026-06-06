@@ -47,6 +47,28 @@ async function launchApp() {
   };
 }
 
+async function installPtyInputCapture(electronApp) {
+  await electronApp.evaluate(({ ipcMain }) => {
+    const key = '__ZEELIN_E2E_PTY_INPUT_CAPTURE__';
+    const listenerKey = '__ZEELIN_E2E_PTY_INPUT_CAPTURE_LISTENER__';
+    if (globalThis[listenerKey]) {
+      ipcMain.removeListener('pty:input', globalThis[listenerKey]);
+    }
+    globalThis[key] = [];
+    globalThis[listenerKey] = (_event, payload) => {
+      globalThis[key].push({
+        sessionId: String(payload?.sessionId || ''),
+        data: String(payload?.data || ''),
+      });
+    };
+    ipcMain.on('pty:input', globalThis[listenerKey]);
+  });
+}
+
+async function readPtyInputCapture(electronApp) {
+  return electronApp.evaluate(() => globalThis.__ZEELIN_E2E_PTY_INPUT_CAPTURE__ || []);
+}
+
 test('simulateImagePaste saves image to disk', async () => {
   const { app, win, projectDir, root } = await launchApp();
 
@@ -166,6 +188,447 @@ test('paste handler allows text paste when no image in clipboard', async () => {
 
   expect(pasteResult.ok).toBe(true);
   expect(pasteResult.defaultPrevented).toBe(false);
+
+  await closeApp({ electronApp: app, root });
+});
+
+test('Windows text paste sends clipboard text to PTY once with exact content', async () => {
+  const { app, win, root } = await launchApp();
+  const sample = 'D:\\Code\\gaoyujia\\英语\\日记\\20260605';
+
+  await win.locator('.project-create-main').first().click({ force: true });
+  await expect(win.locator('[data-session-id]')).toHaveCount(1);
+  const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
+  await installPtyInputCapture(app);
+
+  const pasteResult = await win.evaluate(
+    async ({ sid, sampleText }) => {
+      const container = document.querySelector(`[data-session-id="${sid}"]`);
+      const textarea =
+        container?.querySelector('textarea.xterm-helper-textarea') ||
+        container?.querySelector('textarea');
+      if (!textarea) return { ok: false, reason: 'no-textarea' };
+
+      const platformDescriptor =
+        Object.getOwnPropertyDescriptor(Navigator.prototype, 'platform') ||
+        Object.getOwnPropertyDescriptor(navigator, 'platform');
+      const clipboardDescriptor =
+        Object.getOwnPropertyDescriptor(Navigator.prototype, 'clipboard') ||
+        Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+
+      Object.defineProperty(navigator, 'platform', {
+        configurable: true,
+        value: 'Win32',
+      });
+      let readTextCalls = 0;
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          readText: async () => {
+            readTextCalls += 1;
+            return sampleText;
+          },
+          writeText: async () => undefined,
+        },
+      });
+
+      textarea.focus();
+      const keydown = new KeyboardEvent('keydown', {
+        key: 'v',
+        code: 'KeyV',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      const keydownDispatched = textarea.dispatchEvent(keydown);
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+
+      const paste = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, 'clipboardData', {
+        configurable: true,
+        value: {
+          items: [
+            {
+              type: 'text/plain',
+              kind: 'string',
+              getAsFile: () => null,
+              getAsString: (cb) => cb(sampleText),
+            },
+          ],
+          types: ['text/plain'],
+          files: [],
+          getData: (type) => (String(type).toLowerCase() === 'text/plain' ? sampleText : ''),
+        },
+      });
+      const pasteDispatched = textarea.dispatchEvent(paste);
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+
+      if (platformDescriptor) {
+        Object.defineProperty(navigator, 'platform', platformDescriptor);
+      }
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      }
+
+      return {
+        ok: true,
+        keydownDispatched,
+        keydownDefaultPrevented: keydown.defaultPrevented,
+        pasteDispatched,
+        pasteDefaultPrevented: paste.defaultPrevented,
+        readTextCalls,
+      };
+    },
+    { sid: sessionId, sampleText: sample },
+  );
+
+  expect(pasteResult.ok).toBe(true);
+  expect(pasteResult.readTextCalls).toBeGreaterThan(0);
+
+  await win.waitForTimeout(1000);
+  const inputs = await readPtyInputCapture(app);
+  const pastedInputs = inputs
+    .filter((item) => item.sessionId === sessionId)
+    .map((item) => item.data)
+    .filter((data) => data === sample);
+
+  expect(pastedInputs).toEqual([sample]);
+
+  await closeApp({ electronApp: app, root });
+});
+
+test('Windows screenshot paste prefers image attachment over clipboard text', async () => {
+  const { app, win, projectDir, root } = await launchApp();
+  const sampleText = 'D:\\Code\\gaoyujia\\英语\\日记\\20260605';
+
+  await win.locator('.project-create-main').first().click({ force: true });
+  await expect(win.locator('[data-session-id]')).toHaveCount(1);
+  const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
+  await installPtyInputCapture(app);
+
+  const pasteResult = await win.evaluate(
+    async ({ sid, base64, text }) => {
+      const container = document.querySelector(`[data-session-id="${sid}"]`);
+      const textarea =
+        container?.querySelector('textarea.xterm-helper-textarea') ||
+        container?.querySelector('textarea');
+      if (!textarea) return { ok: false, reason: 'no-textarea' };
+
+      const platformDescriptor =
+        Object.getOwnPropertyDescriptor(Navigator.prototype, 'platform') ||
+        Object.getOwnPropertyDescriptor(navigator, 'platform');
+      const clipboardDescriptor =
+        Object.getOwnPropertyDescriptor(Navigator.prototype, 'clipboard') ||
+        Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+
+      Object.defineProperty(navigator, 'platform', {
+        configurable: true,
+        value: 'Win32',
+      });
+      let readTextCalls = 0;
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          readText: async () => {
+            readTextCalls += 1;
+            return text;
+          },
+          writeText: async () => undefined,
+        },
+      });
+
+      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      const mockFile = new File([bytes], 'screenshot.png', { type: 'image/png' });
+      const imageItem = {
+        type: 'image/png',
+        kind: 'file',
+        getAsFile: () => mockFile,
+        getAsString: () => {},
+      };
+      const textItem = {
+        type: 'text/plain',
+        kind: 'string',
+        getAsFile: () => null,
+        getAsString: (cb) => cb(text),
+      };
+
+      textarea.focus();
+      const keydown = new KeyboardEvent('keydown', {
+        key: 'v',
+        code: 'KeyV',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      textarea.dispatchEvent(keydown);
+
+      const paste = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, 'clipboardData', {
+        configurable: true,
+        value: {
+          items: [imageItem, textItem],
+          types: ['image/png', 'text/plain'],
+          files: [mockFile],
+          getData: (type) => (String(type).toLowerCase() === 'text/plain' ? text : ''),
+        },
+      });
+      const pasteDispatched = textarea.dispatchEvent(paste);
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+
+      if (platformDescriptor) {
+        Object.defineProperty(navigator, 'platform', platformDescriptor);
+      }
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      }
+
+      return {
+        ok: true,
+        keydownDefaultPrevented: keydown.defaultPrevented,
+        pasteDispatched,
+        pasteDefaultPrevented: paste.defaultPrevented,
+        readTextCalls,
+      };
+    },
+    { sid: sessionId, base64: TEST_PNG_BASE64, text: sampleText },
+  );
+
+  expect(pasteResult.ok).toBe(true);
+  expect(pasteResult.pasteDefaultPrevented).toBe(true);
+
+  await win.waitForTimeout(1000);
+  const inputs = await readPtyInputCapture(app);
+  const sessionInputs = inputs
+    .filter((item) => item.sessionId === sessionId)
+    .map((item) => item.data);
+  const imageInputs = sessionInputs.filter((data) =>
+    /^@\.cli-switch\/attachments\/\d+\.png$/.test(data),
+  );
+
+  expect(sessionInputs).not.toContain(sampleText);
+  expect(imageInputs).toHaveLength(1);
+  const relPath = imageInputs[0].slice(1);
+  expect(fs.existsSync(path.join(projectDir, relPath))).toBe(true);
+
+  await closeApp({ electronApp: app, root });
+});
+
+test('Windows screenshot paste falls back to native clipboard image when clipboard text is empty', async () => {
+  const { app, win, projectDir, root } = await launchApp();
+
+  await win.locator('.project-create-main').first().click({ force: true });
+  await expect(win.locator('[data-session-id]')).toHaveCount(1);
+  const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
+  await installPtyInputCapture(app);
+
+  const clipboardState = await app.evaluate(
+    ({ clipboard, nativeImage }, base64) => {
+      const image = nativeImage.createFromBuffer(Buffer.from(base64, 'base64'));
+      clipboard.clear();
+      clipboard.writeImage(image);
+      return {
+        isEmpty: clipboard.readImage().isEmpty(),
+        formats: clipboard.availableFormats(),
+      };
+    },
+    TEST_PNG_BASE64,
+  );
+
+  expect(clipboardState.isEmpty).toBe(false);
+
+  const pasteResult = await win.evaluate(async (sid) => {
+    const container = document.querySelector(`[data-session-id="${sid}"]`);
+    const textarea =
+      container?.querySelector('textarea.xterm-helper-textarea') ||
+      container?.querySelector('textarea');
+    if (!textarea) return { ok: false, reason: 'no-textarea' };
+
+    const platformDescriptor =
+      Object.getOwnPropertyDescriptor(Navigator.prototype, 'platform') ||
+      Object.getOwnPropertyDescriptor(navigator, 'platform');
+    const clipboardDescriptor =
+      Object.getOwnPropertyDescriptor(Navigator.prototype, 'clipboard') ||
+      Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+
+    Object.defineProperty(navigator, 'platform', {
+      configurable: true,
+      value: 'Win32',
+    });
+    let readTextCalls = 0;
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText: async () => {
+          readTextCalls += 1;
+          return '';
+        },
+        writeText: async () => undefined,
+      },
+    });
+
+    textarea.focus();
+    const keydown = new KeyboardEvent('keydown', {
+      key: 'v',
+      code: 'KeyV',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    const keydownDispatched = textarea.dispatchEvent(keydown);
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+
+    if (platformDescriptor) {
+      Object.defineProperty(navigator, 'platform', platformDescriptor);
+    }
+    if (clipboardDescriptor) {
+      Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+    }
+
+    return {
+      ok: true,
+      keydownDispatched,
+      keydownDefaultPrevented: keydown.defaultPrevented,
+      readTextCalls,
+    };
+  }, sessionId);
+
+  expect(pasteResult.ok).toBe(true);
+  expect(pasteResult.readTextCalls).toBeGreaterThan(0);
+
+  await win.waitForTimeout(1000);
+  const inputs = await readPtyInputCapture(app);
+  const sessionInputs = inputs
+    .filter((item) => item.sessionId === sessionId)
+    .map((item) => item.data);
+  const imageInputs = sessionInputs.filter((data) =>
+    /^@\.cli-switch\/attachments\/\d+\.png$/.test(data),
+  );
+
+  expect(imageInputs).toHaveLength(1);
+  const relPath = imageInputs[0].slice(1);
+  expect(fs.existsSync(path.join(projectDir, relPath))).toBe(true);
+
+  await app.evaluate(({ clipboard }) => clipboard.clear());
+  await closeApp({ electronApp: app, root });
+});
+
+test('Windows delayed screenshot paste event is handled while native clipboard fallback is pending', async () => {
+  const { app, win, projectDir, root } = await launchApp();
+
+  await win.locator('.project-create-main').first().click({ force: true });
+  await expect(win.locator('[data-session-id]')).toHaveCount(1);
+  const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
+  await installPtyInputCapture(app);
+  await app.evaluate(({ ipcMain }) => {
+    globalThis.__ZEELIN_E2E_NATIVE_IMAGE_SAVE_CALLS__ = 0;
+    ipcMain.removeHandler('file:attachment:save');
+    ipcMain.handle('file:attachment:save', async () => {
+      globalThis.__ZEELIN_E2E_NATIVE_IMAGE_SAVE_CALLS__ += 1;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return { ok: false, reason: 'no-image' };
+    });
+  });
+
+  const pasteResult = await win.evaluate(
+    async ({ sid, base64 }) => {
+      const container = document.querySelector(`[data-session-id="${sid}"]`);
+      const textarea =
+        container?.querySelector('textarea.xterm-helper-textarea') ||
+        container?.querySelector('textarea');
+      if (!textarea) return { ok: false, reason: 'no-textarea' };
+
+      const platformDescriptor =
+        Object.getOwnPropertyDescriptor(Navigator.prototype, 'platform') ||
+        Object.getOwnPropertyDescriptor(navigator, 'platform');
+      const clipboardDescriptor =
+        Object.getOwnPropertyDescriptor(Navigator.prototype, 'clipboard') ||
+        Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+
+      Object.defineProperty(navigator, 'platform', {
+        configurable: true,
+        value: 'Win32',
+      });
+      let readTextCalls = 0;
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          readText: async () => {
+            readTextCalls += 1;
+            return '';
+          },
+          writeText: async () => undefined,
+        },
+      });
+
+      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      const mockFile = new File([bytes], 'delayed-screenshot.png', { type: 'image/png' });
+      const imageItem = {
+        type: 'image/png',
+        kind: 'file',
+        getAsFile: () => mockFile,
+        getAsString: () => {},
+      };
+
+      textarea.focus();
+      const keydown = new KeyboardEvent('keydown', {
+        key: 'v',
+        code: 'KeyV',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      textarea.dispatchEvent(keydown);
+
+      await new Promise((resolve) => window.setTimeout(resolve, 160));
+      const paste = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, 'clipboardData', {
+        configurable: true,
+        value: {
+          items: [imageItem],
+          types: ['image/png'],
+          files: [mockFile],
+          getData: () => '',
+        },
+      });
+      const pasteDispatched = textarea.dispatchEvent(paste);
+      await new Promise((resolve) => window.setTimeout(resolve, 1200));
+
+      if (platformDescriptor) {
+        Object.defineProperty(navigator, 'platform', platformDescriptor);
+      }
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      }
+
+      return {
+        ok: true,
+        pasteDispatched,
+        pasteDefaultPrevented: paste.defaultPrevented,
+        readTextCalls,
+      };
+    },
+    { sid: sessionId, base64: TEST_PNG_BASE64 },
+  );
+
+  expect(pasteResult.ok).toBe(true);
+  expect(pasteResult.readTextCalls).toBeGreaterThan(0);
+  const nativeImageCalls = await app.evaluate(
+    () => globalThis.__ZEELIN_E2E_NATIVE_IMAGE_SAVE_CALLS__ || 0,
+  );
+  expect(nativeImageCalls).toBe(1);
+  expect(pasteResult.pasteDefaultPrevented).toBe(true);
+
+  const inputs = await readPtyInputCapture(app);
+  const sessionInputs = inputs
+    .filter((item) => item.sessionId === sessionId)
+    .map((item) => item.data);
+  const imageInputs = sessionInputs.filter((data) =>
+    /^@\.cli-switch\/attachments\/\d+\.png$/.test(data),
+  );
+
+  expect(imageInputs).toHaveLength(1);
+  const relPath = imageInputs[0].slice(1);
+  expect(fs.existsSync(path.join(projectDir, relPath))).toBe(true);
 
   await closeApp({ electronApp: app, root });
 });

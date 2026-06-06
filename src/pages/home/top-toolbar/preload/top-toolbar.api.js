@@ -11,6 +11,7 @@ function createTopToolbarApi() {
       minimize: () => ipcRenderer.invoke(TOP_TOOLBAR_CHANNELS.WINDOW_MINIMIZE),
       toggleMaximize: () => ipcRenderer.invoke(TOP_TOOLBAR_CHANNELS.WINDOW_TOGGLE_MAXIMIZE),
       close: () => ipcRenderer.invoke(TOP_TOOLBAR_CHANNELS.WINDOW_CLOSE),
+      quitApp: () => ipcRenderer.invoke(TOP_TOOLBAR_CHANNELS.APP_QUIT),
     },
     skillgen: {
       run: (payload) => ipcRenderer.invoke(TOP_TOOLBAR_CHANNELS.SKILLGEN_RUN, payload),

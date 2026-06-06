@@ -461,6 +461,7 @@ function registerAppIpc() {
     Buffer,
     dialog,
     shell,
+    app,
     BrowserWindow,
     clipboard,
     nativeImage,

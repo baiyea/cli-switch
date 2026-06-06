@@ -104,21 +104,21 @@ src/pages/home/terminal/
 
 ### 文件命名规则
 
-| 文件角色         | 命名格式                              | 示例                              |
-| ---------------- | ------------------------------------- | --------------------------------- |
-| Block 主进程入口 | `block.main.js`                       | `terminal/block.main.js`          |
-| Block 预加载入口 | `block.preload.js`                    | `terminal/block.preload.js`       |
-| Block 渲染入口   | `block.renderer.tsx`                  | `terminal/block.renderer.tsx`     |
-| IPC 处理器       | `{block}.ipc.js`，放在 `main/`        | `main/terminal.ipc.js`            |
-| Preload API      | `{block}.api.js`，放在 `preload/`     | `preload/terminal.api.js`         |
-| IPC Channel 定义 | `{block}.channels.js`，放在 `shared/` | `shared/terminal.channels.js`     |
-| Bridge（渲染端） | `{block}.bridge.ts`，放在 `renderer/` | `renderer/terminal.bridge.ts`     |
-| 类型定义         | `{block}.types.ts`，放在 `shared/`    | `shared/terminal.types.ts`        |
-| E2E 测试         | `{name}.e2e.js`，放在 `e2e/`          | `e2e/terminal.e2e.js`             |
-| Store            | `{scope}.store.ts`                    | `pages.store.ts`、`home.store.ts` |
-| 页面组件         | `{PageName}Page.tsx`                  | `HomePage.tsx`                    |
-| Manifest         | `{block}.manifest.ts`                 | `terminal.manifest.ts`            |
-| README           | `README.md`                           | 每个 block 根目录必备             |
+| 文件角色         | 命名格式                                  | 示例                                  |
+| ---------------- | ----------------------------------------- | ------------------------------------- |
+| Block 主进程入口 | `block.main.js`                         | `terminal/block.main.js`            |
+| Block 预加载入口 | `block.preload.js`                      | `terminal/block.preload.js`         |
+| Block 渲染入口   | `block.renderer.tsx`                    | `terminal/block.renderer.tsx`       |
+| IPC 处理器       | `{block}.ipc.js`，放在 `main/`        | `main/terminal.ipc.js`              |
+| Preload API      | `{block}.api.js`，放在 `preload/`     | `preload/terminal.api.js`           |
+| IPC Channel 定义 | `{block}.channels.js`，放在 `shared/` | `shared/terminal.channels.js`       |
+| Bridge（渲染端） | `{block}.bridge.ts`，放在 `renderer/` | `renderer/terminal.bridge.ts`       |
+| 类型定义         | `{block}.types.ts`，放在 `shared/`    | `shared/terminal.types.ts`          |
+| E2E 测试         | `{name}.e2e.js`，放在 `e2e/`          | `e2e/terminal.e2e.js`               |
+| Store            | `{scope}.store.ts`                      | `pages.store.ts`、`home.store.ts` |
+| 页面组件         | `{PageName}Page.tsx`                    | `HomePage.tsx`                      |
+| Manifest         | `{block}.manifest.ts`                   | `terminal.manifest.ts`              |
+| README           | `README.md`                             | 每个 block 根目录必备                 |
 
 - **目录和文件一律使用 kebab-case**（如 `top-toolbar`、`file-tree`）。
 - **组件文件使用 PascalCase**（如 `TopToolbar.jsx`、`TerminalPanel.tsx`）。
@@ -155,24 +155,41 @@ src/pages/home/terminal/
 
 1. **Block E2E 跟随区块目录**：`pages/{page}/{block}/e2e/{name}.e2e.js`
 2. **全局测试基础设施**放在 `tests/e2e/`，仅保留：
+
    - `app-runner.js`：应用启动器
    - `index.js`：统一导出 `test`/`expect`
    - fixture、global setup/teardown、mock
-3. **真实外部服务测试**（需要真实 API key 的测试）放 `docs/manual-tests/`，不纳入 CI。
-4. **UI 基础组件测试**放在 `ui/` 对应组件旁，不强制 E2E。
-5. E2E 测试必须满足：
+3. **UI 基础组件测试**放在 `ui/` 对应组件旁，不强制 E2E。
+4. E2E 测试必须满足：
+
    - 使用临时 userData 目录，不污染真实用户配置
    - 使用临时数据库路径
    - 可通过 `APP_E2E=1` 环境变量启动
+5. **E2E 必须按平台分层设计**：
+
+   - 跨平台通用行为放在普通用例中，避免写入 Windows 或 macOS 特有假设。
+   - 同一功能在 Windows 与 macOS 行为不同，必须分别有 Windows 和 macOS 用例，不能只在一个泛化用例里写条件分支。
+   - 可被模拟的平台差异，应在测试内显式模拟 `navigator.platform`、`process.platform` 或对应 API；必须依赖真实系统能力的场景，应使用 `test.skip()` 限定运行平台。
+   - 粘贴、复制、快捷键、窗口控制、文件路径、PTY 生命周期等 OS 敏感能力，新增或修复时至少补一个对应平台用例，并在粘贴/操作之后回读真实结果，例如 PTY 输入、终端 DOM、附件文件、窗口状态或 IPC 记录，不能只断言事件被触发。
 6. 测试文件命名：
+
    - E2E：`{功能名}.e2e.js`（如 `terminal.e2e.js`、`clipboard-paste.e2e.js`）
    - 单元测试：`{模块名}.test.ts` 或 `{模块名}.test.js`
 
+### 平台 E2E 运行建议
+
+- 全量 E2E：`pnpm test:e2e`
+- 只跑某个文件：`pnpm exec playwright test src/pages/<page>/<block>/e2e/<name>.e2e.js`
+- 只跑 Windows 分组：`pnpm exec playwright test src/pages/<page>/<block>/e2e/<name>.e2e.js -g "Windows"`
+- 只跑 macOS 分组：`pnpm exec playwright test src/pages/<page>/<block>/e2e/<name>.e2e.js -g "macOS"`
+- 平台相关修复的验收至少包含：对应平台分组用例、受影响文件的完整 E2E 文件、`pnpm build`。
+
 ## Commands
+
 uvm use $(cat .nvmrc)
 
-| Command         | Description         |
-| --------------- | ------------------- |
+| Command           | Description         |
+| ----------------- | ------------------- |
 | `pnpm dev`      | 启动开发环境        |
 | `pnpm build`    | 生产构建            |
 | `pnpm start`    | 启动 Electron       |
@@ -189,5 +206,6 @@ uvm use $(cat .nvmrc)
 - `features/` 只放跨页面/跨窗口复杂能力。
 
 ## superpowers
+
 superpowers 目录设置为当前项目 docs/superpowers 中，参考：docs/superpowers/brainstorm
 过程中禁止提交git
