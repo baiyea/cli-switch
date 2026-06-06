@@ -3,6 +3,7 @@
   "productName": "Cli-Switch",
   "executableName": "Cli-Switch",
   "npmRebuild": false,
+  "publish": null,
   "directories": {
     "output": "release",
     "buildResources": "scripts"

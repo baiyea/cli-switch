@@ -5,6 +5,10 @@
   nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\close-cli-switch-processes.ps1"'
 !macroend
 
+!macro customCheckAppRunning
+  !insertmacro closeCliSwitchProcesses
+!macroend
+
 !macro customInit
   !insertmacro closeCliSwitchProcesses
 !macroend
