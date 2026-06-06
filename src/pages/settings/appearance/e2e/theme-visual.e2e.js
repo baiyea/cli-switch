@@ -8,6 +8,21 @@ const { test, expect } = require('../../../../tests/e2e');
 const PROJECT_ROOT = path.resolve(__dirname, '../../../../../');
 const RENDERER_URL = process.env.THEME_VISUAL_RENDERER_URL || 'http://localhost:5073';
 const OUTPUT_DIR = path.join(PROJECT_ROOT, 'docs/theme-visual');
+const SETTINGS_TABS = {
+  appearance: /Appearance|外观/,
+  providers: /Providers|服务商/,
+  archive: /Archive|归档/,
+  tokenUsage: /Token usage|Token Usage|Token 用量|Token 统计/,
+  about: /About|关于/,
+};
+const TOKEN_USAGE_TEXT = {
+  totalTokens: /Total Tokens|总 Token|settings\.tokenUsage\.totalTokens/,
+  project: /Project|项目|settings\.tokenUsage\.project/,
+};
+const THEME_OPTIONS = {
+  dark: /暗色系|Dark|settings\.appearance\.theme\.dark\.label/,
+  light: /亮色系|Light|settings\.appearance\.theme\.light\.label/,
+};
 
 function ensureOutputDir() {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -77,7 +92,7 @@ function resolveBrowserExecutable() {
 function installElectronApiMock(page) {
   return page.addInitScript(() => {
     const now = Date.now();
-    let appearanceSettings = { themeMode: 'system' };
+    let appearanceSettings = { themeMode: 'dark', locale: 'zh-CN' };
     const project = {
       id: 'theme-project',
       name: 'Cli Switch',
@@ -172,7 +187,11 @@ function installElectronApiMock(page) {
       appearance: {
         get: async () => appearanceSettings,
         set: async (payload) => {
-          appearanceSettings = { themeMode: payload?.themeMode || 'system' };
+          appearanceSettings = {
+            ...appearanceSettings,
+            ...(payload?.themeMode ? { themeMode: payload.themeMode } : {}),
+            ...(payload?.locale ? { locale: payload.locale } : {}),
+          };
           return appearanceSettings;
         },
       },
@@ -295,23 +314,73 @@ function installElectronApiMock(page) {
       tokenUsage: {
         summary: async () => ({
           ok: true,
-          filters: {},
-          projects: [{ id: project.id, name: project.name }],
-          providers: ['claude'],
-          profiles: [{ id: 'deepseek-api', name: 'DeepSeek API', provider: 'claude' }],
-          models: [{ id: 'deepseek-v4-pro', name: 'deepseek-v4-pro', provider: 'claude' }],
-          totals: {
-            inputTokens: 18200,
-            outputTokens: 9400,
-            cachedTokens: 4200,
-            reasoningTokens: 1200,
-            toolTokens: 800,
-            totalTokens: 33800,
-            rounds: 8,
-            sessions: 1,
+          summary: {
+            filters: {
+              range: '30d',
+              projectId: '',
+              provider: '',
+              profileId: '',
+              modelName: '',
+            },
+            projects: [
+              {
+                projectId: project.id,
+                projectName: project.name,
+                totalTokens: 33800,
+                sessionCount: 2,
+              },
+            ],
+            sessions: [
+              {
+                sessionId: 'theme-session-1',
+                title: 'theme-review',
+                projectName: project.name,
+                provider: 'claude',
+                modelName: 'deepseek-v4-pro',
+                totalTokens: 33800,
+                lastActiveAt: new Date(now - 30000).toISOString(),
+              },
+            ],
+            models: [
+              {
+                provider: 'claude',
+                profileId: 'deepseek-api',
+                modelName: 'deepseek-v4-pro',
+                profileName: 'DeepSeek API',
+                apiBaseHost: 'api.deepseek.com',
+                runCount: 8,
+                totalTokens: 33800,
+              },
+            ],
+            daily: [
+              { date: '2026-05-12', totalTokens: 4200 },
+              { date: '2026-05-13', totalTokens: 6800 },
+              { date: '2026-05-14', totalTokens: 5100 },
+              { date: '2026-05-15', totalTokens: 7400 },
+              { date: '2026-05-16', totalTokens: 10300 },
+            ],
+            totals: {
+              inputTokens: 18200,
+              outputTokens: 9400,
+              cachedTokens: 4200,
+              reasoningTokens: 1200,
+              toolTokens: 800,
+              totalTokens: 33800,
+              rounds: 8,
+              runCount: 8,
+              sessionCount: 2,
+            },
+            status: {
+              running: false,
+              lastStartedAt: '',
+              lastFinishedAt: new Date(now - 30000).toISOString(),
+              scanned: 2,
+              updated: 2,
+              skipped: 0,
+              failed: 0,
+              error: '',
+            },
           },
-          modelSummaries: [],
-          dailySummaries: [],
         }),
         refresh: async () => ({ ok: true, scanned: 1, updated: 1, errors: [] }),
         status: async () => ({ running: false }),
@@ -344,7 +413,7 @@ async function openSettings(page, tabName) {
 }
 
 async function closeSettings(page) {
-  const closeButton = page.getByRole('button', { name: 'Close settings' });
+  const closeButton = page.locator('.settings-modal-close-btn');
   if (await closeButton.count()) {
     await closeButton.click();
     await expect(page.locator('.settings-modal')).toHaveCount(0);
@@ -365,6 +434,63 @@ function parseRgbColor(color) {
 
 function relativeLuminance({ r, g, b }) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+async function expectColorNotDark(locator, cssProperty, label) {
+  await expect(locator, `${label} should be visible before color assertion`).toBeVisible({
+    timeout: 2500,
+  });
+
+  const color = await locator.evaluate(
+    (node, property) => getComputedStyle(node).getPropertyValue(property),
+    cssProperty,
+  );
+  const rgb = parseRgbColor(color);
+
+  expect(rgb, `parse ${cssProperty} for ${label}: ${color}`).not.toBeNull();
+  expect(
+    !(rgb.alpha > 0.01 && relativeLuminance(rgb) < 120),
+    `${label} ${cssProperty} should not be dark in light theme: ${color}`,
+  ).toBe(true);
+}
+
+async function expectColorNotLight(locator, cssProperty, label) {
+  await expect(locator, `${label} should be visible before color assertion`).toBeVisible({
+    timeout: 2500,
+  });
+
+  const color = await locator.evaluate(
+    (node, property) => getComputedStyle(node).getPropertyValue(property),
+    cssProperty,
+  );
+  const rgb = parseRgbColor(color);
+
+  expect(rgb, `parse ${cssProperty} for ${label}: ${color}`).not.toBeNull();
+  expect(
+    !(rgb.alpha > 0.01 && relativeLuminance(rgb) > 190),
+    `${label} ${cssProperty} should not be light in light theme: ${color}`,
+  ).toBe(true);
+}
+
+async function expectBorderVisible(locator, label) {
+  await expect(locator, `${label} should be visible before border assertion`).toBeVisible({
+    timeout: 2500,
+  });
+
+  const border = await locator.evaluate((node) => {
+    const style = getComputedStyle(node);
+    return {
+      color: style.borderTopColor,
+      width: Number.parseFloat(style.borderTopWidth || '0'),
+    };
+  });
+  const rgb = parseRgbColor(border.color);
+
+  expect(border.width, `${label} border should have width`).toBeGreaterThan(0);
+  expect(rgb, `parse border color for ${label}: ${border.color}`).not.toBeNull();
+  expect(rgb.alpha, `${label} border should not be transparent: ${border.color}`).toBeGreaterThan(
+    0.05,
+  );
 }
 
 function expectHoverColorMatchesTheme(color, mode, label) {
@@ -502,9 +628,12 @@ async function expectHomeIconHoverTheme(page, mode) {
 
 async function selectTheme(page, mode) {
   console.log(`[theme-visual] select theme ${mode}`);
-  await openSettings(page, 'Appearance');
-  const label = mode === 'light' ? /亮色系/ : /暗色系/;
-  const option = page.getByRole('tabpanel', { name: 'Appearance' }).getByRole('radio', { name: label });
+  await openSettings(page, SETTINGS_TABS.appearance);
+  const label = THEME_OPTIONS[mode];
+  const option = page
+    .getByRole('tabpanel', { name: SETTINGS_TABS.appearance })
+    .locator('.appearance-option')
+    .filter({ hasText: label });
 
   await option.click({ timeout: 5000 });
   await expect(option).toHaveAttribute('aria-checked', 'true', { timeout: 5000 });
@@ -566,6 +695,31 @@ async function openSettingsTab(page, tabName) {
   await expect(page.getByRole('tabpanel', { name: tabName })).toBeVisible({ timeout: 5000 });
 }
 
+async function expectLightTokenUsageTheme(page) {
+  const panel = page.getByRole('tabpanel', { name: SETTINGS_TABS.tokenUsage });
+  const metricCard = panel
+    .getByText(TOKEN_USAGE_TEXT.totalTokens)
+    .locator('xpath=ancestor::div[contains(@class, "rounded-lg") and contains(@class, "border")][1]');
+  const projectSelect = panel.getByRole('combobox', { name: TOKEN_USAGE_TEXT.project });
+  const modelRow = panel.locator('.token-usage-model-row').filter({ hasText: 'deepseek-v4-pro' }).first();
+  const dailyBars = panel.locator('.token-usage-panel').first().locator('[aria-label]');
+
+  await expectBorderVisible(metricCard, 'token usage metric card');
+  await expectBorderVisible(projectSelect, 'token usage project select');
+  await expectColorNotDark(projectSelect, 'background-color', 'token usage project select');
+  await expect(modelRow).toBeVisible();
+  await expect(dailyBars).toHaveCount(5);
+}
+
+async function expectLightAboutTheme(page) {
+  const panel = page.getByRole('tabpanel', { name: SETTINGS_TABS.about });
+  const title = panel.getByText('Cli-Switch');
+  const platformValue = panel.getByText('Electron + React + TypeScript');
+
+  await expectColorNotLight(title, 'color', 'about title');
+  await expectColorNotLight(platformValue, 'color', 'about platform value');
+}
+
 test.describe('@appearance @theme-visual', () => {
   test('captures key screens for dark and light theme review', async () => {
     const server = startRendererIfNeeded();
@@ -590,7 +744,7 @@ test.describe('@appearance @theme-visual', () => {
 
       await selectTheme(page, 'dark');
       await screenshot(page, 'theme-dark-settings-appearance.png');
-      await openSettingsTab(page, 'Providers');
+      await openSettingsTab(page, SETTINGS_TABS.providers);
       await screenshot(page, 'theme-dark-settings-providers.png');
       await closeSettings(page);
       await screenshot(page, 'theme-dark-home.png');
@@ -599,14 +753,20 @@ test.describe('@appearance @theme-visual', () => {
 
       await selectTheme(page, 'light');
       await screenshot(page, 'theme-light-settings-appearance.png');
-      await openSettingsTab(page, 'Providers');
+      await openSettingsTab(page, SETTINGS_TABS.providers);
       await screenshot(page, 'theme-light-settings-providers.png');
+      await openSettingsTab(page, SETTINGS_TABS.tokenUsage);
+      await expectLightTokenUsageTheme(page);
+      await screenshot(page, 'theme-light-settings-token-usage.png');
+      await openSettingsTab(page, SETTINGS_TABS.about);
+      await expectLightAboutTheme(page);
+      await screenshot(page, 'theme-light-settings-about.png');
       await closeSettings(page);
       await screenshot(page, 'theme-light-home.png');
       await expectHomeIconHoverTheme(page, 'light');
       await screenshot(page, 'theme-light-home-hover-icons.png');
 
-      await openSettings(page, 'Archive');
+      await openSettings(page, SETTINGS_TABS.archive);
       await screenshot(page, 'theme-light-settings-archive.png');
     } finally {
       if (browser) await browser.close();

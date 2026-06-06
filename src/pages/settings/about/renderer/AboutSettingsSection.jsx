@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { useT } from '../../../../i18n/use-t';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,7 +12,6 @@ import {
   AlertDialogTitle,
 } from '../../../../ui/alert-dialog';
 import { Button } from '../../../../ui/button';
-import { useT } from '../../../../i18n/use-t';
 
 export function AboutSettingsSection({ appVersion, appLogo }) {
   const t = useT();
@@ -64,7 +64,7 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="about-settings-section h-full flex flex-col">
       <div className="flex-1 flex flex-col gap-3.5">
         <div className="flex items-center gap-3.5">
           {appLogo ? (
@@ -74,63 +74,63 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
               className="h-20 w-20 rounded-lg object-cover"
             />
           ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-[#565e74]">
+            <div className="about-logo-placeholder flex h-20 w-20 items-center justify-center rounded-lg">
               <span className="text-[30px] text-white">▣</span>
             </div>
           )}
           <div className="flex flex-col gap-1">
-            <div className="text-[22px] font-extrabold tracking-tight text-[#EDEDEF]">
+            <div className="about-title text-[22px] font-extrabold tracking-tight">
               Cli-Switch
             </div>
-            <div className="text-[12px] text-[#8A8A90]">
+            <div className="about-muted text-[12px]">
               {t('settings.about.tagline')}
             </div>
           </div>
         </div>
 
-        <div className="h-px w-full bg-white/10" />
+        <div className="about-divider h-px w-full" />
 
         <div className="flex flex-col gap-2.5">
           <div className="flex justify-between items-center">
-            <span className="text-[12px] text-[#8A8A90]">{t('settings.about.platform')}</span>
-            <span className="text-[12px] font-semibold text-[#EDEDEF]">
+            <span className="about-muted text-[12px]">{t('settings.about.platform')}</span>
+            <span className="about-value text-[12px] font-semibold">
               Electron + React + TypeScript
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[12px] text-[#8A8A90]">
+            <span className="about-muted text-[12px]">
               {t('settings.about.terminalCore')}
             </span>
-            <span className="text-[12px] font-semibold text-[#EDEDEF]">@xterm/xterm v5.x</span>
+            <span className="about-value text-[12px] font-semibold">@xterm/xterm v5.x</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[12px] text-[#8A8A90]">{t('settings.about.storage')}</span>
-            <span className="text-[12px] font-semibold text-[#EDEDEF]">SQLite 3 (Local)</span>
+            <span className="about-muted text-[12px]">{t('settings.about.storage')}</span>
+            <span className="about-value text-[12px] font-semibold">SQLite 3 (Local)</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[12px] text-[#8A8A90]">{t('settings.about.version')}</span>
-            <span className="text-[12px] font-semibold text-[#EDEDEF]">{appVersion}</span>
+            <span className="about-muted text-[12px]">{t('settings.about.version')}</span>
+            <span className="about-value text-[12px] font-semibold">{appVersion}</span>
           </div>
         </div>
 
         <div className="flex flex-col gap-2.5">
-          <div className="h-px w-full bg-white/10" />
+          <div className="about-divider h-px w-full" />
           <div className="flex items-center justify-between">
-            <span className="text-[12px] text-[#8A8A90]">{t('settings.about.appData')}</span>
+            <span className="about-muted text-[12px]">{t('settings.about.appData')}</span>
             <Button
               type="button"
               variant="secondary"
               size="sm"
               onClick={() => setCleanConfirmOpen(true)}
               disabled={cleaning}
-              className="h-7 rounded-[4px] border border-white/10 bg-white/[0.08] px-3 text-[12px] font-semibold text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]"
+              className="about-clean-btn h-7 rounded-[4px] border px-3 text-[12px] font-semibold transition-opacity duration-150"
             >
               {cleaning ? t('settings.about.cleaning') : t('settings.about.cleanRuntimeData')}
             </Button>
           </div>
           {cleanResult.message ? (
             <div
-              className={`text-xs ${cleanResult.type === 'error' ? 'text-[#f6a3ad]' : 'text-[#8A8A90]'}`}
+              className={`about-result text-xs ${cleanResult.type === 'error' ? 'is-error' : ''}`}
             >
               {cleanResult.message}
               {cleanResult.paths.length > 0
@@ -140,28 +140,28 @@ export function AboutSettingsSection({ appVersion, appLogo }) {
                 : ''}
             </div>
           ) : null}
-          <div className="h-px w-full bg-white/[0.08]" />
+          <div className="about-divider h-px w-full" />
         </div>
 
         <div className="mt-auto flex justify-center gap-4 pt-5">
           <Button
             variant="ghost"
             size="sm"
-            className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#5E6AD2] hover:bg-transparent hover:text-[#5E6AD2] hover:opacity-80"
+            className="about-link about-link-primary h-auto rounded-lg px-0 text-[12px] font-semibold hover:bg-transparent hover:opacity-80"
           >
             {t('settings.about.checkUpdates')}
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#8A8A90] hover:bg-transparent hover:text-[#EDEDEF]"
+            className="about-link h-auto rounded-lg px-0 text-[12px] font-semibold hover:bg-transparent"
           >
             {t('settings.about.documentation')}
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="h-auto rounded-lg px-0 text-[12px] font-semibold text-[#8A8A90] hover:bg-transparent hover:text-[#EDEDEF]"
+            className="about-link h-auto rounded-lg px-0 text-[12px] font-semibold hover:bg-transparent"
           >
             {t('settings.about.github')}
           </Button>

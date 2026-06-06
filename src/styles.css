@@ -2375,6 +2375,78 @@ body,
   color: var(--settings-option-description);
 }
 
+.token-usage-metric-card,
+.token-usage-panel {
+  background: var(--settings-card-bg);
+  border-color: var(--settings-card-border);
+}
+
+.token-usage-filter-bar,
+.token-usage-empty-state {
+  background: var(--settings-card-bg-alt);
+  border-color: var(--settings-card-border);
+}
+
+.token-usage-panel-header {
+  border-color: var(--settings-card-border);
+}
+
+.token-usage-select {
+  background: var(--settings-option-bg);
+  border-color: var(--settings-option-border);
+  color: var(--settings-option-title);
+}
+
+.token-usage-select:hover {
+  background: var(--settings-option-bg-hover);
+  border-color: var(--settings-option-border-hover);
+  color: var(--settings-option-title);
+}
+
+.token-usage-select:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.token-usage-select option {
+  background: var(--settings-modal-bg);
+  color: var(--settings-title);
+}
+
+.token-usage-status-pill,
+.token-usage-refresh-btn,
+.token-usage-range-btn,
+.token-usage-model-row,
+.token-usage-provider-badge,
+.token-usage-tooltip {
+  background: var(--settings-option-bg);
+  border-color: var(--settings-option-border);
+  color: var(--settings-option-title);
+}
+
+.token-usage-status-pill,
+.token-usage-range-btn:not(.is-active),
+.token-usage-provider-badge {
+  color: var(--settings-option-description);
+}
+
+.token-usage-refresh-btn:hover:not(:disabled),
+.token-usage-range-btn:hover:not(:disabled) {
+  background: var(--settings-option-bg-hover);
+  border-color: var(--settings-option-border-hover);
+  color: var(--settings-option-title);
+}
+
+.token-usage-range-btn.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+:root[data-theme='light'] .token-usage-range-btn.is-active {
+  color: #ffffff;
+}
+
 .appearance-option-meta {
   color: var(--settings-option-meta);
 }
@@ -2391,6 +2463,58 @@ body,
   background: var(--settings-error-bg);
   border-color: var(--settings-error-border);
   color: var(--settings-error-text);
+}
+
+.about-settings-section {
+  color: var(--settings-title);
+}
+
+.about-logo-placeholder {
+  background: var(--settings-option-bg-active);
+  color: var(--settings-option-title);
+}
+
+.about-title,
+.about-value {
+  color: var(--settings-title);
+}
+
+.about-muted,
+.about-result,
+.about-link {
+  color: var(--settings-subtitle);
+}
+
+.about-divider {
+  background: var(--settings-card-border);
+}
+
+.about-clean-btn {
+  background: var(--settings-option-bg) !important;
+  border-color: var(--settings-option-border) !important;
+  color: var(--settings-option-title) !important;
+}
+
+.about-clean-btn:hover:not(:disabled) {
+  background: var(--settings-option-bg-hover) !important;
+  border-color: var(--settings-option-border-hover) !important;
+  color: var(--settings-option-title) !important;
+}
+
+.about-result.is-error {
+  color: var(--settings-error-text);
+}
+
+.about-link-primary {
+  color: var(--primary) !important;
+}
+
+.about-link-primary:hover {
+  color: var(--primary) !important;
+}
+
+.about-link:not(.about-link-primary):hover {
+  color: var(--settings-title) !important;
 }
 
 .appearance-terminal-preview {

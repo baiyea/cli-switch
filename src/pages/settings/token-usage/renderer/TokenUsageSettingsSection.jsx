@@ -12,7 +12,7 @@ import { useTokenUsage } from './use-token-usage';
 
 function MetricCard({ label, value, hint, formatter }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-3">
+    <div className="token-usage-metric-card rounded-lg border px-3 py-3">
       <div className="mb-2 text-[11px] text-[var(--text-muted)]">{label}</div>
       <strong className="block text-[18px] leading-none text-[var(--text-main)]">
         {formatter ? formatter(value) : value}
@@ -27,10 +27,8 @@ function SelectButton({ children, active, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`h-[31px] rounded-lg border px-3 text-[12px] transition-colors duration-150 ${
-        active
-          ? 'border-[#3D4D72] bg-[#3D4D72] text-white'
-          : 'border-white/10 bg-white/[0.055] text-[var(--text-muted)] hover:bg-white/[0.08] hover:text-[var(--text-main)]'
+      className={`token-usage-range-btn h-[31px] rounded-lg border px-3 text-[12px] transition-colors duration-150 ${
+        active ? 'is-active' : ''
       }`}
     >
       {children}
@@ -49,7 +47,7 @@ function FilterField({ label, children }) {
 
 function EmptyState({ children }) {
   return (
-    <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.025] px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">
+    <div className="token-usage-empty-state flex min-h-[120px] items-center justify-center rounded-lg border border-dashed px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">
       {children}
     </div>
   );
@@ -76,7 +74,7 @@ export function TokenUsageSettingsSection() {
   const isRefreshing = refreshing || Boolean(status.running);
   const maxDaily = Math.max(1, ...daily.map((item) => Number(item?.totalTokens || 0)));
   const selectClassName =
-    'h-[31px] rounded-lg border border-white/10 bg-[#15181D] px-3 text-[12px] text-[var(--text-muted)] outline-none transition-colors duration-150 hover:text-[var(--text-main)] disabled:cursor-not-allowed disabled:opacity-55';
+    'token-usage-select h-[31px] rounded-lg border px-3 text-[12px] outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-55';
   const formatCount = (value) => formatNumber(value, locale);
   const formatTokenValue = (value) => formatTokenCount(value, locale);
   const rangeOptions = [
@@ -98,7 +96,7 @@ export function TokenUsageSettingsSection() {
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className="rounded-lg border border-white/10 bg-white/[0.045] px-2.5 py-1.5 text-[12px] text-[var(--text-muted)]">
+          <span className="token-usage-status-pill rounded-lg border px-2.5 py-1.5 text-[12px]">
             {isRefreshing
               ? t('settings.tokenUsage.syncing')
               : t('settings.tokenUsage.lastSync', {
@@ -109,7 +107,7 @@ export function TokenUsageSettingsSection() {
             type="button"
             variant="secondary"
             size="sm"
-            className="h-8 shrink-0 gap-2 rounded-lg border border-white/10 bg-white/[0.08] px-[14px] text-[13px] font-medium text-[#EDEDEF] transition-opacity duration-150 hover:bg-white/[0.12]"
+            className="token-usage-refresh-btn h-8 shrink-0 gap-2 rounded-lg border px-[14px] text-[13px] font-medium transition-opacity duration-150"
             disabled={refreshing}
             onClick={() => refresh({ force: true })}
           >
@@ -122,7 +120,7 @@ export function TokenUsageSettingsSection() {
       <div
         aria-label={t('settings.tokenUsage.filters')}
         role="group"
-        className="flex flex-wrap items-end gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2"
+        className="token-usage-filter-bar flex flex-wrap items-end gap-2 rounded-lg border p-2"
       >
         <FilterField label={t('settings.tokenUsage.project')}>
           <select
@@ -267,8 +265,8 @@ export function TokenUsageSettingsSection() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,.8fr)]">
-        <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]">
-          <div className="flex h-[42px] items-center justify-between border-b border-white/10 px-3">
+        <section className="token-usage-panel overflow-hidden rounded-lg border">
+          <div className="token-usage-panel-header flex h-[42px] items-center justify-between border-b px-3">
             <h3 className="text-[13px] font-semibold text-[var(--text-main)]">
               {t('settings.tokenUsage.dailyTrend')}
             </h3>
@@ -288,7 +286,7 @@ export function TokenUsageSettingsSection() {
                     key={item.date || `daily-${index}`}
                     className="group relative grid h-full items-end gap-1 text-center text-[10px] text-[var(--text-muted)]"
                   >
-                    <span className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 rounded-md border border-white/10 bg-[#11151A] px-2 py-1 text-[10px] font-medium text-[var(--text-main)] opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                    <span className="token-usage-tooltip pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 rounded-md border px-2 py-1 text-[10px] font-medium text-[var(--text-main)] opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
                       {formatTokenValue(item.totalTokens)}
                     </span>
                     <div
@@ -311,8 +309,8 @@ export function TokenUsageSettingsSection() {
           )}
         </section>
 
-        <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]">
-          <div className="flex h-[42px] items-center justify-between border-b border-white/10 px-3">
+        <section className="token-usage-panel overflow-hidden rounded-lg border">
+          <div className="token-usage-panel-header flex h-[42px] items-center justify-between border-b px-3">
             <h3 className="text-[13px] font-semibold text-[var(--text-main)]">
               {t('settings.tokenUsage.modelSummary')}
             </h3>
@@ -325,11 +323,11 @@ export function TokenUsageSettingsSection() {
               {models.map((item) => (
                 <div
                   key={`${item.provider || 'unknown'}:${item.modelName || 'unknown'}:${item.apiBaseHost || 'unknown'}`}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-lg border border-white/10 bg-white/[0.04] p-2.5"
+                  className="token-usage-model-row grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-lg border p-2.5"
                 >
                   <div className="min-w-0">
                     <div className="truncate text-[12px] font-semibold text-[var(--text-main)]">
-                      <span className="mr-2 rounded-[5px] border border-white/10 bg-white/[0.07] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
+                      <span className="token-usage-provider-badge mr-2 rounded-[5px] border px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
                         {item.provider || unknownLabel}
                       </span>
                       {item.modelName || unknownLabel}
