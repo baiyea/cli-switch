@@ -18,7 +18,6 @@ export function useHomeWorkspace({ setAppError }) {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const createSession = useSessionStore((state) => state.createSession);
   const loadSessionsByProjects = useSessionStore((state) => state.loadSessionsByProjects);
-  const ensureSessionRunning = useSessionStore((state) => state.ensureSessionRunning);
   const renameSession = useSessionStore((state) => state.renameSession);
   const reorderSessions = useSessionStore((state) => state.reorderSessions);
   const setActiveSession = useSessionStore((state) => state.setActiveSession);
@@ -118,17 +117,6 @@ export function useHomeWorkspace({ setAppError }) {
       setActiveProjectId(project.id);
     }
   }, [activeSession, projects, activeProjectId]);
-
-  useEffect(() => {
-    if (!activeSessionId) return;
-    logBridge.write({
-      level: 'info',
-      scope: 'app',
-      message: 'Ensuring session running',
-      meta: { activeSessionId },
-    });
-    ensureSessionRunning(activeSessionId);
-  }, [activeSessionId, ensureSessionRunning]);
 
   useEffect(() => {
     logBridge.write({

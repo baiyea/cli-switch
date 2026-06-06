@@ -79,8 +79,12 @@ test.describe('@token-usage', () => {
     try {
       const { window: win } = launched;
       await win.getByRole('button', { name: 'Settings' }).click();
-      await win.getByRole('tab', { name: 'Token 统计' }).click();
-      const panel = win.getByRole('tabpanel', { name: 'Token 统计' });
+      const tokenTab = await win.evaluate(() =>
+        window.__ZEELIN_TEST__?.t('settings.sideNav.tokenUsage'),
+      );
+      if (!tokenTab) throw new Error('i18n not initialized — __ZEELIN_TEST__ is unavailable');
+      await win.getByRole('tab', { name: tokenTab }).click();
+      const panel = win.getByRole('tabpanel', { name: tokenTab });
       await expect(panel).toBeVisible();
       const scanButton = panel.getByRole('button', { name: /重新扫描|扫描中/ });
       await expect(scanButton).toBeVisible();

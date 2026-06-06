@@ -3,6 +3,12 @@ const { spawnSync } = require('node:child_process');
 const pty = require('node-pty');
 const { getDefaultShell, getPtyEnv } = require('./shell');
 
+function normalizePtyDimension(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(1, Math.floor(numeric));
+}
+
 class PtyService {
   constructor({ onData, onExit, getStartupEnv, logWarn } = {}) {
     this.sessions = new Map();
@@ -20,17 +26,19 @@ class PtyService {
     this.buffers.set(sessionId, merged.length > limit ? merged.slice(-limit) : merged);
   }
 
-  create({ cwd, name, provider, sessionId: preferredSessionId }) {
+  create({ cwd, name, provider, sessionId: preferredSessionId, initialCols, initialRows }) {
     const sessionId = preferredSessionId || crypto.randomUUID();
     if (this.sessions.has(sessionId)) {
       return { sessionId, name: this.sessions.get(sessionId).name };
     }
     this.buffers.set(sessionId, '');
+    const initialPtyCols = normalizePtyDimension(initialCols, 120);
+    const initialPtyRows = normalizePtyDimension(initialRows, 36);
     const shell = getDefaultShell();
     const proc = pty.spawn(shell.file, shell.args, {
       name: 'xterm-color',
-      cols: 120,
-      rows: 36,
+      cols: initialPtyCols,
+      rows: initialPtyRows,
       cwd,
       env: getPtyEnv(this.getStartupEnv({ provider: provider || 'claude', cwd })),
     });
@@ -42,6 +50,8 @@ class PtyService {
       provider: provider || 'claude',
       status: 'running',
       createdAt: Date.now(),
+      initialCols: initialPtyCols,
+      initialRows: initialPtyRows,
       pty: proc,
       autoResponses: new Set(),
     };
@@ -144,6 +154,8 @@ class PtyService {
       provider: target.provider,
       status: target.status,
       createdAt: target.createdAt,
+      initialCols: target.initialCols,
+      initialRows: target.initialRows,
     };
   }
 
@@ -213,4 +225,4 @@ class PtyService {
   }
 }
 
-module.exports = { PtyService };
+module.exports = { PtyService, normalizePtyDimension };

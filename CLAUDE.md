@@ -171,7 +171,8 @@ src/pages/home/terminal/
    - 同一功能在 Windows 与 macOS 行为不同，必须分别有 Windows 和 macOS 用例，不能只在一个泛化用例里写条件分支。
    - 可被模拟的平台差异，应在测试内显式模拟 `navigator.platform`、`process.platform` 或对应 API；必须依赖真实系统能力的场景，应使用 `test.skip()` 限定运行平台。
    - 粘贴、复制、快捷键、窗口控制、文件路径、PTY 生命周期等 OS 敏感能力，新增或修复时至少补一个对应平台用例，并在粘贴/操作之后回读真实结果，例如 PTY 输入、终端 DOM、附件文件、窗口状态或 IPC 记录，不能只断言事件被触发。
-6. 测试文件命名：
+6. **E2E 涉及 UI 文本断言时，必须通过 `window.__ZEELIN_TEST__?.t('i18n.key')` 动态获取翻译文本，禁止硬编码中/英文字符串。**
+7. 测试文件命名：
 
    - E2E：`{功能名}.e2e.js`（如 `terminal.e2e.js`、`clipboard-paste.e2e.js`）
    - 单元测试：`{模块名}.test.ts` 或 `{模块名}.test.js`

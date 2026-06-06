@@ -1,5 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
 function ensureDir(dir) {
@@ -61,14 +62,36 @@ function seedProviderSessions(homeDir, projectDir) {
   return { claudeSid, codexSid, geminiSid, claudeSubAgentSid };
 }
 
-async function launchAppWithFixtures() {
+function createFakeClaudeRuntime(runtimeRoot) {
+  const entrypoint = path.join(
+    runtimeRoot,
+    'node_modules',
+    '@anthropic-ai',
+    'claude-code',
+    'cli.js',
+  );
+  fs.mkdirSync(path.dirname(entrypoint), { recursive: true });
+  fs.writeFileSync(
+    entrypoint,
+    `#!/usr/bin/env node
+process.stdout.write('\\r\\nZEELIN_FAKE_CLAUDE_STARTED\\r\\n');
+process.stdin.resume();
+setInterval(() => {}, 1000);
+`,
+    'utf8',
+  );
+  fs.chmodSync(entrypoint, 0o755);
+}
+
+async function launchAppWithFixtures(options = {}) {
   const ids = {};
   const launched = await launchApp({
     cwd: path.resolve(__dirname, '../../../../../'),
-    rootPrefix: 'cliswitch-multi-cli-',
+    rootPrefix: options.rootPrefix || 'cliswitch-multi-cli-',
     projectDirName: 'project-a',
     projectId: 'p1',
     projectName: 'DemoProject',
+    envOverrides: options.envOverrides || {},
     providerSettings: {
       providers: {
         claude: {
@@ -120,6 +143,52 @@ function countOccurrences(text, token) {
   return String(text || '').split(token).length - 1;
 }
 
+async function waitForTerminalGeometry(win, sessionId) {
+  await expect
+    .poll(
+      async () =>
+        win.evaluate((sid) => window.__ZEELIN_TEST__?.getTerminalLayoutGeometry?.(sid), sessionId),
+      { timeout: 30000, intervals: [200, 400, 800] },
+    )
+    .toMatchObject({
+      cols: expect.any(Number),
+      rows: expect.any(Number),
+      cellWidth: expect.any(Number),
+      container: expect.any(Object),
+      screen: expect.any(Object),
+      viewport: expect.any(Object),
+    });
+
+  return win.evaluate(
+    (sid) => window.__ZEELIN_TEST__?.getTerminalLayoutGeometry?.(sid),
+    sessionId,
+  );
+}
+
+function expectTerminalGeometryAligned(geometry, provider) {
+  expect(geometry, provider).toBeTruthy();
+  expect(geometry.cellWidth, provider).toBeGreaterThan(0);
+  expect(geometry.cols, provider).toBeGreaterThan(20);
+  expect(geometry.rows, provider).toBeGreaterThan(5);
+  expect(geometry.sidebar?.right, provider).toBeLessThanOrEqual(geometry.mainPanel.left + 1);
+  expect(geometry.mainContent.left, provider).toBeGreaterThanOrEqual(geometry.sidebar.right - 1);
+  expect(geometry.container.left, provider).toBeGreaterThanOrEqual(geometry.mainPanel.left - 1);
+  expect(geometry.container.right, provider).toBeLessThanOrEqual(geometry.mainPanel.right + 1);
+  expect(geometry.xterm.left, provider).toBeGreaterThanOrEqual(geometry.container.left - 1);
+  expect(geometry.viewport.left, provider).toBeGreaterThanOrEqual(geometry.container.left - 1);
+  expect(geometry.screen.left, provider).toBeGreaterThanOrEqual(geometry.container.left - 1);
+  expect(geometry.screen.right, provider).toBeLessThanOrEqual(
+    geometry.container.right + geometry.cellWidth + 2,
+  );
+  expect(geometry.viewport.scrollWidth, provider).toBeLessThanOrEqual(
+    geometry.viewport.clientWidth + geometry.cellWidth + 2,
+  );
+
+  const expectedCols = Math.floor(geometry.container.width / geometry.cellWidth);
+  expect(geometry.cols, provider).toBeGreaterThanOrEqual(expectedCols - 3);
+  expect(geometry.cols, provider).toBeLessThanOrEqual(expectedCols + 1);
+}
+
 test('multi provider sessions are discovered and resumed by provider', async () => {
   const launched = await launchAppWithFixtures();
   const { electronApp, window: win, ids, root } = launched;
@@ -144,6 +213,105 @@ test('multi provider sessions are discovered and resumed by provider', async () 
     await expect(win.locator(`[data-session-id="${ids.geminiSid}"]`)).toBeVisible();
   } finally {
     await closeApp({ electronApp, root });
+  }
+});
+
+test('Windows terminal viewport stays aligned with sidebar for Claude and Codex sessions', async () => {
+  test.skip(process.platform !== 'win32', 'Windows-only layout regression coverage');
+
+  const launched = await launchAppWithFixtures();
+  const { electronApp, window: win, ids, root } = launched;
+  try {
+    await win.setViewportSize({ width: 1600, height: 900 });
+    await syncFirstProjectHistory(win);
+    await waitForDiscoveredSessions(win, 'p1', [ids.claudeSid, ids.codexSid]);
+
+    for (const { provider, sessionId, titlePattern } of [
+      { provider: 'claude', sessionId: ids.claudeSid, titlePattern: /^Claude Code\s·/ },
+      { provider: 'codex', sessionId: ids.codexSid, titlePattern: /^Codex CLI\s·/ },
+    ]) {
+      await win.getByTestId(`session-item-${sessionId}`).click();
+      await expect(win.locator('.toolbar-provider-meta')).toHaveText(titlePattern);
+      await expect(win.locator(`[data-session-id="${sessionId}"]`)).toBeVisible();
+      await win.evaluate(
+        ({ sid, label }) => {
+          const rule = `${label}-layout-rule-${'─'.repeat(220)}`;
+          window.__ZEELIN_TEST__?.appendTerminalData?.(
+            sid,
+            `${rule}\r\n${label}-layout-body ${'0123456789 '.repeat(40)}\r\n`,
+          );
+        },
+        { sid: sessionId, label: provider },
+      );
+
+      const geometry = await waitForTerminalGeometry(win, sessionId);
+      expectTerminalGeometryAligned(geometry, provider);
+      const resize = await win.evaluate((sid) => window.__ZEELIN_TEST__?.getLastResize(sid), sessionId);
+      expect(resize).toMatchObject({ cols: geometry.cols, rows: geometry.rows });
+    }
+  } finally {
+    await closeApp({ electronApp, root });
+  }
+});
+
+test('Windows CLI resumes after terminal fit so startup columns match UI columns', async () => {
+  test.skip(process.platform !== 'win32', 'Windows-only PTY startup size regression coverage');
+
+  const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cliswitch-fake-claude-size-'));
+  createFakeClaudeRuntime(runtimeRoot);
+  const launched = await launchAppWithFixtures({
+    rootPrefix: 'cliswitch-multi-cli-size-',
+    envOverrides: { ZEELIN_CLI_RUNTIME_DIR: runtimeRoot },
+  });
+  const { electronApp, window: win, ids, root } = launched;
+  try {
+    await win.setViewportSize({ width: 1600, height: 900 });
+    await syncFirstProjectHistory(win);
+    await waitForDiscoveredSessions(win, 'p1', [ids.claudeSid]);
+
+    await win.getByTestId(`session-item-${ids.claudeSid}`).click();
+    await expect(win.locator('.toolbar-provider-meta')).toHaveText(/^Claude Code\s·/);
+    const geometry = await waitForTerminalGeometry(win, ids.claudeSid);
+
+    await expect
+      .poll(
+        async () => {
+          const output = await win.evaluate(
+            (sid) => window.__ZEELIN_TEST__?.getSessionBuffer(sid) || '',
+            ids.claudeSid,
+          );
+          return output.includes('ZEELIN_FAKE_CLAUDE_STARTED');
+        },
+        { timeout: 15000, intervals: [200, 400, 800] },
+      )
+      .toBe(true);
+
+    await expect
+      .poll(
+        () => electronApp.evaluate(() => {
+          const metas = globalThis.__ZEELIN_E2E_PTY_SERVICE__?.listSessionMeta?.() || [];
+          return metas.find((item) => item?.provider === 'claude') || null;
+        }),
+        { timeout: 15000, intervals: [200, 400, 800] },
+      )
+      .toMatchObject({
+        initialCols: expect.any(Number),
+        initialRows: expect.any(Number),
+      });
+
+    const sessionMeta = await electronApp.evaluate(
+      () => {
+        const metas = globalThis.__ZEELIN_E2E_PTY_SERVICE__?.listSessionMeta?.() || [];
+        return metas.find((item) => item?.provider === 'claude') || null;
+      },
+    );
+    expect(sessionMeta.initialCols).toBeGreaterThan(20);
+    expect(sessionMeta.initialRows).toBeGreaterThan(5);
+    expect(Math.abs(sessionMeta.initialCols - geometry.cols)).toBeLessThanOrEqual(1);
+    expect(Math.abs(sessionMeta.initialRows - geometry.rows)).toBeLessThanOrEqual(1);
+  } finally {
+    await closeApp({ electronApp, root });
+    fs.rmSync(runtimeRoot, { recursive: true, force: true });
   }
 });
 

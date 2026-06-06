@@ -18,6 +18,8 @@ interface HomeSessionRuntime {
     name?: string;
     provider?: string;
     providerSessionId?: string;
+    initialCols?: number;
+    initialRows?: number;
   }): Promise<PersistedSessionItem>;
   rename(payload: {
     sessionId: string;

@@ -99,6 +99,8 @@ function createIpcSchemas(z) {
     cwd: z.string().optional(),
     name: z.string().optional(),
     provider: z.string().optional().default('claude'),
+    initialCols: z.number().int().min(1).optional(),
+    initialRows: z.number().int().min(1).optional(),
   });
   const sessionSuggestTitleSchema = z.object({
     sessionId: z.string().min(1),

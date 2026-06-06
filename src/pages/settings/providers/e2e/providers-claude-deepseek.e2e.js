@@ -40,7 +40,11 @@ async function launchDeepSeekSettingsApp() {
 
 async function waitForSettings(win) {
   await expect(win.locator('.settings-modal')).toBeVisible({ timeout: 90000 });
-  await expect(win.getByRole('heading', { name: 'Provider Settings' })).toBeVisible({ timeout: 30000 });
+  const providerTitle = await win.evaluate(() =>
+    window.__ZEELIN_TEST__?.t('settings.section.providers.title'),
+  );
+  if (!providerTitle) throw new Error('i18n not initialized — __ZEELIN_TEST__ is unavailable');
+  await expect(win.getByRole('heading', { name: providerTitle })).toBeVisible({ timeout: 30000 });
 }
 
 async function configureDeepSeekInSettings(win, token) {

@@ -4,6 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import { useEffect, useRef, useState } from 'react';
 
 import { logBridge } from '../../../../shared/bridge';
+import { i18nService } from '../../../../i18n/renderer';
 import type { EffectiveTheme } from '../../../theme.store';
 import { useSessionStore } from '../../home.store';
 import { supportsImagePasteForProvider } from './paste-support.mjs';
@@ -914,6 +915,22 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     entry.term.focus();
   }
 
+  function startActiveSessionWithMeasuredSize(sessionId: string) {
+    const resize = lastResizeRef.current.get(sessionId);
+    if (!resize) return false;
+    logBridge.write({
+      level: 'info',
+      scope: 'app',
+      message: 'Ensuring session running',
+      meta: { activeSessionId: sessionId, initialCols: resize.cols, initialRows: resize.rows },
+    });
+    void useSessionStore.getState().ensureSessionRunning(sessionId, {
+      initialCols: resize.cols,
+      initialRows: resize.rows,
+    });
+    return true;
+  }
+
   useEffect(() => {
     const nextTheme = getXtermTheme(effectiveTheme);
     for (const { term } of terminalRef.current.values()) {
@@ -1013,8 +1030,16 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
   }, [ingestOutput, markExited, refreshRuntimeStatuses]);
 
   useEffect(() => {
-    fitActiveTerminal();
-    const raf = window.requestAnimationFrame(() => fitActiveTerminal());
+    let startRequested = false;
+    const fitAndStart = () => {
+      fitActiveTerminal();
+      if (activeSessionId && !startRequested) {
+        startRequested = startActiveSessionWithMeasuredSize(activeSessionId);
+      }
+    };
+
+    fitAndStart();
+    const raf = window.requestAnimationFrame(fitAndStart);
     syncActiveScrollState(activeSessionId);
     logBridge.write({
       level: 'info',
@@ -1052,6 +1077,51 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
         return window.getComputedStyle(el).display;
       },
       getLastResize: (sessionId: string) => lastResizeRef.current.get(sessionId) || null,
+      getTerminalLayoutGeometry: (sessionId: string) => {
+        const container = containerRef.current.get(sessionId);
+        const entry = terminalRef.current.get(sessionId);
+        if (!container || !entry) return null;
+        const mainPanel = container.closest('.main-panel') as HTMLElement | null;
+        const mainContent = container.closest('.main-content') as HTMLElement | null;
+        const sidebar = document.querySelector('.sidebar') as HTMLElement | null;
+        const xterm = container.querySelector('.xterm') as HTMLElement | null;
+        const viewport = container.querySelector('.xterm-viewport') as HTMLElement | null;
+        const screen = container.querySelector('.xterm-screen') as HTMLElement | null;
+        const helper = container.querySelector('.xterm-helper-textarea') as HTMLElement | null;
+        const dims = entry.term._core?._renderService?.dimensions;
+        const cssCell = dims?.css?.cell;
+        const rectOf = (el: Element | null) => {
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          const htmlEl = el as HTMLElement;
+          return {
+            left: rect.left,
+            right: rect.right,
+            top: rect.top,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+            clientWidth: htmlEl.clientWidth || 0,
+            scrollWidth: htmlEl.scrollWidth || 0,
+            clientHeight: htmlEl.clientHeight || 0,
+            scrollHeight: htmlEl.scrollHeight || 0,
+          };
+        };
+        return {
+          cols: entry.term.cols,
+          rows: entry.term.rows,
+          cellWidth: Number(cssCell?.width || 0),
+          cellHeight: Number(cssCell?.height || 0),
+          sidebar: rectOf(sidebar),
+          mainContent: rectOf(mainContent),
+          mainPanel: rectOf(mainPanel),
+          container: rectOf(container),
+          xterm: rectOf(xterm),
+          viewport: rectOf(viewport),
+          screen: rectOf(screen),
+          helper: rectOf(helper),
+        };
+      },
       getTerminalScrollState: (sessionId: string) => {
         const entry = terminalRef.current.get(sessionId);
         if (!entry) return null;
@@ -1089,6 +1159,8 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
         useSessionStore.getState().destroyAll();
         return true;
       },
+      t: (key: string, params?: Record<string, string | number>) =>
+        i18nService.t(key, params),
       simulateImagePaste: async (sessionId: string, base64: string, mimeType = 'image/png') => {
         const session = useSessionStore.getState().sessions.find((s) => s.sessionId === sessionId);
         if (!session || !session.cwd) {

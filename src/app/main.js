@@ -428,6 +428,18 @@ const ptyService = new PtyService({
     sendToRenderer(TERMINAL_CHANNELS.EXIT, { sessionId, exitCode });
   },
 });
+if (IS_E2E) {
+  globalThis.__ZEELIN_E2E_PTY_SERVICE__ = {
+    getSessionMeta(sessionId) {
+      return ptyService.getSessionMeta(sessionId);
+    },
+    listSessionMeta() {
+      return Array.from(ptyService.sessions?.keys?.() || []).map((sessionId) =>
+        ptyService.getSessionMeta(sessionId),
+      );
+    },
+  };
+}
 const { waitForShellBootstrap, runWithSessionStartLock } = createShellBootstrapService({
   ptyService,
 });

@@ -59,7 +59,11 @@ test.describe('@archive', () => {
 
     try {
       await launched.window.getByRole('button', { name: 'Settings' }).click();
-      await launched.window.getByRole('tab', { name: 'Archive' }).click();
+      const archiveTab = await launched.window.evaluate(() =>
+        window.__ZEELIN_TEST__?.t('settings.sideNav.archive'),
+      );
+      if (!archiveTab) throw new Error('i18n not initialized — __ZEELIN_TEST__ is unavailable');
+      await launched.window.getByRole('tab', { name: archiveTab }).click();
       await launched.window.getByRole('button', { name: '一键清理' }).click();
       await expect(launched.window.getByText(/已清理 1 条过期归档/)).toBeVisible();
       expect(fs.existsSync(expiredFile)).toBe(false);

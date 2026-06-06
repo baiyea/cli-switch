@@ -371,6 +371,81 @@ test('session start starts a token usage run when creating a new PTY', async () 
   assert.match(starts[0].startedAt, /^\d{4}-\d{2}-\d{2}T/);
 });
 
+test('session start forwards measured terminal dimensions to PTY create', async () => {
+  const { registerTerminalMain } = loadBlockMainWithFakeElectron();
+  let createPayload = null;
+  const record = {
+    id: 'session-row-size',
+    project_id: 'project-1',
+    provider: 'claude',
+    provider_session_id: 'provider-session-size',
+    cwd: '/tmp/project',
+    session_file_path: '/tmp/session.jsonl',
+    title: 'Sized session',
+  };
+
+  const { handlers, context } = createBaseContext({
+    hasSession(sessionId) {
+      assert.equal(sessionId, 'provider-session-size');
+      return false;
+    },
+    create(payload) {
+      createPayload = payload;
+    },
+    sessionStartSchema: {
+      parse(payload) {
+        return payload;
+      },
+    },
+    runWithSessionStartLock(_lockKey, task) {
+      return task();
+    },
+    projectStore: {
+      getById() {
+        return { id: 'project-1', path: '/tmp/project' };
+      },
+    },
+    sessionStore: {
+      getByProviderSessionId() {
+        return record;
+      },
+      updateStateByProviderSessionId() {},
+    },
+    isLocalGeneratedSessionId() {
+      return false;
+    },
+    getStartupEnvForProvider() {
+      return {};
+    },
+    maskEnvForLog(env) {
+      return env;
+    },
+    async waitForShellBootstrap() {},
+    getResumeCommandForProvider() {
+      return 'claude resume\n';
+    },
+    getStartupCommandForProvider() {
+      throw new Error('resume command should be used');
+    },
+    toSessionView(row) {
+      return row;
+    },
+  });
+
+  registerTerminalMain(context);
+  const handler = handlers.get(TERMINAL_CHANNELS.SESSION_START);
+  await handler(null, {
+    sessionId: 'provider-session-size',
+    providerSessionId: 'provider-session-size',
+    provider: 'claude',
+    initialCols: 173,
+    initialRows: 41,
+  });
+
+  assert.equal(createPayload.initialCols, 173);
+  assert.equal(createPayload.initialRows, 41);
+});
+
 test('session start does not start a token usage run when PTY already exists', async () => {
   const { registerTerminalMain } = loadBlockMainWithFakeElectron();
   const starts = [];

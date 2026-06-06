@@ -51,7 +51,10 @@ interface HomeStoreState {
   hydrateSessions: (items: PersistedSessionItem[]) => void;
   loadSessionsByProjects: (projectIds: string[]) => Promise<void>;
   createSession: (projectId: string, cwd: string, toolId?: ProviderId | string) => Promise<string>;
-  ensureSessionRunning: (sessionId: string) => Promise<void>;
+  ensureSessionRunning: (
+    sessionId: string,
+    options?: { initialCols?: number; initialRows?: number },
+  ) => Promise<void>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
   reorderSessions: (
     projectId: string,
@@ -219,7 +222,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     return mapped.sessionId;
   },
 
-  async ensureSessionRunning(sessionId: string) {
+  async ensureSessionRunning(sessionId: string, options = {}) {
     if (startInFlightSessionIds.has(sessionId)) return;
     if (startedSessionIds.has(sessionId)) return;
     const session = get().sessions.find((s) => s.sessionId === sessionId);
@@ -240,6 +243,8 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
         providerSessionId: session.providerSessionId,
         cwd: session.cwd,
         name: session.name,
+        initialCols: options.initialCols,
+        initialRows: options.initialRows,
       });
       const mapped = toTerminalSession(started);
       mapped.runtimeStatus = 'starting';

@@ -3,6 +3,7 @@ export {};
 declare global {
   interface Window {
     __ZEELIN_TEST__?: {
+      t: (key: string, params?: Record<string, string | number>) => string;
       getActiveSessionId: () => string;
       getSessionBuffer: (sessionId: string) => string;
       getPaneDisplay: (sessionId: string) => string | null;
@@ -86,6 +87,8 @@ declare global {
           name?: string;
           provider?: string;
           providerSessionId?: string;
+          initialCols?: number;
+          initialRows?: number;
         }) => Promise<{
           sessionId: string;
           name: string;

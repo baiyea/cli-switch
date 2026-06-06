@@ -97,6 +97,8 @@ export const terminalSessionBridge = {
     name?: string;
     provider?: string;
     providerSessionId?: string;
+    initialCols?: number;
+    initialRows?: number;
   }): Promise<PersistedSessionItem> {
     return window.electronAPI.sessions.start(payload) as Promise<PersistedSessionItem>;
   },

@@ -244,6 +244,8 @@ function registerTerminalMain(context = {}) {
           name: parsed.name || `session-${parsed.sessionId.slice(0, 8)}`,
           provider,
           sessionId: runtimeSessionId,
+          initialCols: parsed.initialCols,
+          initialRows: parsed.initialRows,
         });
         await waitForShellBootstrap(runtimeSessionId);
         safeStartTokenUsageRun({
