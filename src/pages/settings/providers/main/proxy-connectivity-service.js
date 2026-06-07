@@ -17,6 +17,9 @@ function createProxyConnectivityService({
 }) {
   async function testProviderProxyConnectivity({ provider, profileId, envVars, proxyUrl }) {
     const id = normalizeProviderId(provider);
+    if (process.env.APP_E2E === '1' && process.env.ZEELIN_E2E_PROXY_TEST_OK === '1') {
+      return { ok: true, message: '代理测试成功：E2E stub' };
+    }
     const mergedEnvVars = getMergedProviderProfileEnvVars(
       id,
       String(profileId || ''),

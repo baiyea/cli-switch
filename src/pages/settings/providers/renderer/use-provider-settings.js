@@ -36,6 +36,54 @@ export const DEFAULT_SETTINGS = {
   },
 };
 
+function withProxyConfig(settingsModel, providerTab, editingProfileId, { enabled, url }) {
+  if (!editingProfileId) return settingsModel;
+  const normalizedUrl = String(url || '').trim();
+  const normalizedEnabled = !!enabled;
+  const currentProvider = settingsModel.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
+  const nextProfiles = (currentProvider.profiles || []).map((profile) => {
+    if (profile.id !== editingProfileId) return profile;
+    const nextEnv = [...(profile.envVars || [])].filter((pair) => {
+      const key = String(pair?.key || '')
+        .trim()
+        .toUpperCase();
+      return key !== 'HTTP_PROXY' && key !== 'HTTPS_PROXY';
+    });
+    const upsert = (key, value) => {
+      const targetKey = String(key || '').trim();
+      const index = nextEnv.findIndex(
+        (pair) =>
+          String(pair?.key || '')
+            .trim()
+            .toUpperCase() === targetKey,
+      );
+      const payload = {
+        key: targetKey,
+        value: String(value || ''),
+        editable: true,
+        required: false,
+        keyEditable: false,
+        removable: false,
+      };
+      if (index >= 0) nextEnv[index] = { ...nextEnv[index], ...payload };
+      else nextEnv.push(payload);
+    };
+    upsert(INTERNAL_PROXY_ENABLED_KEY, normalizedEnabled ? 'true' : 'false');
+    upsert(INTERNAL_PROXY_URL_KEY, normalizedUrl);
+    return { ...profile, envVars: nextEnv };
+  });
+  return {
+    ...settingsModel,
+    providers: {
+      ...(settingsModel.providers || {}),
+      [providerTab]: {
+        ...currentProvider,
+        profiles: nextProfiles,
+      },
+    },
+  };
+}
+
 export function isProviderConfigured(settingsModel) {
   const providers = settingsModel?.providers;
   if (!providers) return false;
@@ -290,54 +338,9 @@ export function useProviderSettings({
 
   function setProxyConfig({ enabled, url }) {
     if (!editingProfileId) return;
-    const normalizedUrl = String(url || '').trim();
-    const normalizedEnabled = !!enabled;
     setSettingsError('');
     setSettingsSavedAt(0);
-    setSettingsModel((prev) => {
-      const currentProvider = prev.providers?.[providerTab] || DEFAULT_PROVIDER_SETTINGS;
-      const nextProfiles = (currentProvider.profiles || []).map((profile) => {
-        if (profile.id !== editingProfileId) return profile;
-        const nextEnv = [...(profile.envVars || [])].filter((pair) => {
-          const key = String(pair?.key || '')
-            .trim()
-            .toUpperCase();
-          return key !== 'HTTP_PROXY' && key !== 'HTTPS_PROXY';
-        });
-        const upsert = (key, value) => {
-          const targetKey = String(key || '').trim();
-          const index = nextEnv.findIndex(
-            (pair) =>
-              String(pair?.key || '')
-                .trim()
-                .toUpperCase() === targetKey,
-          );
-          const payload = {
-            key: targetKey,
-            value: String(value || ''),
-            editable: true,
-            required: false,
-            keyEditable: false,
-            removable: false,
-          };
-          if (index >= 0) nextEnv[index] = { ...nextEnv[index], ...payload };
-          else nextEnv.push(payload);
-        };
-        upsert(INTERNAL_PROXY_ENABLED_KEY, normalizedEnabled ? 'true' : 'false');
-        upsert(INTERNAL_PROXY_URL_KEY, normalizedUrl);
-        return { ...profile, envVars: nextEnv };
-      });
-      return {
-        ...prev,
-        providers: {
-          ...(prev.providers || {}),
-          [providerTab]: {
-            ...currentProvider,
-            profiles: nextProfiles,
-          },
-        },
-      };
-    });
+    setSettingsModel((prev) => withProxyConfig(prev, providerTab, editingProfileId, { enabled, url }));
     markProviderDirty();
   }
 
@@ -762,7 +765,19 @@ export function useProviderSettings({
         }));
         return;
       }
-      setProxyConfig({ enabled: true, url: proxyUrl });
+      const nextSettingsModel = withProxyConfig(settingsModel, providerTab, editingProfileId, {
+        enabled: true,
+        url: proxyUrl,
+      });
+      setSettingsModel(nextSettingsModel);
+      const savedProviders = await persistProviderSettings(nextSettingsModel);
+      if (!savedProviders) {
+        setProviderTestStateByKey((prev) => ({
+          ...prev,
+          [stateKey]: { status: 'failed', message: '代理测试成功，但设置保存失败' },
+        }));
+        return;
+      }
       setProviderTestStateByKey((prev) => ({
         ...prev,
         [stateKey]: { status: 'success', message: result.message || '代理测试成功，已启用' },
@@ -775,10 +790,10 @@ export function useProviderSettings({
     }
   }
 
-  async function onSaveSettings() {
+  function buildProvidersPayload(sourceModel) {
     const providersPayload = {};
     for (const providerKey of PROVIDER_IDS) {
-      const source = settingsModel.providers?.[providerKey] || DEFAULT_PROVIDER_SETTINGS;
+      const source = sourceModel.providers?.[providerKey] || DEFAULT_PROVIDER_SETTINGS;
       const normalizedSource = normalizeProviderEntry(providerKey, source);
       const profiles = (normalizedSource.profiles || []).map((profile, idx) => ({
         id: String(profile.id || `provider-${idx + 1}`),
@@ -791,20 +806,20 @@ export function useProviderSettings({
       }));
 
       if (profiles.length === 0) {
-        setSettingsError(`Provider ${providerKey} 至少保留一个供应商配置`);
-        return;
+        return { error: `Provider ${providerKey} 至少保留一个供应商配置`, payload: null };
       }
 
       for (const profile of profiles) {
         for (const pair of profile.envVars) {
           if (!/^[A-Z_][A-Z0-9_]*$/.test(pair.key)) {
-            setSettingsError('变量名格式不正确，仅支持大写字母/数字/下划线，且不能数字开头');
-            return;
+            return {
+              error: '变量名格式不正确，仅支持大写字母/数字/下划线，且不能数字开头',
+              payload: null,
+            };
           }
         }
         if (!profile.name.trim()) {
-          setSettingsError('供应商名称不能为空');
-          return;
+          return { error: '供应商名称不能为空', payload: null };
         }
       }
 
@@ -827,10 +842,19 @@ export function useProviderSettings({
       }
       providersPayload[providerKey] = { defaultProfileId, enabledProfileId, profiles };
     }
+    return { error: '', payload: { providers: providersPayload } };
+  }
+
+  async function persistProviderSettings(sourceModel) {
+    const { error, payload } = buildProvidersPayload(sourceModel);
+    if (error) {
+      setSettingsError(error);
+      return null;
+    }
 
     try {
-      const saved = await settingsBridge.saveClaude({ providers: providersPayload });
-      const normalizedProviders = normalizeProviderSettings(saved?.providers || providersPayload);
+      const saved = await settingsBridge.saveClaude(payload);
+      const normalizedProviders = normalizeProviderSettings(saved?.providers || payload.providers);
       setSettingsModel({ providers: normalizedProviders });
       setEditingProfileByProvider(getInitialEditingProfiles(normalizedProviders));
       setSettingsSavedAt(Date.now());
@@ -839,9 +863,15 @@ export function useProviderSettings({
         setProviderCheckPassed(true);
         onFirstProviderConfigured?.();
       }
+      return normalizedProviders;
     } catch (e) {
       setSettingsError(e?.message || '保存失败');
+      return null;
     }
+  }
+
+  async function onSaveSettings() {
+    await persistProviderSettings(settingsModel);
   }
 
   const onSelectEditingProfile = (nextProfileId) => {

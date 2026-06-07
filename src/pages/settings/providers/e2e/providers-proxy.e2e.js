@@ -85,14 +85,25 @@ async function openProviderSettings(win) {
   }
 
   await expect(settingsModal).toBeVisible({ timeout: 60000 });
-  await expect(win.getByRole('heading', { name: /Providers|Model Provider Settings/i })).toBeVisible();
+  await expect(
+    win.getByRole('heading', { name: /Providers|Provider Settings|供应商设置/i }),
+  ).toBeVisible();
+}
+
+async function openProviderTab(win, tabLabel) {
+  await win.getByRole('button', { name: tabLabel }).click();
+  const proxyInput = win.getByPlaceholder(PROXY_INPUT_PLACEHOLDER);
+  await expect(proxyInput).toBeVisible();
+  return proxyInput;
+}
+
+async function saveProviderSettings(win) {
+  await win.getByRole('button', { name: /保存设置|Save settings/i }).click();
+  await expect(win.getByText(/已保存|Saved/i)).toBeVisible({ timeout: 30000 });
 }
 
 async function enableProxyAndAssertSuccess(win, tabLabel, proxyUrl) {
-  await win.getByRole('button', { name: tabLabel }).click();
-
-  const proxyInput = win.getByPlaceholder(PROXY_INPUT_PLACEHOLDER);
-  await expect(proxyInput).toBeVisible();
+  const proxyInput = await openProviderTab(win, tabLabel);
   await proxyInput.fill(proxyUrl);
 
   const proxySwitch = win.getByRole('switch', { name: '启用代理开关' });
@@ -133,6 +144,76 @@ test.describe('providers proxy connectivity', () => {
     const win = launched.window;
     for (const tabLabel of PROVIDER_TABS) {
       await enableProxyAndAssertSuccess(win, tabLabel, DEFAULT_PROXY_URL);
+    }
+  });
+});
+
+test.describe('providers proxy persistence', () => {
+  test('codex proxy url persists after save and app restart', async () => {
+    const cwd = path.resolve(__dirname, '../../../../../');
+    const first = await launchApp({ cwd });
+    await openProviderSettings(first.window);
+
+    const firstProxyInput = await openProviderTab(first.window, 'Codex CLI');
+    await firstProxyInput.fill(DEFAULT_PROXY_URL);
+    await saveProviderSettings(first.window);
+    await closeApp({
+      electronApp: first.electronApp,
+      root: first.root,
+      keepRoot: true,
+      isExternalDb: first.isExternalDb,
+    });
+
+    const second = await launchApp({ cwd, envOverrides: { ZEELIN_DB_PATH: first.dbPath } });
+    try {
+      await openProviderSettings(second.window);
+      const secondProxyInput = await openProviderTab(second.window, 'Codex CLI');
+      await expect(secondProxyInput).toHaveValue(DEFAULT_PROXY_URL);
+    } finally {
+      await closeApp({
+        electronApp: second.electronApp,
+        root: second.root,
+        isExternalDb: second.isExternalDb,
+      });
+    }
+  });
+
+  test('codex proxy enable success is persisted without requiring a separate save click', async () => {
+    const cwd = path.resolve(__dirname, '../../../../../');
+    const first = await launchApp({
+      cwd,
+      envOverrides: { ZEELIN_E2E_PROXY_TEST_OK: '1' },
+    });
+    await openProviderSettings(first.window);
+
+    const firstProxyInput = await openProviderTab(first.window, 'Codex CLI');
+    await firstProxyInput.fill(DEFAULT_PROXY_URL);
+    const proxySwitch = first.window.getByRole('switch', { name: '启用代理开关' });
+    if (!(await proxySwitch.isChecked())) {
+      await proxySwitch.click();
+    }
+    await expect(proxySwitch).toBeChecked({ timeout: 30000 });
+    await expect(first.window.getByText('✓ 已连接')).toBeVisible({ timeout: 30000 });
+    await expect(first.window.getByText(/已保存|Saved/i)).toBeVisible({ timeout: 30000 });
+    await closeApp({
+      electronApp: first.electronApp,
+      root: first.root,
+      keepRoot: true,
+      isExternalDb: first.isExternalDb,
+    });
+
+    const second = await launchApp({ cwd, envOverrides: { ZEELIN_DB_PATH: first.dbPath } });
+    try {
+      await openProviderSettings(second.window);
+      const secondProxyInput = await openProviderTab(second.window, 'Codex CLI');
+      await expect(secondProxyInput).toHaveValue(DEFAULT_PROXY_URL);
+      await expect(second.window.getByRole('switch', { name: '启用代理开关' })).toBeChecked();
+    } finally {
+      await closeApp({
+        electronApp: second.electronApp,
+        root: second.root,
+        isExternalDb: second.isExternalDb,
+      });
     }
   });
 });

@@ -1,3 +1,20 @@
+function getDefaultWindowBounds(platform = process.platform) {
+  if (platform === 'win32') {
+    return {
+      width: 1180,
+      height: 760,
+      minWidth: 1000,
+      minHeight: 680,
+    };
+  }
+  return {
+    width: 1360,
+    height: 860,
+    minWidth: 1000,
+    minHeight: 680,
+  };
+}
+
 function createWindowRuntime(deps = {}) {
   const {
     app,
@@ -87,11 +104,9 @@ function createWindowRuntime(deps = {}) {
     const iconPath = getWindowIconPath();
     logInfo('app', 'Resolved window icon path', { iconPath: iconPath || '' });
     const useHiddenTitleBar = process.platform === 'darwin' || process.platform === 'win32';
+    const windowBounds = getDefaultWindowBounds();
     mainWindow = new BrowserWindow({
-      width: 1360,
-      height: 860,
-      minWidth: 1000,
-      minHeight: 680,
+      ...windowBounds,
       title: APP_NAME,
       show: false,
       autoHideMenuBar: true,
@@ -260,4 +275,5 @@ function createWindowRuntime(deps = {}) {
 
 module.exports = {
   createWindowRuntime,
+  getDefaultWindowBounds,
 };

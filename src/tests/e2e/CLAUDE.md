@@ -43,7 +43,7 @@
 | Codex OAuth 可启动并在人工交互后启用 | src/pages/settings/providers/e2e/providers-codex-oauth.e2e.js |
 | Gemini OAuth 可启动并在人工交互后启用 | src/pages/settings/providers/e2e/providers-gemini-oauth.e2e.js |
 | OAuth 测试会话跨 provider 复用固定 singleton 记录 | src/pages/settings/providers/e2e/providers-oauth-session-reuse.e2e.js |
-| Claude/Codex/Gemini 三个 tab 的代理配置可通过连通性检测 | src/pages/settings/providers/e2e/providers-proxy.e2e.js |
+| Claude/Codex/Gemini 三个 tab 的代理配置可通过连通性检测；Codex 代理保存与启用成功后重启仍保留 | src/pages/settings/providers/e2e/providers-proxy.e2e.js |
 | Provider 增删改与连接测试（待补充） | src/pages/settings/providers/e2e/providers.e2e.js |
 
 ## 重复测试与合并建议
