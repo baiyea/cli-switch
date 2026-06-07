@@ -54,6 +54,45 @@ test('proxy connectivity accepts exit-28 when valid status is returned', async (
   assert.equal(calls.length, 3);
 });
 
+test('proxy connectivity accepts Windows curl timeout stderr after valid status', async () => {
+  const { logInfo, logWarn } = createNoopLogger();
+  const service = createProxyConnectivityService({
+    normalizeProviderId: (value) => String(value || 'claude'),
+    getMergedProviderProfileEnvVars: () => [],
+    buildEnvFromPairs: () => ({}),
+    applyUnifiedProxyEnv: (env) => ({
+      ...env,
+      HTTP_PROXY: env.ZEELIN_PROXY_URL,
+      HTTPS_PROXY: env.ZEELIN_PROXY_URL,
+    }),
+    applyProviderStartupEnv: (_provider, env) => env,
+    runCommandWithEnv: () => ({
+      ok: false,
+      timedOut: false,
+      exitCode: 1,
+      stdout: '200',
+      stderr: 'curl: (28) Operation timed out after 3003 milliseconds with 3868 bytes received',
+    }),
+    maskEnvForLog: () => ({}),
+    shortBody: (text) => String(text || ''),
+    logInfo,
+    logWarn,
+    platform: 'win32',
+    now: () => 1000,
+    random: () => 0.123456,
+  });
+
+  const result = await service.testProviderProxyConnectivity({
+    provider: 'codex',
+    profileId: 'oauth-login',
+    envVars: [],
+    proxyUrl: 'http://127.0.0.1:7890',
+  });
+
+  assert.equal(result.ok, true);
+  assert.match(String(result.message || ''), /代理测试成功/);
+});
+
 test('proxy connectivity fails fast on timed out target', async () => {
   const { logInfo, logWarn } = createNoopLogger();
   let callIndex = 0;

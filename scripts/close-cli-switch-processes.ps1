@@ -33,8 +33,8 @@ if (${env:ProgramFiles(x86)}) {
 }
 
 function Is-CliSwitchProcess($proc) {
-  $pid = $proc.ProcessId
-  if ($excludePids.ContainsKey($pid)) {
+  $processId = $proc.ProcessId
+  if ($excludePids.ContainsKey($processId)) {
     return $false
   }
 
@@ -72,28 +72,55 @@ if (-not $allProcs) {
 $targets = $allProcs | Where-Object { Is-CliSwitchProcess $_ }
 
 foreach ($proc in $targets) {
+  if ($proc.Name -ne "Cli-Switch.exe" -and $proc.Name -ne "Cli-Switch") {
+    continue
+  }
   try {
-    Stop-Process -Id $proc.ProcessId -Force -ErrorAction Stop
-    Write-Host "[close-cli-switch] stopped PID=$($proc.ProcessId) $($proc.Name)"
+    $process = Get-Process -Id $proc.ProcessId -ErrorAction Stop
+    if ($process.MainWindowHandle -and $process.MainWindowHandle -ne 0) {
+      $null = $process.CloseMainWindow()
+      Write-Host "[close-cli-switch] requested window close PID=$($proc.ProcessId) $($proc.Name)"
+    }
+  } catch {
+    Write-Host "[close-cli-switch] window close skipped PID=$($proc.ProcessId): $($_.Exception.Message)"
+  }
+}
+
+Start-Sleep -Milliseconds 2500
+
+$allProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue
+if (-not $allProcs) {
+  $allProcs = Get-Process -ErrorAction SilentlyContinue
+}
+$targets = $allProcs | Where-Object { Is-CliSwitchProcess $_ }
+
+foreach ($proc in $targets) {
+  try {
+    taskkill.exe /PID $proc.ProcessId /T /F | Out-Host
+    Write-Host "[close-cli-switch] taskkill tree PID=$($proc.ProcessId) $($proc.Name)"
   } catch {
     Write-Host "[close-cli-switch] skip PID=$($proc.ProcessId): $($_.Exception.Message)"
   }
 }
 
-Start-Sleep -Milliseconds 1200
+Start-Sleep -Milliseconds 800
 
 # Refresh process list for remaining check; still exclude our own tree.
-$remainingProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue
-if (-not $remainingProcs) {
-  $remainingProcs = Get-Process -ErrorAction SilentlyContinue
-}
-$remaining = $remainingProcs | Where-Object { Is-CliSwitchProcess $_ }
-foreach ($proc in $remaining) {
-  try {
-    taskkill.exe /PID $proc.ProcessId /T /F | Out-Host
-  } catch {
-    Write-Host "[close-cli-switch] taskkill failed PID=$($proc.ProcessId): $($_.Exception.Message)"
+$deadline = (Get-Date).AddSeconds(8)
+do {
+  $remainingProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue
+  if (-not $remainingProcs) {
+    $remainingProcs = Get-Process -ErrorAction SilentlyContinue
   }
-}
+  $remaining = @($remainingProcs | Where-Object { Is-CliSwitchProcess $_ })
+  if ($remaining.Count -eq 0) {
+    Write-Host "[close-cli-switch] all Cli-Switch processes closed"
+    exit 0
+  }
+  Write-Host "[close-cli-switch] waiting for remaining PIDs: $(($remaining | ForEach-Object { $_.ProcessId }) -join ', ')"
+  Start-Sleep -Milliseconds 500
+} while ((Get-Date) -lt $deadline)
+
+Write-Host "[close-cli-switch] remaining processes after timeout: $(($remaining | ForEach-Object { "$($_.ProcessId):$($_.Name)" }) -join ', ')"
 
 exit 0

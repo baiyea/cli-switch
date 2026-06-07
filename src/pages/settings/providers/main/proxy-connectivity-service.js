@@ -15,6 +15,14 @@ function createProxyConnectivityService({
   internalProxyEnabledKey = 'ZEELIN_PROXY_ENABLED',
   internalProxyUrlKey = 'ZEELIN_PROXY_URL',
 }) {
+  function isCurlTransferTimeout(result, stderr) {
+    return (
+      result.exitCode === 28 ||
+      /\bcurl:\s*\(28\)\b/i.test(String(stderr || '')) ||
+      /\bOperation timed out\b/i.test(String(stderr || ''))
+    );
+  }
+
   async function testProviderProxyConnectivity({ provider, profileId, envVars, proxyUrl }) {
     const id = normalizeProviderId(provider);
     if (process.env.APP_E2E === '1' && process.env.ZEELIN_E2E_PROXY_TEST_OK === '1') {
@@ -63,7 +71,7 @@ function createProxyConnectivityService({
       const stderr = shortBody(result.stderr);
       const status = Number.parseInt(stdout, 10);
       const isValidStatus = Number.isInteger(status) && status >= 200 && status < 500;
-      const isTransferTimeoutAfterResponse = result.exitCode === 28 && isValidStatus;
+      const isTransferTimeoutAfterResponse = isCurlTransferTimeout(result, stderr) && isValidStatus;
       const ok = isValidStatus && (result.ok || isTransferTimeoutAfterResponse);
       const details = {
         requestId,
