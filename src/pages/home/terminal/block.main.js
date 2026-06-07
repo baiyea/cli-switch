@@ -32,7 +32,7 @@ function registerTerminalMain(context = {}) {
     logWarn = () => {},
   } = context;
 
-  registerPtyHandlers(ipcMain, ptyService);
+  registerPtyHandlers(ipcMain, ptyService, { logInfo, logWarn });
 
   if (!registerIpc) return;
 

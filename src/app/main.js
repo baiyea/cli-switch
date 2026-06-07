@@ -416,6 +416,7 @@ function finishTokenUsageRunOnExit(sessionId, endedAt) {
 const ptyService = new PtyService({
   getStartupEnv: ({ provider, cwd }) =>
     syncClaudeSettingsEnv(provider, getStartupEnvForProvider(provider), cwd),
+  logInfo,
   logWarn,
   onData: ({ sessionId, data }) => {
     oauthLoginTracker.handleOutput(sessionId, data);

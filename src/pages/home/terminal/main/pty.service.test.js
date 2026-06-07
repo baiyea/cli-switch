@@ -91,3 +91,59 @@ Detected a custom API key in your environment
   assert.deepEqual(writes, []);
   assert.equal(meta.autoResponses.has('claude-api-key-confirm'), false);
 });
+
+test('pty service logs write metadata without exposing input content', () => {
+  const infos = [];
+  const writes = [];
+  const service = new PtyService({
+    logInfo(scope, message, meta) {
+      infos.push({ scope, message, meta });
+    },
+  });
+  service.sessions.set('sid-logs', {
+    sessionId: 'sid-logs',
+    provider: 'claude',
+    pty: {
+      write(data) {
+        writes.push(data);
+      },
+    },
+  });
+  service.buffers.set('sid-logs', 'existing-output');
+
+  assert.equal(service.write('sid-logs', 'secret command with token\n'), true);
+
+  assert.deepEqual(writes, ['secret command with token\n']);
+  assert.equal(infos.length, 1);
+  assert.equal(infos[0].scope, 'pty');
+  assert.equal(infos[0].message, 'PTY input written');
+  assert.equal(infos[0].meta.sessionId, 'sid-logs');
+  assert.equal(infos[0].meta.dataLength, 'secret command with token\n'.length);
+  assert.equal(Object.values(infos[0].meta).includes('secret command with token\n'), false);
+});
+
+test('pty service logs snapshot metadata with buffer length', () => {
+  const infos = [];
+  const service = new PtyService({
+    logInfo(scope, message, meta) {
+      infos.push({ scope, message, meta });
+    },
+  });
+  service.sessions.set('sid-snapshot', {
+    sessionId: 'sid-snapshot',
+    provider: 'codex',
+  });
+  service.buffers.set('sid-snapshot', 'abc123');
+
+  const snapshot = service.getSnapshot('sid-snapshot');
+
+  assert.deepEqual(snapshot, { sessionId: 'sid-snapshot', data: 'abc123' });
+  assert.equal(infos.length, 1);
+  assert.equal(infos[0].message, 'PTY snapshot read');
+  assert.deepEqual(infos[0].meta, {
+    sessionId: 'sid-snapshot',
+    provider: 'codex',
+    hasSession: true,
+    bufferLength: 6,
+  });
+});

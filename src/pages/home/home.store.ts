@@ -53,7 +53,7 @@ interface HomeStoreState {
   createSession: (projectId: string, cwd: string, toolId?: ProviderId | string) => Promise<string>;
   ensureSessionRunning: (
     sessionId: string,
-    options?: { initialCols?: number; initialRows?: number },
+    options?: { initialCols?: number; initialRows?: number; force?: boolean },
   ) => Promise<void>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
   reorderSessions: (
@@ -224,10 +224,10 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
 
   async ensureSessionRunning(sessionId: string, options = {}) {
     if (startInFlightSessionIds.has(sessionId)) return;
-    if (startedSessionIds.has(sessionId)) return;
+    if (!options.force && startedSessionIds.has(sessionId)) return;
     const session = get().sessions.find((s) => s.sessionId === sessionId);
     if (!session) return;
-    if (session.runtimeStatus === 'starting') return;
+    if (!options.force && session.runtimeStatus === 'starting') return;
 
     startInFlightSessionIds.add(sessionId);
     try {

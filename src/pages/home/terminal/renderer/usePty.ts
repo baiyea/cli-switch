@@ -16,6 +16,12 @@ type TermEntry = {
   fitAddon: FitAddon;
 };
 
+type PtyDataStats = {
+  chunks: number;
+  totalLength: number;
+  lastLogAt: number;
+};
+
 const MIN_SAFE_WIDTH = 320;
 const MIN_SAFE_HEIGHT = 120;
 
@@ -84,6 +90,7 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
   const resizeObserverRef = useRef<Map<string, ResizeObserver>>(new Map());
   const fitRafRef = useRef<Map<string, number>>(new Map());
   const bufferRef = useRef<Map<string, string>>(new Map());
+  const dataStatsRef = useRef<Map<string, PtyDataStats>>(new Map());
   const lastResizeRef = useRef<Map<string, { cols: number; rows: number }>>(new Map());
   const replayMutedRef = useRef<Set<string>>(new Set());
   const pasteCleanupRef = useRef<Map<string, () => void>>(new Map());
@@ -95,6 +102,8 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     new Map(),
   );
   const activeSessionIdRef = useRef<string | null>(null);
+  const pendingStartSessionRef = useRef<Set<string>>(new Set());
+  const postFitStartAttemptRef = useRef<Set<string>>(new Set());
   const [activeScrolledUp, setActiveScrolledUp] = useState(false);
 
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
@@ -115,6 +124,72 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     const container = containerRef.current.get(sessionId);
     if (!container) return null;
     return container.getBoundingClientRect();
+  }
+
+  function getElementRectMeta(el: Element | null) {
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const htmlEl = el as HTMLElement;
+    return {
+      width: Math.floor(rect.width),
+      height: Math.floor(rect.height),
+      clientWidth: htmlEl.clientWidth || 0,
+      clientHeight: htmlEl.clientHeight || 0,
+      display: window.getComputedStyle(htmlEl).display,
+      visibility: window.getComputedStyle(htmlEl).visibility,
+    };
+  }
+
+  function getTerminalDebugMeta(sessionId: string, entry = terminalRef.current.get(sessionId)) {
+    const container = containerRef.current.get(sessionId);
+    const localBuffer = bufferRef.current.get(sessionId) || '';
+    const lastResize = lastResizeRef.current.get(sessionId) || null;
+    const xterm = container?.querySelector('.xterm') || null;
+    const viewport = container?.querySelector('.xterm-viewport') || null;
+    const screen = container?.querySelector('.xterm-screen') || null;
+    const helper = container?.querySelector('.xterm-helper-textarea') || null;
+    let termState = null;
+    try {
+      const buffer = entry?.term.buffer.active;
+      termState = entry
+        ? {
+            cols: entry.term.cols,
+            rows: entry.term.rows,
+            baseY: buffer?.baseY ?? null,
+            viewportY: buffer?.viewportY ?? null,
+            cursorX: buffer?.cursorX ?? null,
+            cursorY: buffer?.cursorY ?? null,
+          }
+        : null;
+    } catch {
+      termState = entry ? { cols: entry.term.cols, rows: entry.term.rows } : null;
+    }
+    return {
+      sessionId,
+      activeSessionId: activeSessionIdRef.current,
+      isActive: activeSessionIdRef.current === sessionId,
+      hasContainer: Boolean(container),
+      hasTerminal: Boolean(entry),
+      documentFocused: document.hasFocus(),
+      helperFocused: Boolean(helper && helper === document.activeElement),
+      localBufferLength: localBuffer.length,
+      localBufferLines: localBuffer ? localBuffer.split(/\r?\n/).length : 0,
+      lastResize,
+      term: termState,
+      container: getElementRectMeta(container || null),
+      xterm: getElementRectMeta(xterm),
+      viewport: getElementRectMeta(viewport),
+      screen: getElementRectMeta(screen),
+    };
+  }
+
+  function logTerminalDebug(message: string, sessionId: string, extra: Record<string, unknown> = {}) {
+    logBridge.write({
+      level: 'info',
+      scope: 'terminal',
+      message,
+      meta: { ...getTerminalDebugMeta(sessionId), ...extra },
+    });
   }
 
   function safeResizePty(sessionId: string, entry: TermEntry) {
@@ -139,8 +214,17 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
 
     const cols = Math.max(1, entry.term.cols || 120);
     const rows = Math.max(1, entry.term.rows || 36);
+    const prevResize = lastResizeRef.current.get(sessionId);
     ptyBridge.resize(sessionId, cols, rows);
     lastResizeRef.current.set(sessionId, { cols, rows });
+    if (!prevResize || prevResize.cols !== cols || prevResize.rows !== rows) {
+      logTerminalDebug('PTY resize sent', sessionId, {
+        cols,
+        rows,
+        paneWidth: Math.floor(rect.width),
+        paneHeight: Math.floor(rect.height),
+      });
+    }
   }
 
   function scrollToBottomIfActive(sessionId: string, term: Terminal) {
@@ -325,6 +409,12 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     term.onScroll(() => syncActiveScrollState(sessionId));
     term.open(container);
     fitAddon.fit();
+    logBridge.write({
+      level: 'info',
+      scope: 'terminal',
+      message: 'xterm opened',
+      meta: getTerminalDebugMeta(sessionId, { term, fitAddon }),
+    });
 
     // xterm.js 5.x 中 attachCustomKeyEventHandler 需通过方法调用注册
     term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
@@ -755,10 +845,18 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     });
 
     const writeReplay = (data: string, reset = false) => {
+      logTerminalDebug('Terminal replay start', sessionId, {
+        dataLength: data.length,
+        reset,
+      });
       replayMutedRef.current.add(sessionId);
       const finishReplay = () => {
         scrollToBottomIfActive(sessionId, term);
         refreshTerminal();
+        logTerminalDebug('Terminal replay finished', sessionId, {
+          dataLength: data.length,
+          reset,
+        });
         window.requestAnimationFrame(() => {
           replayMutedRef.current.delete(sessionId);
         });
@@ -770,6 +868,9 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     };
 
     const snapshot = stripEchoedTerminalReports(bufferRef.current.get(sessionId) || '');
+    logTerminalDebug('Initial local terminal snapshot checked', sessionId, {
+      snapshotLength: snapshot.length,
+    });
     if (snapshot) {
       try {
         writeReplay(snapshot);
@@ -784,13 +885,27 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
       }
     }
 
+    logTerminalDebug('Requesting PTY server snapshot', sessionId);
     ptyBridge
       .snapshot(sessionId)
       .then((serverSnapshot) => {
         const data = stripEchoedTerminalReports(serverSnapshot?.data || '');
-        if (!data) return;
+        logTerminalDebug('PTY server snapshot received', sessionId, {
+          serverSnapshotLength: data.length,
+          rawServerSnapshotLength: String(serverSnapshot?.data || '').length,
+        });
+        if (!data) {
+          logTerminalDebug('PTY server snapshot skipped: empty', sessionId);
+          return;
+        }
         const localSnapshot = bufferRef.current.get(sessionId) || '';
-        if (localSnapshot.length >= data.length) return;
+        if (localSnapshot.length >= data.length) {
+          logTerminalDebug('PTY server snapshot skipped: local snapshot is newer', sessionId, {
+            localSnapshotLength: localSnapshot.length,
+            serverSnapshotLength: data.length,
+          });
+          return;
+        }
         bufferRef.current.set(sessionId, data);
         try {
           writeReplay(data, Boolean(localSnapshot));
@@ -863,6 +978,9 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
         lastResizeRef.current.delete(sessionId);
         replayMutedRef.current.delete(sessionId);
       }
+      dataStatsRef.current.delete(sessionId);
+      pendingStartSessionRef.current.delete(sessionId);
+      postFitStartAttemptRef.current.delete(sessionId);
       containerRef.current.delete(sessionId);
       return;
     }
@@ -877,6 +995,7 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     });
     containerRef.current.set(sessionId, el);
     ensureTerminal(sessionId, el);
+    logTerminalDebug('Pane mounted with terminal state', sessionId);
 
     const scheduleFit = () => {
       const prev = fitRafRef.current.get(sessionId);
@@ -886,6 +1005,8 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
         if (!entry) return;
         entry.fitAddon.fit();
         safeResizePty(sessionId, entry);
+        logTerminalDebug('ResizeObserver fit completed', sessionId);
+        startPendingActiveSessionIfMeasured(sessionId);
       });
       fitRafRef.current.set(sessionId, raf);
     };
@@ -915,9 +1036,46 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     entry.term.focus();
   }
 
+  function wakeActiveTerminalOnWindows() {
+    if (!/Win32|Win64/i.test(String(navigator.platform || ''))) return;
+    const sid = activeSessionIdRef.current;
+    if (!sid) return;
+    const entry = terminalRef.current.get(sid);
+    if (!entry) {
+      logTerminalDebug('Windows terminal wake skipped: no xterm entry', sid);
+      return;
+    }
+    try {
+      logTerminalDebug('Windows terminal wake start', sid);
+      const shouldFollowOutput = isAtScrollBottom(entry.term);
+      entry.fitAddon.fit();
+      safeResizePty(sid, entry);
+      if (shouldFollowOutput) {
+        scrollToBottomIfActive(sid, entry.term);
+      }
+      if (entry.term.rows > 0) {
+        entry.term.refresh(0, entry.term.rows - 1);
+      }
+      entry.term.focus();
+      logTerminalDebug('Windows terminal wake finished', sid);
+    } catch (error) {
+      logBridge.write({
+        level: 'warn',
+        scope: 'terminal',
+        message: 'Windows terminal wake failed',
+        meta: { sessionId: sid, error: error instanceof Error ? error.message : String(error) },
+      });
+    }
+  }
+
   function startActiveSessionWithMeasuredSize(sessionId: string) {
     const resize = lastResizeRef.current.get(sessionId);
-    if (!resize) return false;
+    if (!resize) {
+      logTerminalDebug('Ensuring session running skipped: no measured terminal size', sessionId);
+      pendingStartSessionRef.current.add(sessionId);
+      return false;
+    }
+    pendingStartSessionRef.current.delete(sessionId);
     logBridge.write({
       level: 'info',
       scope: 'app',
@@ -927,8 +1085,24 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     void useSessionStore.getState().ensureSessionRunning(sessionId, {
       initialCols: resize.cols,
       initialRows: resize.rows,
+      force: true,
     });
     return true;
+  }
+
+  function startPendingActiveSessionIfMeasured(sessionId: string) {
+    if (activeSessionIdRef.current !== sessionId) return;
+    if (
+      !pendingStartSessionRef.current.has(sessionId) &&
+      postFitStartAttemptRef.current.has(sessionId)
+    ) {
+      return;
+    }
+    postFitStartAttemptRef.current.add(sessionId);
+    const started = startActiveSessionWithMeasuredSize(sessionId);
+    if (started) {
+      logTerminalDebug('Pending active session start completed after terminal fit', sessionId);
+    }
   }
 
   useEffect(() => {
@@ -945,10 +1119,37 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     const offData = ptyBridge.onData(({ sessionId, data }) => {
       appendBuffer(sessionId, data);
       ingestOutput(sessionId, data);
+      const prevStats = dataStatsRef.current.get(sessionId) || {
+        chunks: 0,
+        totalLength: 0,
+        lastLogAt: 0,
+      };
+      const now = Date.now();
+      const nextStats = {
+        chunks: prevStats.chunks + 1,
+        totalLength: prevStats.totalLength + String(data || '').length,
+        lastLogAt: prevStats.lastLogAt,
+      };
+      const shouldLogData =
+        nextStats.chunks <= 3 || now - prevStats.lastLogAt > 10000;
+      if (shouldLogData) {
+        nextStats.lastLogAt = now;
+        logTerminalDebug('PTY data received', sessionId, {
+          chunkLength: String(data || '').length,
+          chunks: nextStats.chunks,
+          totalLength: nextStats.totalLength,
+        });
+      }
+      dataStatsRef.current.set(sessionId, nextStats);
       const entry = terminalRef.current.get(sessionId);
       if (entry && containerRef.current.has(sessionId)) {
         try {
           writeLiveTerminalData(sessionId, entry.term, data);
+          if (shouldLogData) {
+            logTerminalDebug('PTY data written to xterm', sessionId, {
+              chunkLength: String(data || '').length,
+            });
+          }
         } catch (error) {
           logBridge.write({
             level: 'warn',
@@ -957,6 +1158,10 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
             meta: { sessionId, error: error instanceof Error ? error.message : String(error) },
           });
         }
+      } else if (shouldLogData) {
+        logTerminalDebug('PTY data buffered without mounted xterm', sessionId, {
+          chunkLength: String(data || '').length,
+        });
       }
     });
 
@@ -1018,6 +1223,9 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
       terminals.clear();
       containers.clear();
       replayMuted.clear();
+      dataStatsRef.current.clear();
+      pendingStartSessionRef.current.clear();
+      postFitStartAttemptRef.current.clear();
       for (const pending of pendingWindowsTextPasteRef.current.values()) {
         window.clearTimeout(pending.timer);
       }
@@ -1031,6 +1239,10 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
 
   useEffect(() => {
     let startRequested = false;
+    const wakeTimers: number[] = [];
+    if (activeSessionId) {
+      postFitStartAttemptRef.current.delete(activeSessionId);
+    }
     const fitAndStart = () => {
       fitActiveTerminal();
       if (activeSessionId && !startRequested) {
@@ -1040,17 +1252,27 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
 
     fitAndStart();
     const raf = window.requestAnimationFrame(fitAndStart);
+    if (/Win32|Win64/i.test(String(navigator.platform || ''))) {
+      wakeTimers.push(window.setTimeout(wakeActiveTerminalOnWindows, 0));
+      wakeTimers.push(window.setTimeout(wakeActiveTerminalOnWindows, 80));
+      wakeTimers.push(window.setTimeout(wakeActiveTerminalOnWindows, 180));
+    }
     syncActiveScrollState(activeSessionId);
     logBridge.write({
       level: 'info',
       scope: 'terminal',
       message: 'Active session changed',
-      meta: { activeSessionId },
+      meta: activeSessionId
+        ? getTerminalDebugMeta(activeSessionId)
+        : { activeSessionId: null },
     });
     const onResize = () => fitActiveTerminal();
     window.addEventListener('resize', onResize);
     return () => {
       window.cancelAnimationFrame(raf);
+      for (const timer of wakeTimers) {
+        window.clearTimeout(timer);
+      }
       window.removeEventListener('resize', onResize);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

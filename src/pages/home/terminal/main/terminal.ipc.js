@@ -26,13 +26,29 @@ function shouldLogPtyInput(meta) {
 
 function registerPtyHandlers(ipcMain, ptyService, logger = {}) {
   const logInfo = typeof logger.logInfo === 'function' ? logger.logInfo : () => {};
+  const logWarn = typeof logger.logWarn === 'function' ? logger.logWarn : () => {};
 
   ipcMain.handle(TERMINAL_CHANNELS.START, async (_event, payload) => {
     return ptyService.create(payload);
   });
 
   ipcMain.handle(TERMINAL_CHANNELS.SNAPSHOT, async (_event, payload) => {
-    return ptyService.getSnapshot(payload.sessionId);
+    const sessionId = String(payload?.sessionId || '');
+    try {
+      const snapshot = ptyService.getSnapshot(sessionId);
+      logInfo('terminal', 'PTY snapshot requested', {
+        sessionId,
+        dataLength: String(snapshot?.data || '').length,
+        hasSession: Boolean(ptyService.hasSession?.(sessionId)),
+      });
+      return snapshot;
+    } catch (error) {
+      logWarn('terminal', 'PTY snapshot failed', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   });
 
   ipcMain.on(TERMINAL_CHANNELS.WRITE, (_event, payload) => {

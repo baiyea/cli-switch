@@ -10,12 +10,15 @@ function normalizePtyDimension(value, fallback) {
 }
 
 class PtyService {
-  constructor({ onData, onExit, getStartupEnv, logWarn } = {}) {
+  constructor({ onData, onExit, getStartupEnv, logInfo, logWarn } = {}) {
     this.sessions = new Map();
     this.buffers = new Map();
+    this.dataStats = new Map();
+    this.resizeStats = new Map();
     this.onData = onData || (() => {});
     this.onExit = onExit || (() => {});
     this.getStartupEnv = getStartupEnv || (() => ({}));
+    this.logInfo = logInfo || (() => {});
     this.logWarn = logWarn || (() => {});
   }
 
@@ -29,6 +32,13 @@ class PtyService {
   create({ cwd, name, provider, sessionId: preferredSessionId, initialCols, initialRows }) {
     const sessionId = preferredSessionId || crypto.randomUUID();
     if (this.sessions.has(sessionId)) {
+      const existing = this.sessions.get(sessionId);
+      this.logInfo('pty', 'PTY create skipped: session already exists', {
+        sessionId,
+        provider: existing?.provider || provider || 'claude',
+        status: existing?.status || 'running',
+        bufferLength: String(this.buffers.get(sessionId) || '').length,
+      });
       return { sessionId, name: this.sessions.get(sessionId).name };
     }
     this.buffers.set(sessionId, '');
@@ -41,6 +51,16 @@ class PtyService {
       rows: initialPtyRows,
       cwd,
       env: getPtyEnv(this.getStartupEnv({ provider: provider || 'claude', cwd })),
+    });
+    this.logInfo('pty', 'PTY spawned', {
+      sessionId,
+      provider: provider || 'claude',
+      cwd,
+      shell: shell.file,
+      shellArgs: shell.args,
+      pid: proc?.pid || null,
+      initialCols: initialPtyCols,
+      initialRows: initialPtyRows,
     });
 
     const meta = {
@@ -59,6 +79,29 @@ class PtyService {
     proc.onData((data) => {
       this.appendBuffer(sessionId, data);
       this.handleAutoResponses(meta);
+      const prevStats = this.dataStats.get(sessionId) || {
+        chunks: 0,
+        totalLength: 0,
+        lastLogAt: 0,
+      };
+      const now = Date.now();
+      const nextStats = {
+        chunks: prevStats.chunks + 1,
+        totalLength: prevStats.totalLength + String(data || '').length,
+        lastLogAt: prevStats.lastLogAt,
+      };
+      if (nextStats.chunks <= 3 || now - prevStats.lastLogAt > 10000) {
+        nextStats.lastLogAt = now;
+        this.logInfo('pty', 'PTY output received', {
+          sessionId,
+          provider: meta.provider,
+          chunkLength: String(data || '').length,
+          chunks: nextStats.chunks,
+          totalLength: nextStats.totalLength,
+          bufferLength: String(this.buffers.get(sessionId) || '').length,
+        });
+      }
+      this.dataStats.set(sessionId, nextStats);
       this.onData({ sessionId, data });
     });
 
@@ -70,6 +113,8 @@ class PtyService {
       this.appendBuffer(sessionId, `\r\n[process exited with code ${exitCode}]\r\n`);
       this.onExit({ sessionId, exitCode });
       this.sessions.delete(sessionId);
+      this.dataStats.delete(sessionId);
+      this.resizeStats.delete(sessionId);
     });
 
     this.sessions.set(sessionId, meta);
@@ -161,16 +206,46 @@ class PtyService {
 
   write(sessionId, data) {
     const target = this.sessions.get(sessionId);
-    if (!target) return false;
+    if (!target) {
+      this.logWarn('pty', 'PTY write skipped: session not found', {
+        sessionId,
+        dataLength: String(data || '').length,
+      });
+      return false;
+    }
     target.pty.write(data);
+    this.logInfo('pty', 'PTY input written', {
+      sessionId,
+      provider: target.provider,
+      dataLength: String(data || '').length,
+      bufferLength: String(this.buffers.get(sessionId) || '').length,
+    });
     return true;
   }
 
   resize(sessionId, cols, rows) {
     const target = this.sessions.get(sessionId);
-    if (!target) return;
-    if (!Number.isFinite(cols) || !Number.isFinite(rows)) return;
-    target.pty.resize(Math.max(1, Math.floor(cols)), Math.max(1, Math.floor(rows)));
+    if (!target) {
+      this.logWarn('pty', 'PTY resize skipped: session not found', { sessionId, cols, rows });
+      return;
+    }
+    if (!Number.isFinite(cols) || !Number.isFinite(rows)) {
+      this.logWarn('pty', 'PTY resize skipped: invalid dimensions', { sessionId, cols, rows });
+      return;
+    }
+    const nextCols = Math.max(1, Math.floor(cols));
+    const nextRows = Math.max(1, Math.floor(rows));
+    target.pty.resize(nextCols, nextRows);
+    const prevResize = this.resizeStats.get(sessionId);
+    if (!prevResize || prevResize.cols !== nextCols || prevResize.rows !== nextRows) {
+      this.resizeStats.set(sessionId, { cols: nextCols, rows: nextRows });
+      this.logInfo('pty', 'PTY resized', {
+        sessionId,
+        provider: target.provider,
+        cols: nextCols,
+        rows: nextRows,
+      });
+    }
   }
 
   killWindowsProcessTree(pid) {
@@ -209,9 +284,18 @@ class PtyService {
       } catch {}
     }
     this.sessions.delete(sessionId);
+    this.dataStats.delete(sessionId);
+    this.resizeStats.delete(sessionId);
   }
 
   getSnapshot(sessionId) {
+    const target = this.sessions.get(sessionId);
+    this.logInfo('pty', 'PTY snapshot read', {
+      sessionId,
+      provider: target?.provider || '',
+      hasSession: Boolean(target),
+      bufferLength: String(this.buffers.get(sessionId) || '').length,
+    });
     return {
       sessionId,
       data: this.buffers.get(sessionId) || '',

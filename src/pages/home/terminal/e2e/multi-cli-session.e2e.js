@@ -254,6 +254,76 @@ test('Windows terminal viewport stays aligned with sidebar for Claude and Codex 
   }
 });
 
+test('Windows first session selection wakes terminal renderer without switching away', async () => {
+  test.skip(process.platform !== 'win32', 'Windows-only terminal wake regression coverage');
+
+  const launched = await launchAppWithFixtures();
+  const { electronApp, window: win, ids, root } = launched;
+  try {
+    await win.setViewportSize({ width: 1600, height: 900 });
+    await syncFirstProjectHistory(win);
+    await waitForDiscoveredSessions(win, 'p1', [ids.codexSid]);
+
+    await win.getByTestId(`session-item-${ids.codexSid}`).click();
+    await expect(win.locator('.toolbar-provider-meta')).toHaveText(/^Codex CLI\s·/);
+    await expect(win.locator(`[data-session-id="${ids.codexSid}"]`)).toBeVisible();
+
+    await expect
+      .poll(
+        async () =>
+          win.evaluate((sid) => {
+            const geometry = window.__ZEELIN_TEST__?.getTerminalLayoutGeometry?.(sid);
+            if (!geometry) return null;
+            const pane = document.querySelector(`[data-session-id="${sid}"]`);
+            return {
+              cols: geometry.cols,
+              rows: geometry.rows,
+              xtermHeight: geometry.xterm?.height || 0,
+              screenHeight: geometry.screen?.height || 0,
+              viewportHeight: geometry.viewport?.height || 0,
+              focused: Boolean(pane?.querySelector('textarea.xterm-helper-textarea') === document.activeElement),
+            };
+          }, ids.codexSid),
+        { timeout: 30000, intervals: [100, 200, 400, 800] },
+      )
+      .toMatchObject({
+        cols: expect.any(Number),
+        rows: expect.any(Number),
+        xtermHeight: expect.any(Number),
+        screenHeight: expect.any(Number),
+        viewportHeight: expect.any(Number),
+        focused: true,
+      });
+
+    const geometry = await win.evaluate(
+      (sid) => window.__ZEELIN_TEST__?.getTerminalLayoutGeometry?.(sid),
+      ids.codexSid,
+    );
+    expect(geometry.cols).toBeGreaterThan(20);
+    expect(geometry.rows).toBeGreaterThan(5);
+    expect(geometry.xterm.height).toBeGreaterThan(100);
+    expect(geometry.screen.height).toBeGreaterThan(100);
+    expect(geometry.viewport.height).toBeGreaterThan(100);
+
+    await expect
+      .poll(
+        () =>
+          electronApp.evaluate(() => {
+            const metas = globalThis.__ZEELIN_E2E_PTY_SERVICE__?.listSessionMeta?.() || [];
+            return metas.find((item) => item?.provider === 'codex') || null;
+          }),
+        { timeout: 15000, intervals: [200, 400, 800] },
+      )
+      .toMatchObject({
+        provider: 'codex',
+        initialCols: expect.any(Number),
+        initialRows: expect.any(Number),
+      });
+  } finally {
+    await closeApp({ electronApp, root });
+  }
+});
+
 test('Windows CLI resumes after terminal fit so startup columns match UI columns', async () => {
   test.skip(process.platform !== 'win32', 'Windows-only PTY startup size regression coverage');
 
