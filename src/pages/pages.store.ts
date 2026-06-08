@@ -1,5 +1,26 @@
 import { create } from 'zustand';
 
+export const DEFAULT_PROVIDER_SETTINGS = {
+  defaultProfileId: '',
+  enabledProfileId: '',
+  profiles: [],
+};
+
+export const DEFAULT_SETTINGS = {
+  providers: {
+    claude: { ...DEFAULT_PROVIDER_SETTINGS },
+    codex: { ...DEFAULT_PROVIDER_SETTINGS },
+    gemini: { ...DEFAULT_PROVIDER_SETTINGS },
+  },
+};
+
+export function isProviderConfigured(settingsModel: unknown): boolean {
+  const providers = (settingsModel as { providers?: Record<string, { enabledProfileId?: string }> })
+    ?.providers;
+  if (!providers) return false;
+  return Object.values(providers).some((provider) => provider?.enabledProfileId);
+}
+
 /**
  * 跨页面共享状态：Home ↔ Settings
  *

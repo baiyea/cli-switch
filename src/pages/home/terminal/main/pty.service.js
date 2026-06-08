@@ -108,6 +108,14 @@ class PtyService {
     proc.onExit(({ exitCode }) => {
       const current = this.sessions.get(sessionId);
       if (!current) return;
+      if (current.pty !== proc) {
+        this.logInfo('pty', 'Ignored stale PTY exit for replaced session', {
+          sessionId,
+          provider: meta.provider,
+          exitCode,
+        });
+        return;
+      }
       current.status = 'exited';
       current.exitCode = exitCode;
       this.appendBuffer(sessionId, `\r\n[process exited with code ${exitCode}]\r\n`);

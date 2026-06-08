@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  DEFAULT_PROVIDER_SETTINGS,
+  DEFAULT_SETTINGS,
+  isProviderConfigured,
+} from '../../../pages.store';
+import {
   getMissingRequiredKeys,
   getProviderPresetConfig,
   INTERNAL_PROXY_ENABLED_KEY,
@@ -21,20 +26,6 @@ import {
   stripPresetFixedEnvVarsForPersist,
 } from './provider-config';
 import { ptyBridge, settingsBridge } from './providers.bridge';
-
-export const DEFAULT_PROVIDER_SETTINGS = {
-  defaultProfileId: '',
-  enabledProfileId: '',
-  profiles: [],
-};
-
-export const DEFAULT_SETTINGS = {
-  providers: {
-    claude: { ...DEFAULT_PROVIDER_SETTINGS },
-    codex: { ...DEFAULT_PROVIDER_SETTINGS },
-    gemini: { ...DEFAULT_PROVIDER_SETTINGS },
-  },
-};
 
 function withProxyConfig(settingsModel, providerTab, editingProfileId, { enabled, url }) {
   if (!editingProfileId) return settingsModel;
@@ -82,12 +73,6 @@ function withProxyConfig(settingsModel, providerTab, editingProfileId, { enabled
       },
     },
   };
-}
-
-export function isProviderConfigured(settingsModel) {
-  const providers = settingsModel?.providers;
-  if (!providers) return false;
-  return Object.values(providers).some((provider) => provider?.enabledProfileId);
 }
 
 function getInitialEditingProfiles(providers) {

@@ -1,6 +1,6 @@
 {
   "name": "cli-switch",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "Electron + React terminal-style AI workspace",
   "main": "src/app/main.js",
@@ -29,7 +29,7 @@
     "release:github": "node scripts/github-release.js",
     "start": "node scripts/run-electron.js",
     "check:architecture": "node scripts/check-architecture.js",
-    "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron --test src/**/*.test.js",
+    "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron --test \"src/**/*.test.js\"",
     "test:e2e:providers-ready": "node scripts/ensure-e2e-providers-ready.js",
     "test:e2e": "node scripts/clean-e2e-artifacts.js && pnpm prepare:cli-runtime && pnpm build && node scripts/ensure-e2e-providers-ready.js && cross-env APP_E2E_SHOW_WINDOW=0 playwright test",
     "test:e2e:headed": "node scripts/clean-e2e-artifacts.js && pnpm prepare:cli-runtime && pnpm build && node scripts/ensure-e2e-providers-ready.js && cross-env APP_E2E_SHOW_WINDOW=1 playwright test"

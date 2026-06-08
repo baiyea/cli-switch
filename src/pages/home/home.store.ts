@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 
-import { homeRuntime, type PersistedSessionItem } from './renderer/home-session-runtime';
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+type ElectronApi = Window['electronAPI'];
+type SessionApi = ElectronApi['sessions'];
+type PersistedSessionItem = Awaited<ReturnType<SessionApi['create']>>;
+type SessionProvider = PersistedSessionItem['provider'];
 
 export type SessionStatus = 'creating' | 'running' | 'exited';
 export type SessionRuntimeStatus =
@@ -55,6 +58,7 @@ interface HomeStoreState {
     sessionId: string,
     options?: { initialCols?: number; initialRows?: number; force?: boolean },
   ) => Promise<void>;
+  restartSession: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
   reorderSessions: (
     projectId: string,
@@ -86,6 +90,50 @@ const IDLE_AFTER_MS = 1600;
 const OUTPUT_STATUS_THROTTLE_MS = 120;
 const startInFlightSessionIds = new Set<string>();
 const startedSessionIds = new Set<string>();
+
+const homeRuntime = {
+  sessions: {
+    list(payload?: { projectIds?: string[]; providers?: string[] }) {
+      return window.electronAPI.sessions.list(payload) as Promise<PersistedSessionItem[]>;
+    },
+    create(payload: { projectId: string; cwd?: string; title?: string; provider?: string }) {
+      return window.electronAPI.sessions.create(payload) as Promise<PersistedSessionItem>;
+    },
+    start(payload: {
+      sessionId: string;
+      cwd?: string;
+      name?: string;
+      provider?: string;
+      providerSessionId?: string;
+      initialCols?: number;
+      initialRows?: number;
+    }) {
+      return window.electronAPI.sessions.start(payload) as Promise<PersistedSessionItem>;
+    },
+    rename(payload: {
+      sessionId: string;
+      title: string;
+      provider?: string;
+      providerSessionId?: string;
+    }) {
+      return window.electronAPI.sessions.rename(payload);
+    },
+    reorder(payload: {
+      projectId: string;
+      orderedSessions: Array<{ provider: SessionProvider; providerSessionId: string }>;
+    }) {
+      return window.electronAPI.sessions.reorder(payload);
+    },
+    archive(payload: { sessionId: string; provider?: string; providerSessionId?: string }) {
+      return window.electronAPI.sessions.archive(payload);
+    },
+  },
+  pty: {
+    destroy(sessionId: string) {
+      window.electronAPI.pty.destroy({ sessionId });
+    },
+  },
+};
 
 function getPrefix(toolId?: string): string {
   if (!toolId || toolId === 'shell') return 'shell';
@@ -280,6 +328,18 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
     } finally {
       startInFlightSessionIds.delete(sessionId);
     }
+  },
+
+  async restartSession(sessionId: string) {
+    const target = get().sessions.find((s) => s.sessionId === sessionId);
+    if (!target) return;
+    const runtimeSessionId = target.providerSessionId || target.sessionId;
+    homeRuntime.pty.destroy(runtimeSessionId);
+    startedSessionIds.delete(sessionId);
+    startedSessionIds.delete(runtimeSessionId);
+    startInFlightSessionIds.delete(sessionId);
+    startInFlightSessionIds.delete(runtimeSessionId);
+    await get().ensureSessionRunning(sessionId, { force: true });
   },
 
   async renameSession(sessionId: string, title: string) {

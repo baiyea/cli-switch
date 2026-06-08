@@ -3,9 +3,9 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import { useEffect, useRef, useState } from 'react';
 
-import { logBridge } from '../../../../shared/bridge';
 import { i18nService } from '../../../../i18n/renderer';
-import type { EffectiveTheme } from '../../../theme.store';
+import { logBridge } from '../../../../shared/bridge';
+import type { EffectiveTheme } from '../../../../ui/theme/theme.store';
 import { useSessionStore } from '../../home.store';
 import { supportsImagePasteForProvider } from './paste-support.mjs';
 import { fileAttachmentBridge, ptyBridge } from './terminal.bridge';

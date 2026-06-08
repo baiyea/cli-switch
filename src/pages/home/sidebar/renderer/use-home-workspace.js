@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { logBridge } from '../../../shared/bridge';
-import { useSessionStore } from '../home.store';
-import { projectBridge, sidebarSessionBridge } from '../sidebar/renderer/sidebar.bridge';
+import { logBridge } from '../../../../shared/bridge';
+import { useSessionStore } from '../../home.store';
+import { projectBridge, sidebarSessionBridge } from './sidebar.bridge';
 
 export function useHomeWorkspace({ setAppError }) {
   const [projects, setProjects] = useState([]);
@@ -22,6 +22,7 @@ export function useHomeWorkspace({ setAppError }) {
   const reorderSessions = useSessionStore((state) => state.reorderSessions);
   const setActiveSession = useSessionStore((state) => state.setActiveSession);
   const destroySession = useSessionStore((state) => state.destroySession);
+  const restartSession = useSessionStore((state) => state.restartSession);
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) || null,
@@ -155,6 +156,7 @@ export function useHomeWorkspace({ setAppError }) {
     setActiveProjectId,
     setActiveSession,
     destroySession,
+    restartSession,
     loadWorkspace,
     refreshSessions,
     onAddProject,

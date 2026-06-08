@@ -6,6 +6,7 @@ import {
   DownloadIcon,
   ExplorerToggleIcon,
   ProviderIcon,
+  RestartIcon,
   SmartAiIcon,
 } from '../../../../ui/icon-registry';
 import { useSessionStore } from '../../home.store';
@@ -38,6 +39,8 @@ export function TopToolbar({
   onRunSessionsDump,
   canRunSessionsDump,
   onArchiveActiveSession,
+  sessionRestartRunning,
+  onRestartActiveSession,
   explorerVisible,
   onToggleExplorer,
 }) {
@@ -54,6 +57,7 @@ export function TopToolbar({
     [sessions, activeSessionId],
   );
   const canArchiveActiveSession = Boolean(activeSessionId);
+  const canRestartActiveSession = Boolean(activeSessionId) && !sessionRestartRunning;
   const sessionStatus = activeSession?.runtimeStatus || activeSession?.status || '';
   const sessionProvider = activeSession?.provider || 'claude';
 
@@ -138,6 +142,18 @@ export function TopToolbar({
           disabled={!canRunSessionsDump || sessionsDumpRunning}
         >
           <DownloadIcon size={14} />
+        </Button>
+        <Button
+          className={`toolbar-icon-btn ${sessionRestartRunning ? 'active' : ''}`}
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onRestartActiveSession}
+          title="重启当前会话"
+          aria-label="重启当前会话"
+          disabled={!canRestartActiveSession}
+        >
+          <RestartIcon size={14} />
         </Button>
         <Button
           className="toolbar-icon-btn"

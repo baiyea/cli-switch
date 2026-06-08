@@ -2037,6 +2037,35 @@ body,
   filter: none;
 }
 
+:root[data-theme='light'] .session-provider-icon.provider-icon-claude,
+:root[data-theme='light'] .toolbar-provider-icon.provider-icon-claude,
+:root[data-theme='light'] .project-tool-icon.provider-icon-claude {
+  filter: brightness(0) saturate(100%) invert(47%) sepia(25%) saturate(1050%)
+    hue-rotate(336deg) brightness(89%) contrast(92%);
+  opacity: 0.92;
+}
+
+:root[data-theme='light'] .session-provider-icon.provider-icon-codex,
+:root[data-theme='light'] .toolbar-provider-icon.provider-icon-codex,
+:root[data-theme='light'] .project-tool-icon.provider-icon-codex {
+  filter: brightness(0) saturate(100%) invert(28%) sepia(20%) saturate(680%)
+    hue-rotate(178deg) brightness(92%) contrast(87%);
+  opacity: 0.92;
+}
+
+:root[data-theme='light'] .session-provider-icon.provider-icon-gemini,
+:root[data-theme='light'] .toolbar-provider-icon.provider-icon-gemini,
+:root[data-theme='light'] .project-tool-icon.provider-icon-gemini {
+  filter: brightness(0) saturate(100%) invert(39%) sepia(18%) saturate(1250%)
+    hue-rotate(179deg) brightness(94%) contrast(89%);
+  opacity: 0.92;
+}
+
+:root[data-theme='light'] .session-provider-icon.exited,
+:root[data-theme='light'] .toolbar-provider-icon.exited {
+  opacity: 0.48;
+}
+
 .session-archive-btn {
   color: var(--text-soft);
 }

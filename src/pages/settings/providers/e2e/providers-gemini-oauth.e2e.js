@@ -3,6 +3,12 @@ const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
 const TOTAL_TIMEOUT_MS = 15 * 60 * 1000;
 
+async function readI18n(win, key) {
+  const value = await win.evaluate((i18nKey) => window.__ZEELIN_TEST__?.t(i18nKey), key);
+  if (!value) throw new Error(`i18n not initialized or missing key: ${key}`);
+  return value;
+}
+
 function buildProviderSettings() {
   return {
     providers: {
@@ -70,7 +76,8 @@ async function openProviderSettings(win) {
     await settingsButton.click();
   }
   await expect(settingsModal).toBeVisible({ timeout: 60000 });
-  await expect(win.getByRole('heading', { name: /Providers|Model Provider Settings/i })).toBeVisible();
+  const providerTitle = await readI18n(win, 'settings.section.providers.title');
+  await expect(win.getByRole('heading', { name: providerTitle })).toBeVisible();
 }
 
 async function waitUntilGeminiEnabled(win, timeoutMs) {

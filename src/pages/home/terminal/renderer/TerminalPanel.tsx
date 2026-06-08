@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-import { useThemeStore } from '../../../theme.store';
+import { useThemeStore } from '../../../../ui/theme/theme.store';
 import { useHomeWorkspaceStore, useSessionStore } from '../../home.store';
 import { type SessionStats, terminalSessionBridge } from './terminal.bridge';
 import { TerminalPane } from './TerminalPane';

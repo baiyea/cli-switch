@@ -3,10 +3,21 @@ const { spawnSync } = require('node:child_process');
 const net = require('node:net');
 const { test, expect, launchApp, closeApp } = require('../../../../tests/e2e');
 
-const DEFAULT_PROXY_URL = process.env.E2E_PROXY_URL || 'http://127.0.0.1:7890';
-const PROXY_INPUT_PLACEHOLDER = '代理地址，例如 http://127.0.0.1:7890';
+const CONNECTIVITY_PROXY_URL = String(process.env.E2E_PROXY_URL || '').trim();
+const PERSISTED_PROXY_URL = CONNECTIVITY_PROXY_URL || 'http://127.0.0.1:7890';
 const PROVIDER_TABS = ['Claude Code', 'Codex CLI', 'Gemini CLI'];
 const PROXY_PROBE_TARGETS = ['https://x.com', 'https://www.google.com', 'https://github.com'];
+
+async function readI18n(win, key) {
+  const value = await win.evaluate((i18nKey) => window.__ZEELIN_TEST__?.t(i18nKey), key);
+  if (!value) throw new Error(`i18n not initialized or missing key: ${key}`);
+  return value;
+}
+
+async function getProxySwitch(win) {
+  const proxySwitchLabel = await readI18n(win, 'settings.providers.proxyEnableSwitchAria');
+  return win.getByRole('switch', { name: proxySwitchLabel });
+}
 
 function parseProxyEndpoint(proxyUrl) {
   const parsed = new URL(String(proxyUrl || '').trim());
@@ -27,7 +38,7 @@ function parseProxyEndpoint(proxyUrl) {
   };
 }
 
-async function probeProxyAvailability(proxyUrl, timeoutMs = 2500) {
+async function probeProxyAvailabilityOnce(proxyUrl, timeoutMs = 2500) {
   try {
     const endpoint = parseProxyEndpoint(proxyUrl);
     await new Promise((resolve, reject) => {
@@ -46,7 +57,18 @@ async function probeProxyAvailability(proxyUrl, timeoutMs = 2500) {
     for (const target of PROXY_PROBE_TARGETS) {
       const result = spawnSync(
         'curl',
-        ['--silent', '--show-error', '--location', '--output', '/dev/null', '--max-time', '3', '--write-out', '%{http_code}', target],
+        [
+          '--silent',
+          '--show-error',
+          '--location',
+          '--output',
+          '/dev/null',
+          '--max-time',
+          '3',
+          '--write-out',
+          '%{http_code}',
+          target,
+        ],
         {
           env: { ...process.env, HTTP_PROXY: proxyUrl, HTTPS_PROXY: proxyUrl },
           encoding: 'utf8',
@@ -76,6 +98,27 @@ async function probeProxyAvailability(proxyUrl, timeoutMs = 2500) {
   }
 }
 
+async function probeProxyAvailability(proxyUrl, attempts = 2) {
+  if (!proxyUrl) {
+    return {
+      ok: false,
+      message: '设置 E2E_PROXY_URL 后执行真实代理连通性测试',
+    };
+  }
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const result = await probeProxyAvailabilityOnce(proxyUrl);
+    if (!result.ok) {
+      return {
+        ok: false,
+        message: `${result.message}（第 ${attempt}/${attempts} 次预探测失败）`,
+      };
+    }
+    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  return { ok: true, message: '' };
+}
+
 async function openProviderSettings(win) {
   const settingsModal = win.locator('.settings-modal');
   if (!(await settingsModal.isVisible())) {
@@ -85,28 +128,31 @@ async function openProviderSettings(win) {
   }
 
   await expect(settingsModal).toBeVisible({ timeout: 60000 });
-  await expect(
-    win.getByRole('heading', { name: /Providers|Provider Settings|供应商设置/i }),
-  ).toBeVisible();
+  const providerTitle = await readI18n(win, 'settings.section.providers.title');
+  await expect(win.getByRole('heading', { name: providerTitle })).toBeVisible();
 }
 
 async function openProviderTab(win, tabLabel) {
   await win.getByRole('button', { name: tabLabel }).click();
-  const proxyInput = win.getByPlaceholder(PROXY_INPUT_PLACEHOLDER);
+  const proxyUrlPlaceholder = await readI18n(win, 'settings.providers.proxyUrlPlaceholder');
+  const proxyInput = win.getByPlaceholder(proxyUrlPlaceholder);
   await expect(proxyInput).toBeVisible();
   return proxyInput;
 }
 
 async function saveProviderSettings(win) {
-  await win.getByRole('button', { name: /保存设置|Save settings/i }).click();
-  await expect(win.getByText(/已保存|Saved/i)).toBeVisible({ timeout: 30000 });
+  const saveLabel = await readI18n(win, 'settings.providers.save');
+  const savedLabel = await readI18n(win, 'settings.providers.saved');
+  await win.getByRole('button', { name: saveLabel }).click();
+  await expect(win.getByText(new RegExp(`✓\\s*${savedLabel}`))).toBeVisible({ timeout: 30000 });
 }
 
 async function enableProxyAndAssertSuccess(win, tabLabel, proxyUrl) {
   const proxyInput = await openProviderTab(win, tabLabel);
   await proxyInput.fill(proxyUrl);
 
-  const proxySwitch = win.getByRole('switch', { name: '启用代理开关' });
+  const proxySwitch = await getProxySwitch(win);
+  const connectedText = await readI18n(win, 'settings.providers.connected');
   await expect(proxySwitch).toBeVisible();
 
   if (await proxySwitch.isChecked()) {
@@ -116,7 +162,7 @@ async function enableProxyAndAssertSuccess(win, tabLabel, proxyUrl) {
 
   await proxySwitch.click();
   await expect(proxySwitch).toBeChecked({ timeout: 30000 });
-  await expect(win.getByText('✓ 已连接')).toBeVisible({ timeout: 90000 });
+  await expect(win.getByText(connectedText)).toBeVisible({ timeout: 90000 });
 }
 
 test.describe('providers proxy connectivity', () => {
@@ -125,9 +171,7 @@ test.describe('providers proxy connectivity', () => {
   let proxyProbe = { ok: false, message: '' };
 
   test.beforeAll(async () => {
-    proxyProbe = await probeProxyAvailability(DEFAULT_PROXY_URL);
-    if (!proxyProbe.ok) return;
-
+    proxyProbe = await probeProxyAvailability(CONNECTIVITY_PROXY_URL);
     const cwd = path.resolve(__dirname, '../../../../../');
     launched = await launchApp({ cwd });
     await openProviderSettings(launched.window);
@@ -138,12 +182,16 @@ test.describe('providers proxy connectivity', () => {
     await closeApp({ electronApp: launched.electronApp, root: launched.root });
   });
 
+  test('provider settings title is resolved through i18n', async () => {
+    await openProviderSettings(launched.window);
+  });
+
   test('claude/codex/gemini tabs can pass proxy connectivity test', async () => {
     test.skip(!proxyProbe.ok, proxyProbe.message);
 
     const win = launched.window;
     for (const tabLabel of PROVIDER_TABS) {
-      await enableProxyAndAssertSuccess(win, tabLabel, DEFAULT_PROXY_URL);
+      await enableProxyAndAssertSuccess(win, tabLabel, CONNECTIVITY_PROXY_URL);
     }
   });
 });
@@ -155,7 +203,7 @@ test.describe('providers proxy persistence', () => {
     await openProviderSettings(first.window);
 
     const firstProxyInput = await openProviderTab(first.window, 'Codex CLI');
-    await firstProxyInput.fill(DEFAULT_PROXY_URL);
+    await firstProxyInput.fill(PERSISTED_PROXY_URL);
     await saveProviderSettings(first.window);
     await closeApp({
       electronApp: first.electronApp,
@@ -168,7 +216,7 @@ test.describe('providers proxy persistence', () => {
     try {
       await openProviderSettings(second.window);
       const secondProxyInput = await openProviderTab(second.window, 'Codex CLI');
-      await expect(secondProxyInput).toHaveValue(DEFAULT_PROXY_URL);
+      await expect(secondProxyInput).toHaveValue(PERSISTED_PROXY_URL);
     } finally {
       await closeApp({
         electronApp: second.electronApp,
@@ -187,14 +235,15 @@ test.describe('providers proxy persistence', () => {
     await openProviderSettings(first.window);
 
     const firstProxyInput = await openProviderTab(first.window, 'Codex CLI');
-    await firstProxyInput.fill(DEFAULT_PROXY_URL);
-    const proxySwitch = first.window.getByRole('switch', { name: '启用代理开关' });
+    await firstProxyInput.fill(PERSISTED_PROXY_URL);
+    const proxySwitch = await getProxySwitch(first.window);
     if (!(await proxySwitch.isChecked())) {
       await proxySwitch.click();
     }
+    const connectedText = await readI18n(first.window, 'settings.providers.connected');
     await expect(proxySwitch).toBeChecked({ timeout: 30000 });
-    await expect(first.window.getByText('✓ 已连接')).toBeVisible({ timeout: 30000 });
-    await expect(first.window.getByText(/已保存|Saved/i)).toBeVisible({ timeout: 30000 });
+    await expect(first.window.getByText(connectedText)).toBeVisible({ timeout: 30000 });
+    await saveProviderSettings(first.window);
     await closeApp({
       electronApp: first.electronApp,
       root: first.root,
@@ -206,8 +255,8 @@ test.describe('providers proxy persistence', () => {
     try {
       await openProviderSettings(second.window);
       const secondProxyInput = await openProviderTab(second.window, 'Codex CLI');
-      await expect(secondProxyInput).toHaveValue(DEFAULT_PROXY_URL);
-      await expect(second.window.getByRole('switch', { name: '启用代理开关' })).toBeChecked();
+      await expect(secondProxyInput).toHaveValue(PERSISTED_PROXY_URL);
+      await expect(await getProxySwitch(second.window)).toBeChecked();
     } finally {
       await closeApp({
         electronApp: second.electronApp,

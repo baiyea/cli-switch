@@ -1,4 +1,4 @@
-import { DEFAULT_PROVIDER_SETTINGS } from '../../settings/providers/renderer/use-provider-settings';
+import { DEFAULT_PROVIDER_SETTINGS } from '../../../pages.store';
 
 const PRIMARY_SESSION_TOOL_ID = 'claude';
 

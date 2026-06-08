@@ -1,4 +1,5 @@
 import { ProviderSettingsSection } from './renderer/ProviderSettingsSection';
+import { useProviderSettings } from './renderer/use-provider-settings';
 
 export const providersRenderer = {
   panels: {
@@ -6,4 +7,4 @@ export const providersRenderer = {
   },
 };
 
-export { ProviderSettingsSection };
+export { ProviderSettingsSection, useProviderSettings };

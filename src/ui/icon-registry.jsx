@@ -344,6 +344,34 @@ export function ExternalLinkIcon({ className = '', size = 16 }) {
   );
 }
 
+export function RestartIcon({ className = '', size = 14 }) {
+  return (
+    <svg
+      className={mergeClassName('icon restart-icon', className)}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M12.7 7.2C12.36 4.79 10.29 2.95 7.8 2.95C5.07 2.95 2.85 5.17 2.85 7.9C2.85 10.63 5.07 12.85 7.8 12.85C9.35 12.85 10.73 12.14 11.64 11.03"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10.25 6.9H12.95V4.2"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function SettingsIcon({ className = '', size = 14 }) {
   return (
     <svg

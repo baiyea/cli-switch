@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const pty = require('node-pty');
 
 const { PtyService } = require('./pty.service');
 
@@ -146,4 +147,45 @@ test('pty service logs snapshot metadata with buffer length', () => {
     hasSession: true,
     bufferLength: 6,
   });
+});
+
+test('stale PTY exit does not remove a restarted session with the same session id', () => {
+  const originalSpawn = pty.spawn;
+  const spawned = [];
+  pty.spawn = () => {
+    const handlers = {};
+    const proc = {
+      pid: spawned.length + 1,
+      onData(handler) {
+        handlers.data = handler;
+      },
+      onExit(handler) {
+        handlers.exit = handler;
+      },
+      write() {},
+      resize() {},
+      kill() {},
+      emitExit(exitCode) {
+        handlers.exit?.({ exitCode });
+      },
+    };
+    spawned.push(proc);
+    return proc;
+  };
+
+  try {
+    const service = new PtyService();
+    service.create({ cwd: process.cwd(), sessionId: 'sid-restart', provider: 'claude' });
+    const firstProc = spawned[0];
+    service.destroy('sid-restart');
+    service.create({ cwd: process.cwd(), sessionId: 'sid-restart', provider: 'claude' });
+    const secondProc = spawned[1];
+
+    firstProc.emitExit(1);
+
+    assert.equal(service.hasSession('sid-restart'), true);
+    assert.equal(service.sessions.get('sid-restart').pty, secondProc);
+  } finally {
+    pty.spawn = originalSpawn;
+  }
 });

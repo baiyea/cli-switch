@@ -4,18 +4,18 @@ import packageJson from '../../../package.json';
 import appLogo from '../../assets/brand/app-logo.png';
 import { Button } from '../../ui/button';
 import { ExplorerToggleIcon, SettingsIcon } from '../../ui/icon-registry';
-import { useAppTheme } from '../renderer/use-app-theme';
+import { useAppTheme } from '../../ui/theme/use-app-theme';
+import { isProviderConfigured } from '../pages.store';
 import { useArchiveList } from '../settings/archive/renderer/use-archive-list';
-import {
-  isProviderConfigured,
-  useProviderSettings,
-} from '../settings/providers/renderer/use-provider-settings';
+import { useProviderSettings } from '../settings/providers/block.renderer';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ExplorerPane } from './file-tree/block.renderer';
 import { useFileTree } from './file-tree/renderer/use-file-tree';
-import { useHomeWorkspace } from './renderer/use-home-workspace';
-import { useSessionLauncher } from './renderer/use-session-launcher';
-import { SidebarProjectsPanel } from './sidebar/block.renderer';
+import {
+  SidebarProjectsPanel,
+  useHomeWorkspace,
+  useSessionLauncher,
+} from './sidebar/block.renderer';
 import { RenameSessionDialog, TerminalPanel } from './terminal/block.renderer';
 import { useSessionRename } from './terminal/renderer/use-session-rename';
 import { SkillgenResultDialog, TopToolbar } from './top-toolbar/block.renderer';
@@ -65,11 +65,13 @@ export function HomePage() {
     setActiveProjectId,
     setActiveSession,
     destroySession,
+    restartSession,
     loadWorkspace,
     refreshSessions,
     onAddProject,
     sidebarProjectsPanelProps,
   } = useHomeWorkspace({ setAppError });
+  const [sessionRestartRunning, setSessionRestartRunning] = useState(false);
 
   const {
     settingsModel,
@@ -142,6 +144,20 @@ export function HomePage() {
     setProviderTab,
     setAppError,
   });
+
+  const onRestartActiveSession = async () => {
+    if (!activeSessionId || sessionRestartRunning) return;
+    setAppError('');
+    setSessionRestartRunning(true);
+    try {
+      await restartSession(activeSessionId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || '未知错误');
+      setAppError(`重启当前会话失败：${message}`);
+    } finally {
+      setSessionRestartRunning(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -239,6 +255,8 @@ export function HomePage() {
           onArchiveActiveSession={() => {
             if (activeSessionId) destroySession(activeSessionId);
           }}
+          sessionRestartRunning={sessionRestartRunning}
+          onRestartActiveSession={() => void onRestartActiveSession()}
           explorerVisible={explorerVisible}
           onToggleExplorer={() => setExplorerVisible((prev) => !prev)}
         />

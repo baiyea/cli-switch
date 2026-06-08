@@ -1,6 +1,6 @@
 import type { ITheme } from '@xterm/xterm';
 
-import type { EffectiveTheme } from '../../../theme.store';
+import type { EffectiveTheme } from '../../../../ui/theme/theme.store';
 
 const darkXtermTheme: ITheme = {
   background: '#0b0d10',

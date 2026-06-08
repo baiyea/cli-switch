@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { i18nService, normalizeLocale } from '../../i18n/renderer';
-import { normalizeThemeMode, resolveEffectiveTheme, useThemeStore } from '../theme.store';
+import { normalizeThemeMode, resolveEffectiveTheme, useThemeStore } from './theme.store';
 
 const DARK_THEME_QUERY = '(prefers-color-scheme: dark)';
 

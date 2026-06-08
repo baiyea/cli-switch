@@ -125,10 +125,11 @@ function installElectronApiMock(page) {
       },
     ];
     for (let index = 3; index <= 9; index += 1) {
+      const providerCycle = ['gemini', 'codex', 'claude'];
       sessions.push({
         sessionId: `theme-session-${index}`,
         projectId: project.id,
-        provider: 'claude',
+        provider: providerCycle[(index - 3) % providerCycle.length],
         providerSessionId: `theme-session-${index}`,
         name: `hover-review-${index}`,
         cwd: project.path,
@@ -174,8 +175,16 @@ function installElectronApiMock(page) {
             },
           ],
         },
-        codex: { defaultProfileId: 'oauth-login', enabledProfileId: '', profiles: [] },
-        gemini: { defaultProfileId: 'oauth-login', enabledProfileId: '', profiles: [] },
+        codex: {
+          defaultProfileId: 'codex-visual',
+          enabledProfileId: 'codex-visual',
+          profiles: [{ id: 'codex-visual', name: 'Codex Visual', envVars: [] }],
+        },
+        gemini: {
+          defaultProfileId: 'gemini-visual',
+          enabledProfileId: 'gemini-visual',
+          profiles: [{ id: 'gemini-visual', name: 'Gemini Visual', envVars: [] }],
+        },
       },
     };
 
@@ -517,25 +526,8 @@ async function expectHoverBackgroundTheme(locator, mode, label) {
   console.log(`[theme-visual:hover] ${mode} ${label}`);
   await expect(locator, `${label} should be visible before hover`).toBeVisible({ timeout: 2500 });
   await locator.scrollIntoViewIfNeeded({ timeout: 2500 });
-  const box = await locator.boundingBox();
-
-  expect(box, `${label} should have a hoverable bounding box`).not.toBeNull();
-
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-
-  await locator.page().mouse.move(x, y);
+  await locator.hover({ timeout: 2500 });
   await locator.page().waitForTimeout(120);
-
-  const hitTargetMatches = await locator.evaluate(
-    (node, point) => {
-      const hit = document.elementFromPoint(point.x, point.y);
-      return hit === node || node.contains(hit);
-    },
-    { x, y },
-  );
-
-  expect(hitTargetMatches, `${label} should receive pointer hit at hover center`).toBe(true);
   await expect(locator, `${label} should expose computed hover background`).toHaveCSS(
     'background-color',
     /rgba?/,
@@ -720,6 +712,25 @@ async function expectLightAboutTheme(page) {
   await expectColorNotLight(platformValue, 'color', 'about platform value');
 }
 
+async function expectLightProviderIconPalette(page) {
+  const providers = ['claude', 'codex', 'gemini'];
+
+  for (const provider of providers) {
+    const icon = page
+      .locator(`.session-item:visible .session-provider-icon.provider-icon-${provider}`)
+      .first();
+
+    await expect(icon, `${provider} session provider icon should be visible`).toBeVisible({
+      timeout: 2500,
+    });
+    await expect(icon, `${provider} session provider icon should use a light-theme filter`).toHaveCSS(
+      'filter',
+      /sepia|saturate|brightness|contrast/,
+      { timeout: 2500 },
+    );
+  }
+}
+
 test.describe('@appearance @theme-visual', () => {
   test('captures key screens for dark and light theme review', async () => {
     const server = startRendererIfNeeded();
@@ -763,6 +774,7 @@ test.describe('@appearance @theme-visual', () => {
       await screenshot(page, 'theme-light-settings-about.png');
       await closeSettings(page);
       await screenshot(page, 'theme-light-home.png');
+      await expectLightProviderIconPalette(page);
       await expectHomeIconHoverTheme(page, 'light');
       await screenshot(page, 'theme-light-home-hover-icons.png');
 

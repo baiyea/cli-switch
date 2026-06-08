@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 import { useI18n } from '../../../../i18n/use-t';
-import { normalizeThemeMode, resolveEffectiveTheme, useThemeStore } from '../../../theme.store';
+import { normalizeThemeMode, resolveEffectiveTheme, useThemeStore } from '../../../../ui/theme/theme.store';
 import { appearanceBridge } from './appearance.bridge';
 
 function getSystemPrefersDark() {
