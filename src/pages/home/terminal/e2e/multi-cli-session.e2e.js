@@ -253,7 +253,6 @@ test('Windows terminal viewport stays aligned with sidebar for Claude and Codex 
     await closeApp({ electronApp, root });
   }
 });
-
 test('Windows first session selection wakes terminal renderer without switching away', async () => {
   test.skip(process.platform !== 'win32', 'Windows-only terminal wake regression coverage');
 
@@ -319,6 +318,97 @@ test('Windows first session selection wakes terminal renderer without switching 
         initialCols: expect.any(Number),
         initialRows: expect.any(Number),
       });
+  } finally {
+    await closeApp({ electronApp, root });
+  }
+});
+
+test('Windows Codex terminal mouse wheel scrolls after TUI enables mouse tracking', async () => {
+  test.skip(process.platform !== 'win32', 'Windows-only Codex scroll regression coverage');
+
+  const launched = await launchAppWithFixtures();
+  const { electronApp, window: win, ids, root } = launched;
+  try {
+    await win.setViewportSize({ width: 1600, height: 900 });
+    await syncFirstProjectHistory(win);
+    await waitForDiscoveredSessions(win, 'p1', [ids.codexSid]);
+
+    await win.getByTestId(`session-item-${ids.codexSid}`).click();
+    await expect(win.locator('.toolbar-provider-meta')).toHaveText(/^Codex CLI\s·/);
+    await expect(win.locator(`[data-session-id="${ids.codexSid}"]`)).toBeVisible();
+
+    const lines = Array.from(
+      { length: 220 },
+      (_, index) => `codex-wheel-scroll-line-${String(index).padStart(3, '0')}`,
+    ).join('\r\n');
+    await win.evaluate(
+      ({ sid, data }) => {
+        window.__ZEELIN_TEST__?.appendTerminalData?.(sid, `${data}\r\n`);
+      },
+      { sid: ids.codexSid, data: lines },
+    );
+
+    await expect
+      .poll(
+        async () => {
+          const state = await win.evaluate(
+            (sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid),
+            ids.codexSid,
+          );
+          return state ? state.baseY - state.rows : -1;
+        },
+        { timeout: 15000, intervals: [200, 400, 800] },
+      )
+      .toBeGreaterThan(0);
+
+    await win.evaluate((sid) => {
+      window.__ZEELIN_TEST__?.scrollTerminalToBottom?.(sid);
+      window.__ZEELIN_TEST__?.appendTerminalData?.(sid, '\x1b[?1000h\x1b[?1006h');
+    }, ids.codexSid);
+
+    await expect
+      .poll(
+        async () => {
+          const state = await win.evaluate(
+            (sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid),
+            ids.codexSid,
+          );
+          return state ? state.baseY - state.viewportY : Number.POSITIVE_INFINITY;
+        },
+        { timeout: 5000, intervals: [100, 200, 400] },
+      )
+      .toBeLessThanOrEqual(1);
+
+    const before = await win.evaluate(
+      (sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid),
+      ids.codexSid,
+    );
+    expect(before.baseY).toBeGreaterThan(before.rows);
+    expect(before.baseY - before.viewportY).toBeLessThanOrEqual(1);
+
+    await win.evaluate((sid) => {
+      const pane = document.querySelector(`[data-session-id="${sid}"]`);
+      pane?.dispatchEvent(
+        new WheelEvent('wheel', {
+          deltaY: -1600,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    }, ids.codexSid);
+
+    await expect
+      .poll(
+        async () => {
+          const state = await win.evaluate(
+            (sid) => window.__ZEELIN_TEST__?.getTerminalScrollState(sid),
+            ids.codexSid,
+          );
+          return state ? state.baseY - state.viewportY : 0;
+        },
+        { timeout: 5000, intervals: [100, 200, 400] },
+      )
+      .toBeGreaterThan(1);
   } finally {
     await closeApp({ electronApp, root });
   }

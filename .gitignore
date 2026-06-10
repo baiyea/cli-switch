@@ -40,10 +40,6 @@ SKILLs/**/.server.log
 SKILLs/**/.server.pid
 SKILLs/**/.venv/
 
-package-lock.json
-pnpm-lock.yaml
-
-nul
 .work.env
 
 .playwright-mcp/
