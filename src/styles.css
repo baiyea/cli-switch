@@ -296,7 +296,7 @@ select {
 }
 
 .layout.macos.sidebar-collapsed .toolbar {
-  padding-left: 92px;
+  padding-left: 100px;
 }
 
 .layout.windows .toolbar {
@@ -2476,6 +2476,96 @@ body,
   color: #ffffff;
 }
 
+.im-channel-settings-section {
+  color: var(--settings-title);
+}
+
+.im-channel-card,
+.im-channel-status-item,
+.im-channel-save-status {
+  background: var(--settings-card-bg);
+  border-color: var(--settings-card-border);
+  color: var(--settings-title);
+}
+
+.im-channel-save-status,
+.im-channel-status-item div:first-child {
+  color: var(--settings-subtitle);
+}
+
+.im-channel-settings-section .im-channel-field {
+  background: var(--settings-option-bg);
+  border-color: var(--settings-option-border);
+  color: var(--settings-option-title);
+}
+
+.im-channel-settings-section .im-channel-field::placeholder {
+  color: var(--settings-option-description);
+}
+
+.im-channel-settings-section .im-channel-field:hover:not(:disabled) {
+  background: var(--settings-option-bg-hover);
+  border-color: var(--settings-option-border-hover);
+}
+
+.im-channel-settings-section .im-channel-field:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.im-channel-field option {
+  background: var(--settings-modal-bg);
+  color: var(--settings-title);
+}
+
+.im-channel-divider {
+  background: var(--settings-card-border);
+}
+
+.im-channel-install-panel {
+  background: color-mix(in srgb, var(--primary) 10%, var(--settings-card-bg));
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--settings-card-border));
+}
+
+.im-channel-install-title {
+  color: var(--settings-title);
+}
+
+.im-channel-install-description {
+  color: var(--settings-subtitle);
+}
+
+.im-channel-install-message.is-success {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
+  color: var(--settings-title);
+}
+
+.im-channel-install-message.is-error {
+  background: var(--settings-error-bg);
+  border-color: var(--settings-error-border);
+  color: var(--settings-error-text);
+}
+
+.im-channel-install-button {
+  background: #24b96f;
+  color: #062013;
+}
+
+.im-channel-install-button:hover:not(:disabled) {
+  background: #34ca7f;
+}
+
+.im-channel-qrcode-box {
+  background: var(--settings-option-bg);
+}
+
+.im-channel-error-banner {
+  background: var(--settings-error-bg);
+  border-color: var(--settings-error-border);
+  color: var(--settings-error-text);
+}
+
 .appearance-option-meta {
   color: var(--settings-option-meta);
 }
@@ -2619,36 +2709,66 @@ body,
 
 .rename-modal,
 .skillgen-modal {
-  border-color: var(--line);
-  background: #0f141d;
+  border-color: var(--settings-modal-border);
+  background: var(--settings-modal-bg);
 }
 
 .rename-modal-title,
 .skillgen-modal-title {
-  color: var(--text-main);
+  color: var(--settings-title);
 }
 
 .rename-modal-subtitle,
 .rename-suggest-label,
 .skillgen-modal-body {
-  color: var(--text-muted);
+  color: var(--settings-subtitle);
 }
 
 .rename-modal-input {
-  background: #0e1520;
-  border-color: var(--line);
-  color: var(--text-main);
+  background: var(--settings-option-bg);
+  border-color: var(--settings-option-border);
+  color: var(--settings-option-title);
+}
+
+.rename-modal-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.rename-modal-close-btn {
+  color: var(--settings-subtitle);
+}
+
+.rename-modal-close-btn:hover:not(:disabled) {
+  background: var(--settings-option-bg-hover);
+  color: var(--settings-title);
+}
+
+.rename-suggest-loading {
+  color: var(--settings-subtitle);
+}
+
+.rename-suggest-chip {
+  background: var(--settings-option-bg);
+  border-color: var(--settings-option-border);
+  color: var(--settings-option-title);
+}
+
+.rename-suggest-chip:hover {
+  background: var(--settings-option-bg-hover);
+  border-color: var(--settings-option-border-hover);
 }
 
 .rename-modal-cancel-btn {
-  background: #131a25;
-  border-color: var(--line);
-  color: var(--text-muted);
+  background: var(--settings-option-bg);
+  border-color: var(--settings-option-border);
+  color: var(--settings-option-title);
 }
 
 .rename-modal-cancel-btn:hover:not(:disabled) {
-  background: #1a2333;
-  color: var(--text-main);
+  background: var(--settings-option-bg-hover);
+  border-color: var(--settings-option-border-hover);
+  color: var(--settings-option-title);
 }
 
 .provider-guard-banner {

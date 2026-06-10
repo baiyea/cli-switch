@@ -24,6 +24,17 @@
         ]
       },
       {
+        "id": "volcengine",
+        "name": "Volcengine 火山引擎",
+        "envVars": [
+          { "key": "ANTHROPIC_AUTH_TOKEN", "value": null },
+          { "key": "ANTHROPIC_BASE_URL", "value": "https://ark.cn-beijing.volces.com/api/coding" },
+          { "key": "ANTHROPIC_MODEL", "value": "ark-code-latest" },
+          { "key": "CLAUDE_CODE_ENABLE_TELEMETRY", "value": "0" },
+          { "key": "CLAUDE_CODE_ATTRIBUTION_HEADER", "value": "0" }
+        ]
+      },
+      {
         "id": "deepseek-api",
         "name": "DeepSeek API",
         "envVars": [
