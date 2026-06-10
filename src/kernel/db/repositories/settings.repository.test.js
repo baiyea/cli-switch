@@ -142,3 +142,29 @@ test('getAppearanceSettings falls back to default appearance settings for bad JS
 
   assert.deepEqual(repo.getAppearanceSettings(), { themeMode: 'system', locale: 'zh-CN' });
 });
+
+test('setImChannelSettings normalizes and persists im channel settings', () => {
+  const { conn, repo } = createRepo();
+
+  const normalized = repo.setImChannelSettings({
+    enabled: true,
+    domain: 'lark',
+    appId: ' cli_a ',
+    appSecret: ' secret ',
+    allowedUsers: [' ou_1 ', '', 'ou_1', ' ou_2 '],
+  });
+
+  assert.deepEqual(normalized, {
+    enabled: true,
+    domain: 'lark',
+    appId: 'cli_a',
+    appSecret: 'secret',
+    allowedUsers: ['ou_1', 'ou_2'],
+  });
+  assert.deepEqual(repo.getImChannelSettings(), normalized);
+
+  const row = conn
+    .prepare('SELECT value FROM app_settings WHERE key = ?')
+    .get('im_channel_settings');
+  assert.deepEqual(JSON.parse(row.value), normalized);
+});

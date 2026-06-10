@@ -53,7 +53,7 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
     const { sql, params } = buildInClause(projectIds);
     return conn
       .prepare(
-        `SELECT s.*, p.path AS project_path
+        `SELECT s.rowid AS db_session_id, s.*, p.path AS project_path
        FROM ${sessionsTable} s LEFT JOIN projects p ON p.id = s.project_id
        WHERE s.is_archived = ?${sql}
        ORDER BY COALESCE(s.sort_order, 0) DESC, s.created_at DESC`,
@@ -77,7 +77,7 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
     listExpiredArchivedSessions(cutoffIso) {
       return conn
         .prepare(
-          `SELECT s.*, p.path AS project_path
+          `SELECT s.rowid AS db_session_id, s.*, p.path AS project_path
            FROM ${sessionsTable} s LEFT JOIN projects p ON p.id = s.project_id
            WHERE s.is_archived = 1
              AND s.archived_at IS NOT NULL
@@ -89,18 +89,36 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
     listActiveWithSessionFileByProject(projectId) {
       return conn
         .prepare(
-          `SELECT s.*, p.path AS project_path FROM ${sessionsTable} s LEFT JOIN projects p ON p.id = s.project_id
+          `SELECT s.rowid AS db_session_id, s.*, p.path AS project_path FROM ${sessionsTable} s LEFT JOIN projects p ON p.id = s.project_id
          WHERE s.project_id = ? AND s.is_archived = 0 AND s.session_file_path IS NOT NULL AND s.session_file_path <> ''
          ORDER BY s.updated_at DESC`,
         )
         .all(projectId);
     },
     getById(sessionId) {
-      return conn.prepare(`SELECT * FROM ${sessionsTable} WHERE id = ?`).get(sessionId);
+      return conn
+        .prepare(`SELECT rowid AS db_session_id, * FROM ${sessionsTable} WHERE id = ?`)
+        .get(sessionId);
+    },
+    listRecentByProjectWithDbId(projectId, limit = 5) {
+      const normalizedLimit = Math.max(1, Math.floor(Number(limit) || 5));
+      return conn
+        .prepare(
+          `SELECT rowid AS db_session_id, * FROM ${sessionsTable}
+           WHERE project_id = ? AND is_archived = 0
+           ORDER BY updated_at DESC, created_at DESC
+           LIMIT ?`,
+        )
+        .all(projectId, normalizedLimit);
+    },
+    getByDbSessionId(dbSessionId) {
+      return conn
+        .prepare(`SELECT rowid AS db_session_id, * FROM ${sessionsTable} WHERE rowid = ?`)
+        .get(dbSessionId);
     },
     getByProviderSessionId({ provider, providerSessionId }) {
       return conn
-        .prepare(`SELECT * FROM ${sessionsTable} WHERE provider = ? AND provider_session_id = ?`)
+        .prepare(`SELECT rowid AS db_session_id, * FROM ${sessionsTable} WHERE provider = ? AND provider_session_id = ?`)
         .get(provider, providerSessionId);
     },
     create({

@@ -32,6 +32,7 @@ function createWindowRuntime(deps = {}) {
     appHomeDir,
     appLogsDir,
     appCacheDir,
+    isPackaged = true,
     preloadPath,
     devServerUrl,
     productionIndexPath,
@@ -117,6 +118,7 @@ function createWindowRuntime(deps = {}) {
       icon: iconPath || undefined,
       webPreferences: {
         preload: preloadPath,
+        additionalArguments: [`--cli-switch-is-packaged=${isPackaged ? '1' : '0'}`],
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,

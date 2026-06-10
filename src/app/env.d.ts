@@ -284,6 +284,42 @@ declare global {
           warnings: string[];
         }>;
       };
+      imChannel: {
+        getConfig: () => Promise<{ ok: boolean; config: unknown }>;
+        saveConfig: (payload: unknown) => Promise<{
+          ok: boolean;
+          config: unknown;
+          status?: unknown;
+          message?: string;
+        }>;
+        status: () => Promise<{ ok: boolean; status: unknown }>;
+        testConnection: () => Promise<{
+          ok: boolean;
+          status: unknown;
+          message?: string;
+        }>;
+        installQrcode: (payload: { domain?: 'feishu' | 'lark' }) => Promise<{
+          ok: boolean;
+          url?: string;
+          deviceCode?: string;
+          interval?: number;
+          expireIn?: number;
+          message?: string;
+        }>;
+        installPoll: (payload: { deviceCode: string }) => Promise<{
+          ok: boolean;
+          done: boolean;
+          appId?: string;
+          appSecret?: string;
+          domain?: 'feishu' | 'lark';
+          message?: string;
+        }>;
+        verifyCredentials: (payload: { appId: string; appSecret: string }) => Promise<{
+          ok: boolean;
+          message?: string;
+        }>;
+        simulatePrivateMessage?: (payload: unknown) => Promise<{ ok: boolean; text: string }>;
+      };
       skillgen: {
         run: (payload: {
           projectId: string;

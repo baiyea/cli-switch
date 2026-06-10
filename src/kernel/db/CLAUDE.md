@@ -46,6 +46,17 @@ app_settings（独立键值表，无外键关系）
 │ value        │
 │ updated_at   │
 └──────────────┘
+
+im_session_bindings（独立绑定表，无外键关系）
+┌────────────────┐
+│ id (PK)        │
+│ platform       │
+│ im_user_id     │
+│ session_id     │
+│ session_db_id  │
+│ created_at     │
+│ updated_at     │
+└────────────────┘
 ```
 
 ### `projects` — 工作区项目
@@ -144,6 +155,12 @@ app_settings（独立键值表，无外键关系）
 
 目前只有一条记录 `provider_startup_settings`，存储 claude/codex/gemini 三方的 profile 配置。
 
+### `im_session_bindings` — IM 私聊到会话的绑定
+
+保存飞书/Lark 私聊用户当前绑定的内部 session。IM 命令展示 `session_db_id`，实际写入使用 `session_id`。
+
+**唯一索引**：`(platform, im_user_id)` — 同一 IM 平台同一私聊用户只保留一个当前绑定；不同平台可以绑定不同会话。
+
 ### 表关系总结
 
 - **`projects.id` ← `sessions.project_id`**：一个项目下可有多个会话。删除项目时级联删除其下所有会话。
@@ -151,6 +168,7 @@ app_settings（独立键值表，无外键关系）
 - **`sessions.id` ← `token_usage_runs.session_id`**：一个应用会话可产生多个运行段（例如切换 provider/profile/model 后重新启动）。
 - **`token_usage_runs.id` ← `token_usage_snapshots.run_id`**：一个运行段最多一个累计快照。
 - **`app_settings`**：独立键值表，无外键关系。
+- **`im_session_bindings`**：独立 IM 绑定表，无外键关系。
 
 ## Repository 层
 

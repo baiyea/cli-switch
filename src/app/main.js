@@ -117,6 +117,7 @@ const windowRuntime = createWindowRuntime({
   appHomeDir,
   appLogsDir,
   appCacheDir,
+  isPackaged: app.isPackaged,
   preloadPath: path.join(__dirname, 'preload.js'),
   devServerUrl: process.env.VITE_DEV_SERVER_URL,
   productionIndexPath: path.join(app.getAppPath(), 'dist/renderer/index.html'),
@@ -464,6 +465,85 @@ const cleanRuntimeData = createRuntimeDataCleaner({
   removeFileSafe,
 });
 
+function createImChannelSessionPort({ projectStore, sessionStore, ptyService }) {
+  function readLatestAssistantText(row) {
+    const sessionFilePath = String(row?.session_file_path || '').trim();
+    if (!sessionFilePath) return '';
+    return parseLatestConversationRoundFromSessionFile(sessionFilePath).latestAssistantText || '';
+  }
+
+  function getProjectForRow(row) {
+    if (!row?.project_id || typeof projectStore?.getById !== 'function') return null;
+    return projectStore.getById(row.project_id) || null;
+  }
+
+  function toImSession(row, project = null) {
+    if (!row) return null;
+    const projectName =
+      row.project_name ||
+      project?.name ||
+      row.project_path ||
+      project?.path ||
+      row.project_id ||
+      'Unknown Project';
+    return {
+      dbSessionId: Number(row.db_session_id),
+      sessionId: row.id,
+      runtimeSessionId: row.provider_session_id || row.id,
+      title: row.title || 'Untitled',
+      provider: row.provider || 'claude',
+      status: row.status || 'exited',
+      isArchived: Boolean(row.is_archived),
+      projectName,
+      updatedAt: row.updated_at || '',
+      latestAssistantText: readLatestAssistantText(row),
+    };
+  }
+
+  function getSessionById(sessionId) {
+    const row = sessionStore.getById(sessionId);
+    return row ? toImSession(row, getProjectForRow(row)) : null;
+  }
+
+  function isWritableSession(session) {
+    return Boolean(
+      session && !session.isArchived && ptyService.hasSession(session.runtimeSessionId),
+    );
+  }
+
+  return {
+    listProjectsWithRecentSessions() {
+      const projects =
+        typeof projectStore?.listAll === 'function'
+          ? projectStore.listAll()
+          : projectStore?.list?.() || [];
+      return projects.map((project) => {
+        const rows = sessionStore.listRecentByProjectWithDbId(project.id, 5);
+        return {
+          projectName: project.name || project.path || project.id,
+          sessions: rows.map((row) => toImSession(row, project)).filter(Boolean),
+        };
+      });
+    },
+    getSessionByDbId(dbSessionId) {
+      const row = sessionStore.getByDbSessionId(dbSessionId);
+      return row ? toImSession(row, getProjectForRow(row)) : null;
+    },
+    getSessionById(sessionId) {
+      return getSessionById(sessionId);
+    },
+    isSessionWritable(session) {
+      const current = session?.sessionId ? getSessionById(session.sessionId) : null;
+      return isWritableSession(current);
+    },
+    writeSessionInput(sessionId, data) {
+      const current = getSessionById(sessionId);
+      if (!isWritableSession(current)) return false;
+      return ptyService.write(current.runtimeSessionId, data);
+    },
+  };
+}
+
 function registerAppIpc() {
   registerAppIpcHandlers({
     ipcMain,
@@ -484,6 +564,7 @@ function registerAppIpc() {
     sessionStore,
     appSettingsStore,
     tokenUsageStore,
+    imChannelSessionPort: createImChannelSessionPort({ projectStore, sessionStore, ptyService }),
     tokenUsageRuntime,
     ptyService,
     providerSettingsSchema,
@@ -539,6 +620,7 @@ function registerAppIpc() {
     logInfo,
     logWarn,
     logError,
+    db,
   });
 }
 

@@ -6,6 +6,7 @@ const { registerAppearanceMain } = require('../pages/settings/appearance/block.m
 const { registerArchiveMain } = require('../pages/settings/archive/block.main');
 const { registerTokenUsageMain } = require('../pages/settings/token-usage/block.main');
 const { registerTopToolbarMain } = require('../pages/home/top-toolbar/block.main');
+const { registerImChannelMain } = require('../pages/settings/im-channel/block.main');
 
 function registerPageMain(context = {}) {
   registerTerminalMain(context);
@@ -16,6 +17,7 @@ function registerPageMain(context = {}) {
   registerArchiveMain(context);
   registerTokenUsageMain(context);
   if (typeof registerTopToolbarMain === 'function') registerTopToolbarMain(context);
+  registerImChannelMain(context);
 }
 
 module.exports = { registerPageMain };

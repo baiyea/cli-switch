@@ -132,6 +132,31 @@ const DB_MODELS = {
       },
     ],
   },
+  imSessionBindings: {
+    tableName: 'im_session_bindings',
+    description: 'IM 私聊到会话的绑定',
+    columns: [
+      { name: 'id', type: 'TEXT', primaryKey: true, description: '绑定主键 ID' },
+      { name: 'platform', type: 'TEXT', notNull: true, description: 'IM 平台' },
+      { name: 'im_user_id', type: 'TEXT', notNull: true, description: 'IM 用户 ID' },
+      { name: 'session_id', type: 'TEXT', notNull: true, description: '内部 session ID' },
+      { name: 'session_db_id', type: 'INTEGER', notNull: true, description: '展示用 session 数据库 ID' },
+      { name: 'created_at', type: 'TEXT', notNull: true, description: '创建时间（ISO 字符串）' },
+      {
+        name: 'updated_at',
+        type: 'TEXT',
+        notNull: true,
+        description: '最后更新时间（ISO 字符串）',
+      },
+    ],
+    indexes: [
+      {
+        name: 'idx_im_session_bindings_platform_user_unique',
+        columns: ['platform', 'im_user_id'],
+        unique: true,
+      },
+    ],
+  },
   tokenUsageRuns: {
     tableName: 'token_usage_runs',
     description: 'Token 用量运行段',
@@ -326,6 +351,8 @@ function getModelByTableName(tableName) {
 
 module.exports = {
   DB_MODELS,
+  buildCreateTableSql,
+  buildCreateIndexSql,
   buildSchemaSql,
   getModelByTableName,
 };

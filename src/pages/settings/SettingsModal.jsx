@@ -10,6 +10,7 @@ import { Tabs, TabsContent } from '../../ui/tabs';
 import { AboutSettingsSection } from './about/block.renderer';
 import { AppearanceSettingsSection } from './appearance/block.renderer';
 import { ArchiveSettingsSection } from './archive/block.renderer';
+import { ImChannelSettingsSection } from './im-channel/block.renderer';
 import { ProviderSettingsSection } from './providers/block.renderer';
 import { SettingsSideNav } from './SettingsSideNav';
 import { TokenUsageSettingsSection } from './token-usage/block.renderer';
@@ -22,6 +23,7 @@ export function SettingsModal({
   onSelectProviders,
   onSelectArchive,
   onSelectTokenUsage,
+  onSelectImChannel,
   onSelectAppearance,
   onSelectAbout,
   providerSectionProps,
@@ -68,6 +70,12 @@ export function SettingsModal({
         subtitle: t('settings.section.tokenUsage.subtitle'),
       };
     }
+    if (settingsSection === 'im-channel') {
+      return {
+        title: t('settings.section.imChannel.title'),
+        subtitle: t('settings.section.imChannel.subtitle'),
+      };
+    }
     return {
       title: t('settings.section.providers.title'),
       subtitle: providerSectionProps?.isEditingOAuthProfile
@@ -91,6 +99,10 @@ export function SettingsModal({
     }
     if (value === 'appearance') {
       onSelectAppearance();
+      return;
+    }
+    if (value === 'im-channel') {
+      onSelectImChannel();
       return;
     }
     onSelectProviders();
@@ -160,6 +172,10 @@ export function SettingsModal({
 
             <TabsContent value="token-usage" className="mt-0 h-full">
               <TokenUsageSettingsSection />
+            </TabsContent>
+
+            <TabsContent value="im-channel" className="mt-0 h-full">
+              <ImChannelSettingsSection />
             </TabsContent>
 
             <TabsContent value="appearance" className="mt-0 h-full">

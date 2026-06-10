@@ -13,6 +13,7 @@ const SETTINGS_TABS = {
   providers: /Providers|服务商/,
   archive: /Archive|归档/,
   tokenUsage: /Token usage|Token Usage|Token 用量|Token 统计/,
+  imChannel: /IM Channel|IM 通道/,
   about: /About|关于/,
 };
 const TOKEN_USAGE_TEXT = {
@@ -394,6 +395,37 @@ function installElectronApiMock(page) {
         refresh: async () => ({ ok: true, scanned: 1, updated: 1, errors: [] }),
         status: async () => ({ running: false }),
       },
+      imChannel: {
+        getConfig: async () => ({
+          ok: true,
+          config: {
+            enabled: true,
+            domain: 'feishu',
+            appId: 'cli_visual_theme',
+            appSecret: 'visual-secret',
+            allowedUsers: ['ou_visual_1', 'ou_visual_2'],
+          },
+        }),
+        saveConfig: async (payload) => ({ ok: true, config: payload, status: { running: true } }),
+        status: async () => ({
+          ok: true,
+          status: {
+            running: true,
+            lastError: '',
+            lastInboundAt: now - 120000,
+            lastOutboundAt: now - 60000,
+          },
+        }),
+        testConnection: async () => ({ ok: true }),
+        installQrcode: async () => ({
+          ok: true,
+          deviceCode: 'visual-device',
+          url: 'https://example.com/visual-install',
+          expiresIn: 120,
+        }),
+        installPoll: async () => ({ ok: false, message: 'install-expired' }),
+        verifyCredentials: async () => ({ ok: true }),
+      },
       skillgen: {
         run: async () => ({ ok: true, summary: 'visual skill mock' }),
       },
@@ -416,8 +448,7 @@ async function openSettings(page, tabName) {
   await page.getByRole('button', { name: 'Settings' }).click({ timeout: 5000 });
   await expect(page.locator('.settings-modal')).toBeVisible({ timeout: 10000 });
   if (tabName) {
-    await page.getByRole('tab', { name: tabName }).click({ timeout: 5000 });
-    await expect(page.getByRole('tabpanel', { name: tabName })).toBeVisible({ timeout: 5000 });
+    await clickSettingsTab(page, tabName);
   }
 }
 
@@ -683,7 +714,16 @@ async function screenshot(page, fileName) {
 
 async function openSettingsTab(page, tabName) {
   console.log(`[theme-visual] switch settings tab ${tabName}`);
-  await page.getByRole('tab', { name: tabName }).click({ timeout: 5000 });
+  await clickSettingsTab(page, tabName);
+}
+
+async function clickSettingsTab(page, tabName) {
+  const tab = page.getByRole('tab', { name: tabName });
+  await expect(tab).toBeVisible({ timeout: 5000 });
+  await expect(async () => {
+    await tab.click({ timeout: 2500 });
+    await expect(page.getByRole('tabpanel', { name: tabName })).toBeVisible({ timeout: 2500 });
+  }).toPass({ timeout: 10000 });
   await expect(page.getByRole('tabpanel', { name: tabName })).toBeVisible({ timeout: 5000 });
 }
 
@@ -712,6 +752,23 @@ async function expectLightAboutTheme(page) {
   await expectColorNotLight(platformValue, 'color', 'about platform value');
 }
 
+async function expectLightImChannelTheme(page) {
+  const panel = page.getByRole('tabpanel', { name: SETTINGS_TABS.imChannel });
+  const domainSelect = panel.locator('#im-channel-domain');
+  const appIdInput = panel.locator('#im-channel-app-id');
+  const appSecretInput = panel.locator('#im-channel-app-secret');
+  const allowedUsersTextarea = panel.locator('#im-channel-allowed-users');
+
+  await expectColorNotDark(domainSelect, 'background-color', 'im channel domain select');
+  await expectColorNotDark(appIdInput, 'background-color', 'im channel app id input');
+  await expectColorNotDark(appSecretInput, 'background-color', 'im channel app secret input');
+  await expectColorNotDark(allowedUsersTextarea, 'background-color', 'im channel allowed users textarea');
+  await expectBorderVisible(domainSelect, 'im channel domain select');
+  await expectBorderVisible(appIdInput, 'im channel app id input');
+  await expectBorderVisible(appSecretInput, 'im channel app secret input');
+  await expectBorderVisible(allowedUsersTextarea, 'im channel allowed users textarea');
+}
+
 async function expectLightProviderIconPalette(page) {
   const providers = ['claude', 'codex', 'gemini'];
 
@@ -729,6 +786,20 @@ async function expectLightProviderIconPalette(page) {
       { timeout: 2500 },
     );
   }
+}
+
+async function expectLightRenameDialogTheme(page) {
+  await page.locator('.toolbar-title').dblclick({ timeout: 2500 });
+  const dialog = page.locator('.rename-modal');
+  const input = dialog.locator('.rename-modal-input');
+
+  await expect(dialog, 'rename dialog should open').toBeVisible({ timeout: 5000 });
+  await expectColorNotDark(dialog, 'background-color', 'rename dialog');
+  await expectColorNotDark(input, 'background-color', 'rename input');
+  await expectColorNotLight(dialog.locator('.rename-modal-title'), 'color', 'rename dialog title');
+  await screenshot(page, 'theme-light-rename-dialog.png');
+  await dialog.locator('.rename-modal-close-btn').click({ timeout: 2500 });
+  await expect(dialog).toHaveCount(0);
 }
 
 test.describe('@appearance @theme-visual', () => {
@@ -772,8 +843,12 @@ test.describe('@appearance @theme-visual', () => {
       await openSettingsTab(page, SETTINGS_TABS.about);
       await expectLightAboutTheme(page);
       await screenshot(page, 'theme-light-settings-about.png');
+      await openSettingsTab(page, SETTINGS_TABS.imChannel);
+      await expectLightImChannelTheme(page);
+      await screenshot(page, 'theme-light-settings-im-channel.png');
       await closeSettings(page);
       await screenshot(page, 'theme-light-home.png');
+      await expectLightRenameDialogTheme(page);
       await expectLightProviderIconPalette(page);
       await expectHomeIconHoverTheme(page, 'light');
       await screenshot(page, 'theme-light-home-hover-icons.png');

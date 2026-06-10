@@ -73,6 +73,12 @@ function isTestFile(relativePath) {
   return /\.(?:test|spec)\.[jt]sx?$/.test(relativePath) || relativePath.includes('/e2e/');
 }
 
+function assertPathMissing(relativePath, message) {
+  if (fs.existsSync(path.join(root, relativePath))) {
+    violations.push(`${relativePath}: ${message}`);
+  }
+}
+
 const srcFiles = walk(path.join(root, 'src')).filter((filePath) =>
   /\.(js|jsx|ts|tsx)$/.test(filePath),
 );
@@ -83,6 +89,7 @@ if (fs.existsSync(featuresDir)) {
     'src/features still exists; Page Block Capsule keeps page-owned code under src/pages.',
   );
 }
+assertPathMissing('src/features/im-channel', 'IM channel MVP must stay inside settings/im-channel');
 
 for (const filePath of srcFiles) {
   const relative = rel(filePath);
@@ -121,6 +128,14 @@ for (const filePath of srcFiles) {
       `${relative}: appearance block must not import providers renderer bridge or use settingsBridge`,
     );
   }
+  if (
+    relative.startsWith('src/pages/settings/im-channel/') &&
+    /pages\/home\/terminal\/(?:renderer|preload)(?=\/|['"`\s)]|$)/.test(source)
+  ) {
+    violations.push(
+      `${relative}: settings/im-channel must not import terminal renderer/preload internals`,
+    );
+  }
 
   for (const importPath of imports) {
     const resolved = resolveImportPath(relative, importPath);
@@ -151,6 +166,15 @@ for (const filePath of srcFiles) {
     ) {
       violations.push(
         `${relative}: must not import token-usage renderer internals; import the block renderer entry instead`,
+      );
+    }
+
+    if (
+      relative.startsWith('src/pages/settings/im-channel/') &&
+      /src\/pages\/home\/terminal\/(?:renderer|preload)(?:\/|$)/.test(resolved)
+    ) {
+      violations.push(
+        `${relative}: settings/im-channel must not import terminal renderer/preload internals`,
       );
     }
   }

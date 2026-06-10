@@ -3,6 +3,7 @@ function createSettingsRepo({ getDatabase, now }) {
   const { DEFAULT_LOCALE, SUPPORTED_LOCALES } = require('../../../i18n/main');
   const SETTINGS_KEY = 'provider_startup_settings';
   const APPEARANCE_SETTINGS_KEY = 'appearance_settings';
+  const IM_CHANNEL_SETTINGS_KEY = 'im_channel_settings';
   const defaultValue = {
     providers: {
       claude: { defaultProfileId: '', enabledProfileId: '', profiles: [] },
@@ -11,6 +12,13 @@ function createSettingsRepo({ getDatabase, now }) {
     },
   };
   const defaultAppearanceValue = { themeMode: 'system', locale: DEFAULT_LOCALE };
+  const defaultImChannelValue = {
+    enabled: false,
+    domain: 'feishu',
+    appId: '',
+    appSecret: '',
+    allowedUsers: [],
+  };
   const validThemeModes = new Set(['system', 'dark', 'light']);
   const validLocales = new Set(SUPPORTED_LOCALES);
 
@@ -46,6 +54,24 @@ function createSettingsRepo({ getDatabase, now }) {
     const themeMode = validThemeModes.has(input?.themeMode) ? input.themeMode : 'system';
     const locale = validLocales.has(input?.locale) ? input.locale : 'zh-CN';
     return { themeMode, locale };
+  }
+
+  function ensureImChannelShape(input) {
+    const allowedUsers = [];
+    const seenUsers = new Set();
+    for (const user of Array.isArray(input?.allowedUsers) ? input.allowedUsers : []) {
+      const normalized = String(user || '').trim();
+      if (!normalized || seenUsers.has(normalized)) continue;
+      seenUsers.add(normalized);
+      allowedUsers.push(normalized);
+    }
+    return {
+      enabled: input?.enabled === true,
+      domain: input?.domain === 'lark' ? 'lark' : 'feishu',
+      appId: String(input?.appId || '').trim(),
+      appSecret: String(input?.appSecret || '').trim(),
+      allowedUsers,
+    };
   }
 
   function upsertSetting(key, value) {
@@ -123,6 +149,22 @@ function createSettingsRepo({ getDatabase, now }) {
     setAppearanceSettings(value) {
       const normalized = ensureAppearanceShape({ ...getAppearanceSettings(), ...(value || {}) });
       upsertSetting(APPEARANCE_SETTINGS_KEY, normalized);
+      return normalized;
+    },
+    getImChannelSettings() {
+      const row = conn
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get(IM_CHANNEL_SETTINGS_KEY);
+      if (!row) return defaultImChannelValue;
+      try {
+        return ensureImChannelShape(JSON.parse(row.value || '{}'));
+      } catch {
+        return defaultImChannelValue;
+      }
+    },
+    setImChannelSettings(value) {
+      const normalized = ensureImChannelShape(value);
+      upsertSetting(IM_CHANNEL_SETTINGS_KEY, normalized);
       return normalized;
     },
   };

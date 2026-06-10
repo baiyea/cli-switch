@@ -6,6 +6,7 @@ const { createProvidersPreloadApi } = require('../pages/settings/providers/block
 const { createAppearancePreloadApi } = require('../pages/settings/appearance/block.preload');
 const { createArchivePreloadApi } = require('../pages/settings/archive/block.preload');
 const { createTokenUsagePreloadApi } = require('../pages/settings/token-usage/block.preload');
+const { createImChannelPreloadApi } = require('../pages/settings/im-channel/block.preload');
 
 function mergeApis(...parts) {
   const target = {};
@@ -28,7 +29,7 @@ function mergeApis(...parts) {
   return target;
 }
 
-function createPageApis() {
+function createPageApis(options = {}) {
   return mergeApis(
     createTerminalPreloadApi(),
     createSidebarPreloadApi(),
@@ -38,6 +39,7 @@ function createPageApis() {
     createAppearancePreloadApi(),
     createArchivePreloadApi(),
     createTokenUsagePreloadApi(),
+    createImChannelPreloadApi(options),
   );
 }
 

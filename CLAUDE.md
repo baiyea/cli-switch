@@ -186,8 +186,7 @@ src/pages/home/terminal/
 - 平台相关修复的验收至少包含：对应平台分组用例、受影响文件的完整 E2E 文件、`pnpm build`。
 
 ## Commands
-
-uvm use $(cat .nvmrc)
+nvm use $(cat .nvmrc)
 
 | Command           | Description         |
 | ----------------- | ------------------- |

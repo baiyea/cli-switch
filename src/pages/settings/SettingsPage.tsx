@@ -6,10 +6,11 @@ import { Button } from '../../ui/button';
 import { AboutSettingsSection } from './about/block.renderer';
 import { AppearanceSettingsSection } from './appearance/block.renderer';
 import { ArchiveSettingsSection } from './archive/block.renderer';
+import { ImChannelSettingsSection } from './im-channel/block.renderer';
 import { ProviderSettingsSection } from './providers/block.renderer';
 import { TokenUsageSettingsSection } from './token-usage/block.renderer';
 
-type SettingsSection = 'providers' | 'archive' | 'token-usage' | 'appearance' | 'about';
+type SettingsSection = 'providers' | 'archive' | 'token-usage' | 'im-channel' | 'appearance' | 'about';
 
 export interface SettingsPageProps {
   onBack: () => void;
@@ -103,6 +104,7 @@ export function SettingsPage({
             { id: 'providers' as const, label: t('settings.sideNav.providers') },
             { id: 'archive' as const, label: t('settings.sideNav.archive') },
             { id: 'token-usage' as const, label: t('settings.sideNav.tokenUsage') },
+            { id: 'im-channel' as const, label: t('settings.sideNav.imChannel') },
             { id: 'appearance' as const, label: t('settings.sideNav.appearance') },
             { id: 'about' as const, label: t('settings.sideNav.about') },
           ].map((item) => (
@@ -135,6 +137,7 @@ export function SettingsPage({
             />
           )}
           {section === 'token-usage' && <TokenUsageSettingsSection />}
+          {section === 'im-channel' && <ImChannelSettingsSection />}
           {section === 'appearance' && <AppearanceSettingsSection />}
           {section === 'about' && (
             <AboutSettingsSection appVersion={appVersion} appLogo={appLogo} />

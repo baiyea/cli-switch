@@ -303,6 +303,7 @@ export function HomePage() {
             await loadArchivedSessions();
           }}
           onSelectTokenUsage={() => setSettingsSection('token-usage')}
+          onSelectImChannel={() => setSettingsSection('im-channel')}
           onSelectAppearance={() => setSettingsSection('appearance')}
           onSelectAbout={() => setSettingsSection('about')}
           providerSectionProps={providerSectionProps}

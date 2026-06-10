@@ -1,6 +1,6 @@
 {
   "name": "cli-switch",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "description": "Electron + React terminal-style AI workspace",
   "main": "src/app/main.js",
@@ -35,6 +35,8 @@
     "test:e2e:headed": "node scripts/clean-e2e-artifacts.js && pnpm prepare:cli-runtime && pnpm build && node scripts/ensure-e2e-providers-ready.js && cross-env APP_E2E_SHOW_WINDOW=1 playwright test"
   },
   "dependencies": {
+    "@larksuite/openclaw-lark-tools": "1.0.45",
+    "@larksuiteoapi/node-sdk": "^1.64.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.4",
@@ -52,6 +54,7 @@
     "file-uri-to-path": "^1.0.0",
     "lucide-react": "^1.14.0",
     "node-pty": "^1.0.0",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-files-icons": "^0.7.0",
