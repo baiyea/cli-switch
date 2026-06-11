@@ -209,6 +209,7 @@ test('session stats refreshes discovered metadata for auto titled provider sessi
 test('session create starts a token usage run for the created session record', async () => {
   const { registerTerminalMain } = loadBlockMainWithFakeElectron();
   const starts = [];
+  const liveCalls = [];
   const createdRecord = {
     id: 'session-row-create',
     project_id: 'project-1',
@@ -251,7 +252,21 @@ test('session create starts a token usage run for the created session record', a
       return 'codex\n';
     },
     getStartupEnvForProvider() {
-      return {};
+      return { OPENAI_API_KEY: 'sk-test' };
+    },
+    getActiveProviderProfile(provider) {
+      assert.equal(provider, 'codex');
+      return {
+        profileId: 'openai-api-key',
+        profileName: 'OpenAI API Key',
+        envVars: [{ key: 'OPENAI_API_KEY', value: 'sk-test' }],
+      };
+    },
+    providerLiveSyncService: {
+      syncProviderLiveConfig(payload) {
+        liveCalls.push(payload);
+        return { ok: true };
+      },
     },
     maskEnvForLog(env) {
       return env;
@@ -282,11 +297,16 @@ test('session create starts a token usage run for the created session record', a
   assert.equal(starts[0].row.provider, 'codex');
   assert.equal(starts[0].row.provider_session_id, result.provider_session_id);
   assert.match(starts[0].startedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(liveCalls.length, 1);
+  assert.equal(liveCalls[0].provider, 'codex');
+  assert.equal(liveCalls[0].profile.id, 'openai-api-key');
+  assert.equal(liveCalls[0].env.OPENAI_API_KEY, 'sk-test');
 });
 
 test('session start starts a token usage run when creating a new PTY', async () => {
   const { registerTerminalMain } = loadBlockMainWithFakeElectron();
   const starts = [];
+  const liveCalls = [];
   const record = {
     id: 'session-row-start',
     project_id: 'project-1',
@@ -332,7 +352,21 @@ test('session start starts a token usage run when creating a new PTY', async () 
       return false;
     },
     getStartupEnvForProvider() {
-      return {};
+      return { GEMINI_API_KEY: 'gemini-key' };
+    },
+    getActiveProviderProfile(provider) {
+      assert.equal(provider, 'gemini');
+      return {
+        profileId: 'api-key',
+        profileName: 'API Key',
+        envVars: [{ key: 'GEMINI_API_KEY', value: 'gemini-key' }],
+      };
+    },
+    providerLiveSyncService: {
+      syncProviderLiveConfig(payload) {
+        liveCalls.push(payload);
+        return { ok: true };
+      },
     },
     maskEnvForLog(env) {
       return env;
@@ -369,6 +403,10 @@ test('session start starts a token usage run when creating a new PTY', async () 
   assert.equal(starts.length, 1);
   assert.equal(starts[0].row, record);
   assert.match(starts[0].startedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(liveCalls.length, 1);
+  assert.equal(liveCalls[0].provider, 'gemini');
+  assert.equal(liveCalls[0].profile.id, 'api-key');
+  assert.equal(liveCalls[0].env.GEMINI_API_KEY, 'gemini-key');
 });
 
 test('session start forwards measured terminal dimensions to PTY create', async () => {

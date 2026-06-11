@@ -5,6 +5,7 @@ function createProviderTestSyncService({
   applyUnifiedProxyEnv,
   buildEnvFromPairs,
   cliConfigSyncService,
+  providerLiveSyncService,
 }) {
   function syncCliConfigAfterSuccessfulProviderTest(parsed, source) {
     const provider = normalizeProviderId(parsed?.provider);
@@ -14,12 +15,28 @@ function createProviderTestSyncService({
       provider,
       applyUnifiedProxyEnv(buildEnvFromPairs(mergedPairs)),
     );
-    return cliConfigSyncService.syncProviderCliConfig({
+    const cliResult = cliConfigSyncService.syncProviderCliConfig({
       provider,
       profileId,
       env,
       source,
     });
+    const liveResult =
+      providerLiveSyncService?.syncProviderLiveConfig?.({
+        provider,
+        profile: {
+          id: profileId,
+          name: profileId,
+          envVars: parsed?.envVars || [],
+          settingsConfig: { env },
+          meta: {},
+        },
+        env,
+        source,
+      }) || { ok: true, skipped: true };
+
+    if (liveResult?.ok === false) return liveResult;
+    return cliResult;
   }
 
   return {

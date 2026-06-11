@@ -1,0 +1,177 @@
+{
+  "claude": {
+    "profiles": [
+      {
+        "id": "deepseek-api",
+        "name": "DeepSeek API",
+        "category": "cn_official",
+        "icon": "deepseek",
+        "iconColor": "#1E88E5",
+        "websiteUrl": "https://platform.deepseek.com",
+        "settingsConfig": {
+          "env": {
+            "ANTHROPIC_AUTH_TOKEN": "",
+            "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+            "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
+            "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+            "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+            "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
+            "CLAUDE_CODE_EFFORT_LEVEL": "max",
+            "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
+            "CLAUDE_CODE_ATTRIBUTION_HEADER": "0"
+          }
+        },
+        "meta": {
+          "apiFormat": "anthropic",
+          "apiKeyField": "ANTHROPIC_AUTH_TOKEN",
+          "testConfig": {
+            "enabled": true,
+            "testModel": "deepseek-v4-flash"
+          }
+        }
+      },
+      {
+        "id": "kimi-code-plan",
+        "name": "Kimi Code Plan",
+        "category": "cn_official",
+        "icon": "moonshot",
+        "iconColor": "#111827",
+        "websiteUrl": "https://platform.moonshot.cn",
+        "settingsConfig": {
+          "env": {
+            "ANTHROPIC_API_KEY": "",
+            "ANTHROPIC_BASE_URL": "https://api.kimi.com/coding/",
+            "ANTHROPIC_MODEL": "kimi-for-coding",
+            "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
+            "CLAUDE_CODE_ATTRIBUTION_HEADER": "0"
+          }
+        },
+        "meta": {
+          "apiFormat": "anthropic",
+          "apiKeyField": "ANTHROPIC_API_KEY",
+          "testConfig": {
+            "enabled": true,
+            "testModel": "kimi-for-coding"
+          }
+        }
+      },
+      {
+        "id": "oauth-login",
+        "name": "OAuth Login",
+        "category": "official",
+        "icon": "claude",
+        "iconColor": "#D97757",
+        "websiteUrl": "https://claude.ai",
+        "settingsConfig": {
+          "env": {
+            "ZEELIN_AUTH_MODE": "oauth"
+          }
+        },
+        "meta": {
+          "apiFormat": "anthropic",
+          "authMode": "oauth",
+          "testConfig": {
+            "enabled": true
+          }
+        }
+      }
+    ]
+  },
+  "codex": {
+    "profiles": [
+      {
+        "id": "openai-api-key",
+        "name": "OpenAI API Key",
+        "category": "official",
+        "icon": "openai",
+        "iconColor": "#10A37F",
+        "websiteUrl": "https://platform.openai.com/api-keys",
+        "settingsConfig": {
+          "env": {
+            "OPENAI_API_KEY": "",
+            "OPENAI_BASE_URL": "https://api.openai.com",
+            "OPENAI_MODEL": ""
+          }
+        },
+        "meta": {
+          "apiFormat": "openai_responses",
+          "apiKeyField": "OPENAI_API_KEY",
+          "testConfig": {
+            "enabled": true,
+            "testModel": ""
+          }
+        }
+      },
+      {
+        "id": "oauth-login",
+        "name": "OAuth Login",
+        "category": "official",
+        "icon": "openai",
+        "iconColor": "#10A37F",
+        "websiteUrl": "https://chatgpt.com",
+        "settingsConfig": {
+          "env": {
+            "ZEELIN_AUTH_MODE": "oauth",
+            "OPENAI_BASE_URL": "https://api.openai.com"
+          }
+        },
+        "meta": {
+          "apiFormat": "openai_responses",
+          "authMode": "oauth",
+          "testConfig": {
+            "enabled": true
+          }
+        }
+      }
+    ]
+  },
+  "gemini": {
+    "profiles": [
+      {
+        "id": "api-key",
+        "name": "API Key",
+        "category": "official",
+        "icon": "gemini",
+        "iconColor": "#4285F4",
+        "websiteUrl": "https://aistudio.google.com/app/apikey",
+        "settingsConfig": {
+          "env": {
+            "GOOGLE_GEMINI_BASE_URL": "",
+            "GEMINI_API_KEY": "",
+            "GEMINI_MODEL": "",
+            "HTTP_PROXY": ""
+          }
+        },
+        "meta": {
+          "apiFormat": "gemini_native",
+          "apiKeyField": "GEMINI_API_KEY",
+          "testConfig": {
+            "enabled": true,
+            "testModel": ""
+          }
+        }
+      },
+      {
+        "id": "oauth-login",
+        "name": "OAuth Login",
+        "category": "official",
+        "icon": "gemini",
+        "iconColor": "#4285F4",
+        "websiteUrl": "https://gemini.google.com",
+        "settingsConfig": {
+          "env": {
+            "ZEELIN_AUTH_MODE": "oauth"
+          }
+        },
+        "meta": {
+          "apiFormat": "gemini_native",
+          "authMode": "oauth",
+          "testConfig": {
+            "enabled": true
+          }
+        }
+      }
+    ]
+  }
+}

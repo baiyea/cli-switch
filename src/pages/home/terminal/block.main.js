@@ -15,6 +15,8 @@ function registerTerminalMain(context = {}) {
     sessionCreateSchema,
     getStartupCommandForProvider,
     getStartupEnvForProvider,
+    getActiveProviderProfile,
+    providerLiveSyncService,
     maskEnvForLog,
     waitForShellBootstrap,
     sessionStartSchema,
@@ -48,6 +50,40 @@ function registerTerminalMain(context = {}) {
     const sessionFilePath = String(row.session_file_path || '').trim();
     if (!sessionFilePath) return true;
     return typeof fs?.existsSync === 'function' ? !fs.existsSync(sessionFilePath) : false;
+  }
+
+  function syncProviderLiveConfigBeforeLaunch(provider, source, sessionId = '') {
+    if (
+      !providerLiveSyncService ||
+      typeof providerLiveSyncService.syncProviderLiveConfig !== 'function' ||
+      typeof getActiveProviderProfile !== 'function' ||
+      typeof getStartupEnvForProvider !== 'function'
+    ) {
+      return { ok: true, skipped: true, reason: 'live-sync-not-configured' };
+    }
+    const active = getActiveProviderProfile(provider) || {};
+    const env = getStartupEnvForProvider(provider);
+    const result = providerLiveSyncService.syncProviderLiveConfig({
+      provider,
+      profile: {
+        id: String(active.profileId || ''),
+        name: String(active.profileName || active.profileId || ''),
+        envVars: Array.isArray(active.envVars) ? active.envVars : [],
+        settingsConfig: { env },
+        meta: {},
+      },
+      env,
+      source,
+    });
+    if (result?.ok === false) {
+      logWarn('provider-live-sync', 'Failed to sync provider live config before launch', {
+        sessionId,
+        provider,
+        source,
+        reason: result?.message || '',
+      });
+    }
+    return result;
   }
 
   function reconcileSessionBeforeStats(provider, providerSessionId, row) {
@@ -140,6 +176,7 @@ function registerTerminalMain(context = {}) {
 
     ptyService.create({ cwd, name, provider, sessionId: localSessionId });
     await waitForShellBootstrap(localSessionId);
+    syncProviderLiveConfigBeforeLaunch(provider, 'session-create', localSessionId);
     if (launchCommand) {
       logInfo('session', 'Writing launch command', {
         sessionId: localSessionId,
@@ -248,6 +285,7 @@ function registerTerminalMain(context = {}) {
           initialRows: parsed.initialRows,
         });
         await waitForShellBootstrap(runtimeSessionId);
+        syncProviderLiveConfigBeforeLaunch(provider, 'session-start', runtimeSessionId);
         safeStartTokenUsageRun({
           row:
             record ||

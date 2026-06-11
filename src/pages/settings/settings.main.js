@@ -16,6 +16,10 @@ const { createOAuthProbeService } = require('./providers/main/oauth-probe-servic
 const { createProxyConnectivityService } = require('./providers/main/proxy-connectivity-service');
 const { createCliConfigSyncService } = require('./providers/main/cli-config-sync-service');
 const { createProviderTestSyncService } = require('./providers/main/provider-test-sync.service');
+const { createProviderLiveSyncService } = require('./providers/main/provider-live-sync-service');
+const { createClaudeLiveConfigAdapter } = require('./providers/main/claude-live-config-adapter');
+const { createCodexLiveConfigAdapter } = require('./providers/main/codex-live-config-adapter');
+const { createGeminiLiveConfigAdapter } = require('./providers/main/gemini-live-config-adapter');
 const { createClaudeRuntimeSyncService } = require('./providers/main/claude-runtime-sync');
 const {
   createTokenRunMetadataResolver,
@@ -52,6 +56,10 @@ module.exports = {
   createProxyConnectivityService,
   createCliConfigSyncService,
   createProviderTestSyncService,
+  createProviderLiveSyncService,
+  createClaudeLiveConfigAdapter,
+  createCodexLiveConfigAdapter,
+  createGeminiLiveConfigAdapter,
   createClaudeRuntimeSyncService,
   createTokenRunMetadataResolver,
   createTokenUsageSyncService,

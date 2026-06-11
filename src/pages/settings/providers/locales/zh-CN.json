@@ -1,5 +1,8 @@
 {
   "settings.providers.title": "供应商设置",
+  "settings.providers.cliTool": "CLI 工具",
+  "settings.providers.modelProviderProfiles": "模型供应商 Profile",
+  "settings.providers.activeModelProvider": "当前模型供应商",
   "settings.providers.addProvider": "+ 新增供应商",
   "settings.providers.enabled": "已启用",
   "settings.providers.default": "默认",

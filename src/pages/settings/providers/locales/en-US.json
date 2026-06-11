@@ -1,5 +1,8 @@
 {
   "settings.providers.title": "Provider Settings",
+  "settings.providers.cliTool": "CLI tool",
+  "settings.providers.modelProviderProfiles": "Model provider profiles",
+  "settings.providers.activeModelProvider": "Active model provider",
   "settings.providers.addProvider": "+ Add provider",
   "settings.providers.enabled": "Enabled",
   "settings.providers.default": "Default",

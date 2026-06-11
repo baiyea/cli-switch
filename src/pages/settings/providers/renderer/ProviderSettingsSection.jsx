@@ -55,6 +55,9 @@ export function ProviderSettingsSection({
         {t('settings.providers.title')}
       </h3>
 
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+        {t('settings.providers.cliTool')}
+      </div>
       <div className="provider-tab-list flex flex-wrap gap-1 rounded-[4px] border p-1">
         {[
           { id: 'claude', label: 'Claude Code' },
@@ -99,6 +102,9 @@ export function ProviderSettingsSection({
 
         {editingProfile && (
           <div className="provider-panel-card rounded-[4px] border p-3 space-y-3">
+            <div className="text-xs font-semibold text-[var(--text-muted)]">
+              {t('settings.providers.modelProviderProfiles')}
+            </div>
             {isFixedProfileProvider ? (
               <div className="flex flex-wrap items-center gap-2">
                 <Select
@@ -327,6 +333,9 @@ export function ProviderSettingsSection({
 
               <div className="h-px w-full bg-[var(--line)]" />
 
+              <div className="text-xs font-semibold text-[var(--text-muted)]">
+                {t('settings.providers.activeModelProvider')}
+              </div>
               <label className="flex items-center justify-end gap-3">
                 <span className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
                   {isEditingOAuthProfile

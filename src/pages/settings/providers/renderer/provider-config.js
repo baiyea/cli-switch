@@ -1,3 +1,4 @@
+import modelProviderTemplates from '../shared/model-provider-templates.json';
 import providerEnvPresets from '../shared/provider-env-presets.json';
 
 export const PROVIDER_IDS = ['claude', 'codex', 'gemini'];
@@ -44,6 +45,11 @@ export function getProviderPresetConfig(providerId) {
     type: 'keyList',
     keys: Array.isArray(raw) ? raw.map((key) => String(key || '').trim()).filter(Boolean) : [],
   };
+}
+
+export function getModelProviderTemplates(providerId) {
+  const raw = modelProviderTemplates?.[normalizeProviderId(providerId)];
+  return Array.isArray(raw?.profiles) ? raw.profiles : [];
 }
 
 export function isInternalEnvKey(key) {

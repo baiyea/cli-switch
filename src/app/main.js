@@ -1,5 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 const {
   app,
   BrowserWindow,
@@ -64,6 +65,10 @@ const {
   createProxyConnectivityService,
   createCliConfigSyncService,
   createProviderTestSyncService,
+  createProviderLiveSyncService,
+  createClaudeLiveConfigAdapter,
+  createCodexLiveConfigAdapter,
+  createGeminiLiveConfigAdapter,
   createClaudeRuntimeSyncService,
   createTokenRunMetadataResolver,
   createTokenUsageSyncService,
@@ -376,6 +381,14 @@ const cliConfigSyncService = createCliConfigSyncService({
   logInfo,
   logWarn,
 });
+const providerLiveSyncService = createProviderLiveSyncService({
+  homedir: () => os.homedir(),
+  logInfo,
+  logWarn,
+  claudeAdapter: createClaudeLiveConfigAdapter({ logInfo, logWarn }),
+  codexAdapter: createCodexLiveConfigAdapter({ logInfo, logWarn }),
+  geminiAdapter: createGeminiLiveConfigAdapter({ logInfo, logWarn }),
+});
 const { syncCliConfigAfterSuccessfulProviderTest } = createProviderTestSyncService({
   normalizeProviderId,
   getMergedProviderProfileEnvVars,
@@ -383,6 +396,7 @@ const { syncCliConfigAfterSuccessfulProviderTest } = createProviderTestSyncServi
   applyUnifiedProxyEnv,
   buildEnvFromPairs,
   cliConfigSyncService,
+  providerLiveSyncService,
 });
 const { syncClaudeSettingsEnv } = createClaudeRuntimeSyncService({
   normalizeProviderId,
@@ -589,6 +603,7 @@ function registerAppIpc() {
     tokenUsageFiltersSchema,
     tokenUsageRefreshSchema,
     providerConnectionService,
+    providerLiveSyncService,
     oauthProbeService,
     proxyConnectivityService,
     oauthLoginTracker,
@@ -599,6 +614,7 @@ function registerAppIpc() {
     readSessionStats,
     getStartupCommandForProvider,
     getStartupEnvForProvider,
+    getActiveProviderProfile,
     getResumeCommandForProvider,
     waitForShellBootstrap,
     runWithSessionStartLock,
