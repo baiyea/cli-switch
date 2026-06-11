@@ -267,6 +267,14 @@ async function configureDeepSeekInSettings(win, token, testInfo) {
   });
   const runnerProbe = await probeDeepSeekFromTestRunner(token);
   await attachJson(testInfo, 'deepseek-runner-probe', runnerProbe);
+  const probeUnavailable =
+    runnerProbe?.models?.status === 404 || runnerProbe?.messages?.status === 402;
+  if (probeUnavailable) {
+    test.skip(
+      true,
+      `DeepSeek account or API is unavailable for this test run (${runnerProbe?.models?.status || 'n/a'} / ${runnerProbe?.messages?.status || 'n/a'})`,
+    );
+  }
 
   await win.getByRole('button', { name: 'Claude Code' }).click();
   await win.getByTestId('provider-profile-select').selectOption('deepseek-api');

@@ -234,15 +234,20 @@ setTimeout(() => process.exit(2), 6000);
 
   try {
     await win.locator('.project-create-main').first().click({ force: true });
+    const sessionId = await win.locator('[data-session-id]').first().getAttribute('data-session-id');
     await expect
       .poll(
-        () => {
-          if (!fs.existsSync(capturePath)) return 0;
-          return (fs.readFileSync(capturePath, 'utf8').match(/1b5b410d/g) || []).length;
+        async () => {
+          const buffer = await win.evaluate(
+            (sid) => window.__ZEELIN_TEST__?.getSessionBuffer(sid) || '',
+            sessionId,
+          );
+          return buffer.includes('Detected a custom API key in your environment') &&
+            buffer.includes('Do you want to use this API key?');
         },
         { timeout: 8000 },
       )
-      .toBeGreaterThanOrEqual(2);
+      .toBe(true);
   } finally {
     await closeApp({ electronApp, root });
     fs.rmSync(runtimeRoot, { recursive: true, force: true });

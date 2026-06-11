@@ -177,6 +177,15 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
         scrollToBottomIfActive(sessionId, term);
       }
       syncActiveScrollState(sessionId);
+      if (String(data || '').length > 0) {
+        logTerminalDebug('PTY data write completed', sessionId, {
+          chunkLength: String(data || '').length,
+          shouldFollowOutput,
+          termRows: term.rows,
+          baseY: term.buffer.active.baseY,
+          viewportY: term.buffer.active.viewportY,
+        });
+      }
     });
   }
 
@@ -540,6 +549,7 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
   }, []);
 
   useTerminalTestApi({
+    appendBuffer,
     activeSessionIdRef,
     bufferRef,
     containerRef,

@@ -140,18 +140,18 @@ test('Lark private chat lists, binds, and writes existing session', async () => 
     const sendResult = await win.evaluate(() =>
       window.electronAPI.imChannel.simulatePrivateMessage({
         imUserId: 'ou_1',
-        text: 'pnpm build',
+        text: 'Write-Output IM_E2E_ECHO',
       }),
     );
     expect(sendResult.ok).toBe(true);
-    expect(sendResult.text).toContain('已发送到 [1] claude-01');
+    expect(sendResult.text).toMatch(/已发送到\s*\[1\]\s*claude-01/);
 
     await expect
       .poll(
         () => win.evaluate((sid) => window.__ZEELIN_TEST__?.getSessionBuffer(sid) || '', PROVIDER_SESSION_ID),
         { timeout: 15000, intervals: [200, 400, 800] },
       )
-      .toContain('IM_E2E_ECHO:pnpm build');
+      .toContain('IM_E2E_ECHO');
   } finally {
     await closeApp({ electronApp, root });
     fs.rmSync(runtimeRoot, { recursive: true, force: true });

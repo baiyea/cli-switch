@@ -267,6 +267,23 @@ test('Windows first session selection wakes terminal renderer without switching 
     await expect(win.locator('.toolbar-provider-meta')).toHaveText(/^Codex CLI\s·/);
     await expect(win.locator(`[data-session-id="${ids.codexSid}"]`)).toBeVisible();
 
+    const marker = `windows-first-selection-${Date.now()}`;
+    await expect
+      .poll(
+        () =>
+          win.evaluate(
+            () => (typeof window.__ZEELIN_TEST__?.emitTerminalData === 'function' ? 'ready' : ''),
+          ),
+        { timeout: 15000, intervals: [100, 200, 400, 800] },
+      )
+      .toBe('ready');
+    const emitted = await win.evaluate(
+      ({ sid, data }) =>
+        Boolean(window.__ZEELIN_TEST__?.emitTerminalData?.(sid, `${data}\r\n`)),
+      { sid: ids.codexSid, data: marker },
+    );
+    expect(emitted).toBe(true);
+
     await expect
       .poll(
         async () =>
@@ -293,6 +310,14 @@ test('Windows first session selection wakes terminal renderer without switching 
         viewportHeight: expect.any(Number),
         focused: true,
       });
+
+    await expect
+      .poll(
+        async () =>
+          win.evaluate((sid) => window.__ZEELIN_TEST__?.getSessionBuffer(sid) || '', ids.codexSid),
+        { timeout: 30000, intervals: [100, 200, 400, 800] },
+      )
+      .toContain(marker);
 
     const geometry = await win.evaluate(
       (sid) => window.__ZEELIN_TEST__?.getTerminalLayoutGeometry?.(sid),

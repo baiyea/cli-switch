@@ -6,6 +6,7 @@ import { fileAttachmentBridge, ptyBridge } from './terminal.bridge';
 import type { TermEntry } from './terminal-types';
 
 type UseTerminalTestApiParams = {
+  appendBuffer: (sessionId: string, chunk: string) => void;
   activeSessionIdRef: RefObject<string | null>;
   bufferRef: RefObject<Map<string, string>>;
   containerRef: RefObject<Map<string, HTMLDivElement>>;
@@ -17,6 +18,7 @@ type UseTerminalTestApiParams = {
 };
 
 export function useTerminalTestApi({
+  appendBuffer,
   activeSessionIdRef,
   bufferRef,
   containerRef,
@@ -97,6 +99,12 @@ export function useTerminalTestApi({
           clientHeight: viewport?.clientHeight ?? 0,
         };
       },
+      getTerminalRenderedText: (sessionId: string) => {
+        const container = containerRef.current.get(sessionId);
+        if (!container) return '';
+        const screen = container.querySelector('.xterm-screen') as HTMLElement | null;
+        return String(screen?.textContent || screen?.innerText || '');
+      },
       scrollTerminalLines: (sessionId: string, lines: number) => {
         const entry = terminalRef.current.get(sessionId);
         if (!entry) return false;
@@ -108,11 +116,28 @@ export function useTerminalTestApi({
         if (activeSessionIdRef.current !== sessionId) return false;
         return scrollActiveToBottom();
       },
-      appendTerminalData: (sessionId: string, data: string) => {
+      emitTerminalData: (sessionId: string, data: string) => {
+        appendBuffer(sessionId, data);
         const entry = terminalRef.current.get(sessionId);
         if (!entry) return false;
         writeLiveTerminalData(sessionId, entry.term, data);
         return true;
+      },
+      appendTerminalData: (sessionId: string, data: string) => {
+        appendBuffer(sessionId, data);
+        const entry = terminalRef.current.get(sessionId);
+        if (!entry) return false;
+        writeLiveTerminalData(sessionId, entry.term, data);
+        return true;
+      },
+      getTerminalBufferText: (sessionId: string) => {
+        const entry = terminalRef.current.get(sessionId);
+        if (!entry) return '';
+        try {
+          return String(entry.term.buffer.active.translateToString(true) || '');
+        } catch {
+          return '';
+        }
       },
       destroyAllSessions: () => {
         useSessionStore.getState().destroyAll();
@@ -149,6 +174,7 @@ export function useTerminalTestApi({
     };
   }, [
     activeSessionIdRef,
+    appendBuffer,
     bufferRef,
     containerRef,
     lastResizeRef,

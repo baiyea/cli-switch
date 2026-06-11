@@ -10,7 +10,8 @@ const key = `${targetPlatform}-${targetArch}`;
 
 const outputRoot = path.join(rootDir, 'build', 'cli-runtime', key);
 const outputBase = path.join(rootDir, 'build', 'cli-runtime');
-const workDir = path.join(rootDir, '.tmp', 'cli-runtime', key);
+const workDirBase = path.join(rootDir, '.tmp', 'cli-runtime');
+const workDir = fs.mkdtempSync(path.join(workDirBase, `${key}-${process.pid}-`));
 
 const cliVersions = {
   '@anthropic-ai/claude-code': '2.1.98',
@@ -166,7 +167,7 @@ function pruneRuntime(target) {
 function main() {
   console.log(`[cli-runtime] Preparing runtime for ${key}`);
   pruneOtherRuntimeTargets(outputBase, key);
-  ensureCleanDir(workDir);
+  fs.mkdirSync(workDirBase, { recursive: true });
   writePackageJson(workDir);
 
   run(
