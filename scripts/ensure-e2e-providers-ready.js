@@ -5,7 +5,6 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { DatabaseSync } = require('node:sqlite');
 const { APP_ID, DB_FILENAME } = require('../src/shared/app-config');
-const { buildProviderSettings } = require('../src/tests/e2e/provider-fixture');
 
 const SETTINGS_KEY = 'provider_startup_settings';
 const BOOTSTRAP_TEST_FILE =
@@ -79,35 +78,6 @@ function readProviderSettingsState(dbPath) {
     return { exists: fs.existsSync(dbPath), enabled: false, parsed: {} };
   } finally {
     if (db) db.close();
-  }
-}
-
-function ensureAppSettingsTable(db) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-}
-
-function seedEnabledProvider(dbPath) {
-  const token = String(process.env.TEST_DEEPSEEK || '').trim() || 'e2e-dummy-token';
-  const settings = buildProviderSettings({ anthropicAuthToken: token });
-  const timestamp = new Date().toISOString();
-
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  const db = new DatabaseSync(dbPath);
-  try {
-    ensureAppSettingsTable(db);
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at)
-       VALUES (?, ?, ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-    ).run(SETTINGS_KEY, JSON.stringify(settings), timestamp);
-  } finally {
-    db.close();
   }
 }
 

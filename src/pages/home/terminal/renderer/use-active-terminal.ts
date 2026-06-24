@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { type RefObject,useEffect } from 'react';
 
 import { logBridge } from '../../../../shared/bridge';
 import { useSessionStore } from '../../home.store';

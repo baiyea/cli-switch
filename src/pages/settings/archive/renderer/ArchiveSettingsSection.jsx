@@ -1,6 +1,6 @@
+import { useT } from '../../../../i18n/use-t';
 import { Button } from '../../../../ui/button';
 import { Card, CardContent } from '../../../../ui/card';
-import { useT } from '../../../../i18n/use-t';
 
 export function ArchiveSettingsSection({
   archivedSessions,

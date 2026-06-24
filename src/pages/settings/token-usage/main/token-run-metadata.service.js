@@ -60,7 +60,7 @@ function parseBaseUrl(rawValue) {
 
   try {
     return new URL(withProtocol);
-  } catch (_error) {
+  } catch {
     return null;
   }
 }

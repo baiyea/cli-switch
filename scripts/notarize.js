@@ -7,6 +7,10 @@ exports.default = async function notarizing(context) {
   const { electronPlatformName, appOutDir } = context;
 
   if (electronPlatformName !== 'darwin') return;
+  if (process.env.SKIP_NOTARIZE === '1' || process.env.APPLE_SKIP_NOTARIZE === '1') {
+    console.warn('[notarize] Skip notarization: SKIP_NOTARIZE is enabled');
+    return;
+  }
 
   const appleId = process.env.APPLE_ID;
   const appleIdPassword = process.env.APPLE_APP_SPECIFIC_PASSWORD;

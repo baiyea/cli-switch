@@ -25,6 +25,12 @@ function seedSessions({ db, now, projectId, projectDir }) {
   }
 }
 
+async function getVisibleSessionNames(project) {
+  return project.locator('.session-item-name').evaluateAll((nodes) =>
+    nodes.map((node) => node.textContent?.trim() || ''),
+  );
+}
+
 test.describe('@sidebar', () => {
   test('project create menu toggles long session lists without scrolling to the bottom toggle', async () => {
     const launched = await launchApp({
@@ -55,6 +61,65 @@ test.describe('@sidebar', () => {
 
       await expect(project.getByTestId('session-item-sidebar-session-6')).toHaveCount(0);
       await expect(project.getByTestId('session-item-sidebar-session-1')).toBeVisible();
+    } finally {
+      await closeApp(launched);
+    }
+  });
+
+  test('session drag order is persisted in DB and survives session switching', async () => {
+    const launched = await launchApp({
+      cwd: path.resolve(__dirname, '../../../../../'),
+      rootPrefix: 'cliswitch-sidebar-reorder-',
+      projectId: 'p1',
+      projectName: 'SidebarProject',
+      seedDb: seedSessions,
+    });
+
+    try {
+      const { window: win } = launched;
+      const project = win.getByTestId('project-p1');
+      await expect(project.getByTestId('session-item-sidebar-session-1')).toBeVisible();
+
+      await win
+        .getByTestId('session-item-sidebar-session-5')
+        .dragTo(win.getByTestId('session-item-sidebar-session-1'));
+
+      await expect
+        .poll(() => getVisibleSessionNames(project))
+        .toEqual([
+          'sidebar session 5',
+          'sidebar session 1',
+          'sidebar session 2',
+          'sidebar session 3',
+          'sidebar session 4',
+        ]);
+
+      await expect
+        .poll(() =>
+          win.evaluate(async () => {
+            const rows = await window.electronAPI.sessions.list({ projectIds: ['p1'] });
+            return rows.slice(0, 5).map((row) => row.sessionId);
+          }),
+        )
+        .toEqual([
+          'sidebar-session-5',
+          'sidebar-session-1',
+          'sidebar-session-2',
+          'sidebar-session-3',
+          'sidebar-session-4',
+        ]);
+
+      await project.getByTestId('session-item-sidebar-session-2').click();
+      await expect(project.getByTestId('session-item-sidebar-session-2')).toHaveClass(/active/);
+      await expect
+        .poll(() => getVisibleSessionNames(project))
+        .toEqual([
+          'sidebar session 5',
+          'sidebar session 1',
+          'sidebar session 2',
+          'sidebar session 3',
+          'sidebar session 4',
+        ]);
     } finally {
       await closeApp(launched);
     }

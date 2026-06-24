@@ -1,5 +1,5 @@
-import { useEffect, type RefObject } from 'react';
 import type { Terminal } from '@xterm/xterm';
+import { type RefObject,useEffect } from 'react';
 
 import { logBridge } from '../../../../shared/bridge';
 import { ptyBridge } from './terminal.bridge';

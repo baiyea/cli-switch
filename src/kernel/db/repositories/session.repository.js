@@ -350,24 +350,35 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
       return { changes: result.changes };
     },
     reorderActiveByProject({ projectId, orderedSessions = [] }) {
+      const requestedCount = Array.isArray(orderedSessions) ? orderedSessions.length : 0;
       const activeRows = conn
         .prepare(
           `SELECT id, provider, provider_session_id FROM ${sessionsTable} WHERE project_id = ? AND is_archived = 0 ORDER BY COALESCE(sort_order, 0) DESC, created_at DESC`,
         )
         .all(projectId);
-      if (activeRows.length === 0) return;
+      if (activeRows.length === 0) {
+        return {
+          ok: true,
+          projectId,
+          requestedCount,
+          matchedCount: 0,
+          updatedCount: 0,
+        };
+      }
       const keyOf = (p, s) => `${String(p || '').toLowerCase()}::${String(s || '')}`;
       const activeMap = new Map(
         activeRows.map((row) => [keyOf(row.provider, row.provider_session_id), row]),
       );
       const nextOrdered = [];
       const seen = new Set();
+      let matchedCount = 0;
       for (const item of orderedSessions) {
         const key = keyOf(item?.provider, item?.providerSessionId);
         const row = activeMap.get(key);
         if (!row || seen.has(key)) continue;
         nextOrdered.push(row);
         seen.add(key);
+        matchedCount += 1;
       }
       for (const row of activeRows) {
         const key = keyOf(row.provider, row.provider_session_id);
@@ -381,9 +392,21 @@ function createSessionsRepo({ getDatabase, now, genId, sessionModel }) {
       const timestamp = now();
       const tx = conn.transaction((rows) => {
         const total = rows.length;
-        for (let idx = 0; idx < total; idx += 1) update.run(total - idx, timestamp, rows[idx].id);
+        let updatedCount = 0;
+        for (let idx = 0; idx < total; idx += 1) {
+          const result = update.run(total - idx, timestamp, rows[idx].id);
+          updatedCount += result.changes;
+        }
+        return updatedCount;
       });
-      tx(nextOrdered);
+      const updatedCount = tx(nextOrdered);
+      return {
+        ok: true,
+        projectId,
+        requestedCount,
+        matchedCount,
+        updatedCount,
+      };
     },
     markAllStopped() {
       conn

@@ -1,3 +1,4 @@
+import { useT } from '../../i18n/use-t';
 import {
   Dialog,
   DialogContent,
@@ -5,7 +6,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../ui/dialog';
-import { useT } from '../../i18n/use-t';
 import { Tabs, TabsContent } from '../../ui/tabs';
 import { AboutSettingsSection } from './about/block.renderer';
 import { AppearanceSettingsSection } from './appearance/block.renderer';

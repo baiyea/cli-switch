@@ -4,8 +4,8 @@ import type { RefObject } from 'react';
 import { logBridge } from '../../../../shared/bridge';
 import { useSessionStore } from '../../home.store';
 import { supportsImagePasteForProvider } from './paste-support.mjs';
-import { isWindowsPlatform } from './terminal-platform';
 import { fileAttachmentBridge, ptyBridge } from './terminal.bridge';
+import { isWindowsPlatform } from './terminal-platform';
 
 type PendingWindowsTextPaste = {
   timer: number;

@@ -14,7 +14,7 @@ function setupClaudeHome() {
 }
 
 test('claude live sync merges env and preserves existing settings fields', () => {
-  const { home, paths } = setupClaudeHome();
+  const { paths } = setupClaudeHome();
   const settingsPath = paths.claudeSettingsPath();
   fs.writeFileSync(
     settingsPath,

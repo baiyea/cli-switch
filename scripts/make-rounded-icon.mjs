@@ -1,5 +1,5 @@
-import Jimp from 'jimp';
 import { execSync } from 'child_process';
+import Jimp from 'jimp';
 
 const INPUT = '/Users/zeelin/WorkCode/cli-switch/docs/ZeeLinCode-logo/cli-switch.png';
 const OUTPUT = 'build/rounded-source.png';
@@ -11,9 +11,6 @@ async function process() {
   image.resize(size, size);
   
   // 创建一个圆形/圆角遮罩
-  // 对于 macOS，半径大约是尺寸的 17.5%
-  const radius = size * 0.175;
-  
   // 使用遮罩或直接裁剪出圆角
   // 简单方法：在 Jimp 中由于没有直接的 roundCorners，我们手动处理像素或使用外部工具
   // 但 Jimp 有 circle() 效果，或者我们可以通过 mask 实现 squircle
@@ -23,7 +20,7 @@ async function process() {
   
   // 修正：我们直接利用磁盘上现有的 electron-icon-builder，
   // 但先用 sips 确保我们有一个带 alpha 通道的 1024x1024 基础图
-  execSync(\`sips -s format png -z \${size} \${size} "\${INPUT}" --out "\${OUTPUT}"\`);
+  execSync(`sips -s format png -z ${size} ${size} "${INPUT}" --out "${OUTPUT}"`);
 }
 
 process();

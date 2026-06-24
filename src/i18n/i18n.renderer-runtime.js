@@ -138,10 +138,10 @@ const messageRegistry = createMessageRegistry();
 const i18nService = new I18nService(messageRegistry);
 
 export {
-  DEFAULT_LOCALE,
-  SUPPORTED_LOCALES,
   createMessageRegistry,
+  DEFAULT_LOCALE,
   i18nService,
   interpolateMessage,
   normalizeLocale,
+  SUPPORTED_LOCALES,
 };

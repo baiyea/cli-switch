@@ -397,6 +397,7 @@ export const useHomeStore = create<HomeStoreState>((set, get) => ({
         projectId,
         orderedSessions: normalized,
       });
+      await get().loadSessionsByProjects([projectId]);
     } catch (error) {
       set({ sessions: previous });
       throw error;

@@ -1,10 +1,10 @@
+import { useT } from '../../../../i18n/use-t';
 import { Badge } from '../../../../ui/badge';
 import { Button } from '../../../../ui/button';
 import { ProviderIcon } from '../../../../ui/icon-registry';
 import { Input } from '../../../../ui/input';
 import { Select } from '../../../../ui/select';
 import { Switch } from '../../../../ui/switch';
-import { useT } from '../../../../i18n/use-t';
 
 export function ProviderSettingsSection({
   providerTab,

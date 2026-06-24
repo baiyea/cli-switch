@@ -87,14 +87,20 @@ function registerSidebarMain(context = {}) {
 
   registerIpc(SIDEBAR_CHANNELS.SESSION_REORDER, async (_event, payload) => {
     const parsed = sessionReorderSchema.parse(payload || {});
-    sessionStore.reorderActiveByProject({
+    const result = sessionStore.reorderActiveByProject({
       projectId: parsed.projectId,
       orderedSessions: parsed.orderedSessions.map((item) => ({
         provider: normalizeProviderId(item.provider),
         providerSessionId: item.providerSessionId,
       })),
     });
-    return { ok: true };
+    logInfo('session', 'Session order persisted', {
+      projectId: parsed.projectId,
+      requestedCount: result?.requestedCount || 0,
+      matchedCount: result?.matchedCount || 0,
+      updatedCount: result?.updatedCount || 0,
+    });
+    return result || { ok: true };
   });
 }
 

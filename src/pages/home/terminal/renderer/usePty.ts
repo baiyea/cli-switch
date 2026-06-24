@@ -510,6 +510,13 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
     const terminals = terminalRef.current;
     const containers = containerRef.current;
     const replayMuted = replayMutedRef.current;
+    const dataStats = dataStatsRef.current;
+    const pendingStartSessions = pendingStartSessionRef.current;
+    const postFitStartAttempts = postFitStartAttemptRef.current;
+    const pendingWindowsTextPastes = pendingWindowsTextPasteRef.current;
+    const suppressNextTextPasteUntil = suppressNextTextPasteUntilRef.current;
+    const skipWindowsTextPasteUntil = skipWindowsTextPasteUntilRef.current;
+    const nativeImagePasteInFlight = nativeImagePasteInFlightRef.current;
 
     return () => {
       for (const observer of resizeObservers.values()) {
@@ -534,18 +541,17 @@ export function usePty(effectiveTheme: EffectiveTheme = 'dark') {
       terminals.clear();
       containers.clear();
       replayMuted.clear();
-      dataStatsRef.current.clear();
-      pendingStartSessionRef.current.clear();
-      postFitStartAttemptRef.current.clear();
-      for (const pending of pendingWindowsTextPasteRef.current.values()) {
+      dataStats.clear();
+      pendingStartSessions.clear();
+      postFitStartAttempts.clear();
+      for (const pending of pendingWindowsTextPastes.values()) {
         window.clearTimeout(pending.timer);
       }
-      pendingWindowsTextPasteRef.current.clear();
-      suppressNextTextPasteUntilRef.current.clear();
-      skipWindowsTextPasteUntilRef.current.clear();
-      nativeImagePasteInFlightRef.current.clear();
+      pendingWindowsTextPastes.clear();
+      suppressNextTextPasteUntil.clear();
+      skipWindowsTextPasteUntil.clear();
+      nativeImagePasteInFlight.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useTerminalTestApi({

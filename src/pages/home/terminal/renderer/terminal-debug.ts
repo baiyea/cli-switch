@@ -1,5 +1,6 @@
-import { logBridge } from '../../../../shared/bridge';
 import type { RefObject } from 'react';
+
+import { logBridge } from '../../../../shared/bridge';
 import type { TermEntry } from './terminal-types';
 
 type TerminalDebugContext = {

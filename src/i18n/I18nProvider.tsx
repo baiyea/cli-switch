@@ -1,5 +1,5 @@
-import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { Locale, TranslationParams } from './i18n.types';
 import { i18nService, normalizeLocale } from './renderer';

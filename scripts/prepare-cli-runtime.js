@@ -14,10 +14,13 @@ const workDirBase = path.join(rootDir, '.tmp', 'cli-runtime');
 const workDir = fs.mkdtempSync(path.join(workDirBase, `${key}-${process.pid}-`));
 
 const cliVersions = {
-  '@anthropic-ai/claude-code': '2.1.98',
-  '@openai/codex': '0.130.0',
-  '@google/gemini-cli': '0.35.3',
+  '@anthropic-ai/claude-code': '2.1.185',
+  '@openai/codex': '0.141.0',
+  '@google/gemini-cli': '0.47.0',
 };
+const runtimeNpmRegistry = String(
+  process.env.CLI_RUNTIME_NPM_REGISTRY || 'https://registry.npmjs.org/',
+).trim();
 
 function run(cmd, args, cwd, extraEnv = {}) {
   const result = spawnSync(cmd, args, {
@@ -175,6 +178,8 @@ function main() {
     [findNpmCli(), 'install', '--omit=dev', '--no-audit', '--no-fund'],
     workDir,
     {
+      npm_config_registry: runtimeNpmRegistry,
+      npm_config_prefer_offline: 'false',
       npm_config_update_notifier: 'false',
     },
   );

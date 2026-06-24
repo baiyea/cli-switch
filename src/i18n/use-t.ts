@@ -1,8 +1,8 @@
 import { useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
 
-import { I18nContext } from './I18nProvider';
-import type { I18nContextValue, TFunction } from './I18nProvider';
 import type { Locale } from './i18n.types';
+import type { I18nContextValue, TFunction } from './I18nProvider';
+import { I18nContext } from './I18nProvider';
 import { i18nService, normalizeLocale } from './renderer';
 
 export function useI18n(): I18nContextValue {

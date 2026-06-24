@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { tokenUsageBridge } from './token-usage.bridge';
 import { i18nService } from '../../../../i18n/renderer';
+import { tokenUsageBridge } from './token-usage.bridge';
 
 const FILTER_STORAGE_KEY = 'cli-switch.token-usage.filters';
 const DEFAULT_FILTERS = { range: '30d', projectId: '', provider: '', profileId: '', modelName: '' };
