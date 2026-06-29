@@ -86,3 +86,47 @@ test('syncDiscoveredSessionsForProjects ignores onReconciledSession failures', (
   assert.equal(warnings[0].scope, 'session');
   assert.match(warnings[0].message, /reconciled session callback/i);
 });
+
+test('archiveIgnoredProviderSessionsForProjects archives active provider subagent rows', () => {
+  const archived = [];
+  const { service } = createService({
+    sessionStore: {
+      listActiveWithSessionFileByProject(projectId) {
+        assert.equal(projectId, 'project-1');
+        return [
+          {
+            provider: 'codex',
+            provider_session_id: 'subagent-session',
+            session_file_path: '/tmp/subagent.jsonl',
+          },
+          {
+            provider: 'codex',
+            provider_session_id: 'normal-session',
+            session_file_path: '/tmp/normal.jsonl',
+          },
+        ];
+      },
+      archiveByProviderSessionId(payload) {
+        archived.push(payload);
+      },
+      reconcileDiscovered() {
+        return { ok: true, reconciled: false };
+      },
+    },
+    isIgnoredProviderSessionFile({ providerSessionId }) {
+      return providerSessionId === 'subagent-session';
+    },
+  });
+
+  const result = service.archiveIgnoredProviderSessionsForProjects([
+    { id: 'project-1', path: '/tmp/project' },
+  ]);
+
+  assert.equal(result.count, 1);
+  assert.deepEqual(archived, [
+    {
+      provider: 'codex',
+      providerSessionId: 'subagent-session',
+    },
+  ]);
+});

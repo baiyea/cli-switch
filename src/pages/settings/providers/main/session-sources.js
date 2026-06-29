@@ -163,6 +163,65 @@ function findJsonlSessionId(filePath) {
   return '';
 }
 
+function isCodexSubagentSession(filePath) {
+  const head = readHeadLines(filePath);
+  for (const line of head) {
+    let obj;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (obj?.type !== 'session_meta') continue;
+    const payload = obj.payload && typeof obj.payload === 'object' ? obj.payload : {};
+    const source = payload.source;
+    if (payload.thread_source === 'subagent' || obj.thread_source === 'subagent') return true;
+    if (source === 'subagent') return true;
+    if (source && typeof source === 'object' && source.subagent) return true;
+    if (obj.source && typeof obj.source === 'object' && obj.source.subagent) return true;
+  }
+  return false;
+}
+
+function isLikelySubagentTitle(title) {
+  const value = String(title || '').trim();
+  if (!value) return false;
+  return [
+    /^你是实现子代理/,
+    /^你是 Task \d+ .*审查子代理/,
+    /^你是 Task \d+ .*复审子代理/,
+    /^你负责任务/,
+    /^你负责[^，。]*任务/,
+    /^你是 Task \d+ .*reviewer/i,
+    /^请对 Task \d+ .*review/i,
+    /实现子代理/,
+    /审查子代理/,
+    /复审子代理/,
+    /spec compliance (?:re-)?reviewer/i,
+    /spec (?:re-)?reviewer/i,
+    /规格符合性.*(?:re-)?reviewer/i,
+    /Senior Code Reviewer/i,
+    /code quality (?:re-)?review/i,
+    /code quality reviewer/i,
+    /quality (?:re-)?review/i,
+    /quality (?:re-)?reviewer/i,
+    /^You are implementing Task \d+/i,
+    /^You are the .*reviewer/i,
+  ].some((pattern) => pattern.test(value));
+}
+
+function isIgnoredProviderSessionFile({ provider, sessionFilePath, row }) {
+  if (normalizeProviderId(provider) !== PROVIDERS.CODEX) return false;
+  if (!sessionFilePath) return false;
+  if (!fs.existsSync(sessionFilePath)) return isLikelySubagentTitle(row?.title);
+  try {
+    if (isCodexSubagentSession(sessionFilePath)) return true;
+    return isLikelySubagentTitle(row?.title);
+  } catch {
+    return false;
+  }
+}
+
 function deriveJsonlTitle(filePath, fallbackTitle) {
   const lines = readTailLines(filePath);
   let promptTitle = '';
@@ -269,11 +328,13 @@ function parseClaudeSession(filePath) {
 }
 
 function parseCodexSession(filePath) {
+  if (isCodexSubagentSession(filePath)) return null;
   const sessionId = findJsonlSessionId(filePath) || path.basename(filePath, '.jsonl');
   const cwd = findJsonlLinesFirstCwd(filePath);
   if (!cwd) return null;
   const fallbackTitle = createFallbackTitle(sessionId);
   const { title, titleSource } = deriveJsonlTitleWithSource(filePath, fallbackTitle);
+  if (isLikelySubagentTitle(title)) return null;
   const createdAt = fs.statSync(filePath).mtimeMs;
   return {
     provider: PROVIDERS.CODEX,
@@ -414,6 +475,7 @@ function mapSessionsToProjects(sessions, projects) {
 }
 
 module.exports = {
+  isIgnoredProviderSessionFile,
   listProviderSessions,
   mapSessionsToProjects,
 };

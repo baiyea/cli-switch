@@ -55,6 +55,7 @@ const {
   getResumeCommandForProvider,
   isLocalGeneratedSessionId,
   normalizeProviderId,
+  isIgnoredProviderSessionFile,
   listProviderSessions,
   mapSessionsToProjects,
   createOAuthLoginTracker,
@@ -355,15 +356,17 @@ function reconcileTokenUsageProviderSessionId(mapping) {
   }
 }
 
-const { syncDiscoveredSessionsForProjects } = createSessionDiscoverySyncService({
-  mapSessionsToProjects,
-  listProviderSessions,
-  dedupeSessionViews,
-  sessionStore,
-  normalizeProviderId,
-  onReconciledSession: reconcileTokenUsageProviderSessionId,
-  logWarn,
-});
+const { syncDiscoveredSessionsForProjects, archiveIgnoredProviderSessionsForProjects } =
+  createSessionDiscoverySyncService({
+    mapSessionsToProjects,
+    listProviderSessions,
+    dedupeSessionViews,
+    sessionStore,
+    normalizeProviderId,
+    isIgnoredProviderSessionFile,
+    onReconciledSession: reconcileTokenUsageProviderSessionId,
+    logWarn,
+  });
 
 function getStartupCommandForProvider(provider = 'claude') {
   // Normal sessions should always launch provider CLI runtime.
@@ -621,6 +624,7 @@ function registerAppIpc() {
     normalizeProviderId,
     isLocalGeneratedSessionId,
     syncDiscoveredSessionsForProjects,
+    archiveIgnoredProviderSessionsForProjects,
     sessionBelongsToProjectRoot,
     normalizeArchivePayload,
     parseArchiveId,

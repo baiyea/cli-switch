@@ -13,6 +13,7 @@ function registerSidebarMain(context = {}) {
     sessionReorderSchema,
     normalizeProviderId,
     syncDiscoveredSessionsForProjects,
+    archiveIgnoredProviderSessionsForProjects = () => ({ count: 0 }),
     sessionBelongsToProjectRoot,
     toSessionView,
     logInfo = () => {},
@@ -62,6 +63,7 @@ function registerSidebarMain(context = {}) {
     const allProjects = projectStore.list();
     const selectedProjects =
       projectIds.length > 0 ? allProjects.filter((p) => projectIds.includes(p.id)) : allProjects;
+    archiveIgnoredProviderSessionsForProjects(selectedProjects);
     const rows = sessionStore.listAllActive(selectedProjects.map((p) => p.id));
     return rows
       .filter(sessionBelongsToProjectRoot)

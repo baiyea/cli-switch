@@ -7,7 +7,11 @@ const {
   isLocalGeneratedSessionId,
   normalizeProviderId,
 } = require('./providers/main/cli-launchers');
-const { listProviderSessions, mapSessionsToProjects } = require('./providers/main/session-sources');
+const {
+  isIgnoredProviderSessionFile,
+  listProviderSessions,
+  mapSessionsToProjects,
+} = require('./providers/main/session-sources');
 const { createOAuthLoginTracker } = require('./providers/main/oauth-login-tracker');
 const { createOAuthLoginService } = require('./providers/main/oauth-login-service');
 const { createProviderSettingsRuntime } = require('./providers/main/provider-settings-runtime');
@@ -46,6 +50,7 @@ module.exports = {
   getResumeCommandForProvider,
   isLocalGeneratedSessionId,
   normalizeProviderId,
+  isIgnoredProviderSessionFile,
   listProviderSessions,
   mapSessionsToProjects,
   createOAuthLoginTracker,

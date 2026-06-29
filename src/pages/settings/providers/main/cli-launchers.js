@@ -31,6 +31,33 @@ function fileExists(targetPath) {
   }
 }
 
+function readJsonFile(targetPath) {
+  try {
+    return JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function packageDir(root, packageName) {
+  return path.join(root, 'node_modules', ...String(packageName || '').split('/'));
+}
+
+function resolvePackageBin(root, packageName, binName) {
+  const dir = packageDir(root, packageName);
+  const pkg = readJsonFile(path.join(dir, 'package.json'));
+  const bin = pkg?.bin;
+  const relativeBin =
+    typeof bin === 'string'
+      ? bin
+      : bin && typeof bin === 'object'
+        ? bin[binName] || bin[Object.keys(bin)[0]]
+        : '';
+  if (!relativeBin) return '';
+  const target = path.join(dir, relativeBin);
+  return fileExists(target) ? target : '';
+}
+
 function resolveProjectRoot() {
   return path.resolve(__dirname, '../../../../..');
 }
@@ -98,17 +125,48 @@ function resolveCliEntrypoint(provider, runtimeDir) {
     const entryByProvider = {
       [PROVIDERS.CLAUDE]: path.join(root, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js'),
       [PROVIDERS.CODEX]: path.join(root, 'node_modules', '@openai', 'codex', 'bin', 'codex.js'),
-      [PROVIDERS.GEMINI]: path.join(
-        root,
-        'node_modules',
-        '@google',
-        'gemini-cli',
-        'dist',
-        'index.js',
-      ),
+      [PROVIDERS.GEMINI]:
+        resolvePackageBin(root, '@google/gemini-cli', 'gemini') ||
+        path.join(root, 'node_modules', '@google', 'gemini-cli', 'dist', 'index.js'),
     };
     const target = entryByProvider[provider];
     if (target && fileExists(target)) return target;
+  }
+  return '';
+}
+
+function claudePlatformPackage(platform = process.platform, arch = process.arch) {
+  const normalizedPlatform = normalizePlatform(platform);
+  const normalizedArch = normalizeArch(arch);
+  if (normalizedPlatform === 'darwin')
+    return normalizedArch === 'arm64'
+      ? '@anthropic-ai/claude-code-darwin-arm64'
+      : '@anthropic-ai/claude-code-darwin-x64';
+  if (normalizedPlatform === 'win32')
+    return normalizedArch === 'arm64'
+      ? '@anthropic-ai/claude-code-win32-arm64'
+      : '@anthropic-ai/claude-code-win32-x64';
+  if (normalizedPlatform === 'linux')
+    return normalizedArch === 'arm64'
+      ? '@anthropic-ai/claude-code-linux-arm64'
+      : '@anthropic-ai/claude-code-linux-x64';
+  return '';
+}
+
+function resolveClaudeNativeBinary(runtimeDir) {
+  const platformPackage = claudePlatformPackage();
+  const roots = [runtimeDir, resolveProjectRoot()].filter(Boolean);
+  for (const root of roots) {
+    const packageBin = resolvePackageBin(root, '@anthropic-ai/claude-code', 'claude');
+    if (packageBin) return packageBin;
+
+    if (platformPackage) {
+      const nativeBinary = path.join(
+        packageDir(root, platformPackage),
+        process.platform === 'win32' ? 'claude.exe' : 'claude',
+      );
+      if (fileExists(nativeBinary)) return nativeBinary;
+    }
   }
   return '';
 }
@@ -141,15 +199,17 @@ function resolveCodexNativeBinary(runtimeDir) {
       'vendor',
       triple,
     );
-    const binary = path.join(
-      vendorRoot,
-      'codex',
-      process.platform === 'win32' ? 'codex.exe' : 'codex',
-    );
-    if (fileExists(binary)) {
+    const binaries = [
+      path.join(vendorRoot, 'bin', process.platform === 'win32' ? 'codex.exe' : 'codex'),
+      path.join(vendorRoot, 'codex', process.platform === 'win32' ? 'codex.exe' : 'codex'),
+    ];
+    const binary = binaries.find((candidate) => fileExists(candidate));
+    if (binary) {
       return {
         binary,
-        pathDir: path.join(vendorRoot, 'path'),
+        pathDir: fileExists(path.join(vendorRoot, 'codex-path'))
+          ? path.join(vendorRoot, 'codex-path')
+          : path.join(vendorRoot, 'path'),
       };
     }
   }
@@ -211,11 +271,13 @@ function getLaunchCommandForProvider(provider) {
       fileExists(pathDir) ? { PATH: `${pathDir}${path.delimiter}${process.env.PATH || ''}` } : {},
     );
   }
+  if (id === PROVIDERS.CLAUDE) {
+    const binary = resolveClaudeNativeBinary(runtimeDir);
+    return buildExecutableCommand(binary, ['--dangerously-skip-permissions']);
+  }
   const entrypoint = resolveCliEntrypoint(id, runtimeDir);
   const nodeRuntime = resolveNodeRuntime(runtimeDir);
   if (!entrypoint) return '';
-  if (id === PROVIDERS.CLAUDE)
-    return buildNodeRunnerCommand(entrypoint, ['--dangerously-skip-permissions'], nodeRuntime);
   if (id === PROVIDERS.GEMINI)
     return buildNodeRunnerCommand(entrypoint, ['--approval-mode', 'yolo'], nodeRuntime);
   return '';
@@ -232,11 +294,13 @@ function getOAuthLoginCommandForProvider(provider) {
       fileExists(pathDir) ? { PATH: `${pathDir}${path.delimiter}${process.env.PATH || ''}` } : {},
     );
   }
+  if (id === PROVIDERS.CLAUDE) {
+    const binary = resolveClaudeNativeBinary(runtimeDir);
+    return buildExecutableCommand(binary, ['auth', 'login']);
+  }
   const entrypoint = resolveCliEntrypoint(id, runtimeDir);
   const nodeRuntime = resolveNodeRuntime(runtimeDir);
   if (!entrypoint) return '';
-  if (id === PROVIDERS.CLAUDE)
-    return buildNodeRunnerCommand(entrypoint, ['auth', 'login'], nodeRuntime);
   if (id === PROVIDERS.GEMINI) {
     const base = buildNodeRunnerCommand(entrypoint, [], nodeRuntime);
     return prependEnvForCommand(base, {
@@ -258,15 +322,13 @@ function getOAuthProbeCommandForProvider(provider) {
       fileExists(pathDir) ? { PATH: `${pathDir}${path.delimiter}${process.env.PATH || ''}` } : {},
     );
   }
+  if (id === PROVIDERS.CLAUDE) {
+    const binary = resolveClaudeNativeBinary(runtimeDir);
+    return buildExecutableCommand(binary, ['-p', 'ping', '--output-format', 'json']);
+  }
   const entrypoint = resolveCliEntrypoint(id, runtimeDir);
   const nodeRuntime = resolveNodeRuntime(runtimeDir);
   if (!entrypoint) return '';
-  if (id === PROVIDERS.CLAUDE)
-    return buildNodeRunnerCommand(
-      entrypoint,
-      ['-p', 'ping', '--output-format', 'json'],
-      nodeRuntime,
-    );
   // Gemini CLI v0.34+ may reject `-p/--prompt` in some adapter flows with
   // "Cannot use both a positional prompt and the --prompt flag together".
   // Use positional prompt probe to avoid this conflict.
@@ -295,15 +357,13 @@ function getResumeCommandForProvider(provider, sessionId) {
       fileExists(pathDir) ? { PATH: `${pathDir}${path.delimiter}${process.env.PATH || ''}` } : {},
     );
   }
+  if (id === PROVIDERS.CLAUDE) {
+    const binary = resolveClaudeNativeBinary(runtimeDir);
+    return buildExecutableCommand(binary, ['--dangerously-skip-permissions', '-r', sid]);
+  }
   const entrypoint = resolveCliEntrypoint(id, runtimeDir);
   const nodeRuntime = resolveNodeRuntime(runtimeDir);
   if (!entrypoint) return '';
-  if (id === PROVIDERS.CLAUDE)
-    return buildNodeRunnerCommand(
-      entrypoint,
-      ['--dangerously-skip-permissions', '-r', sid],
-      nodeRuntime,
-    );
   if (id === PROVIDERS.GEMINI)
     return buildNodeRunnerCommand(
       entrypoint,

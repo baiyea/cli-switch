@@ -1,0 +1,6 @@
+{
+  "extends": "./electron-builder.json",
+  "mac": {
+    "timestamp": "none"
+  }
+}

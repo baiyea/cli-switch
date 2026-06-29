@@ -4,6 +4,7 @@ function createSessionDiscoverySyncService({
   dedupeSessionViews,
   sessionStore,
   normalizeProviderId,
+  isIgnoredProviderSessionFile = () => false,
   onReconciledSession = () => {},
   logWarn = () => {},
 }) {
@@ -32,6 +33,7 @@ function createSessionDiscoverySyncService({
 
   function syncDiscoveredSessionsForProjects(projects) {
     if (!Array.isArray(projects) || projects.length === 0) return { count: 0, mappings: [] };
+    archiveIgnoredProviderSessionsForProjects(projects);
     const discovered = mapSessionsToProjects(listProviderSessions(), projects);
     const deduped = dedupeSessionViews(discovered);
     const mappings = [];
@@ -61,8 +63,33 @@ function createSessionDiscoverySyncService({
     return { count: deduped.length, mappings };
   }
 
+  function archiveIgnoredProviderSessionsForProjects(projects) {
+    if (!Array.isArray(projects) || projects.length === 0) return { count: 0 };
+    if (typeof sessionStore?.listActiveWithSessionFileByProject !== 'function') return { count: 0 };
+    if (typeof sessionStore?.archiveByProviderSessionId !== 'function') return { count: 0 };
+
+    let count = 0;
+    for (const project of projects) {
+      if (!project?.id) continue;
+      const rows = sessionStore.listActiveWithSessionFileByProject(project.id) || [];
+      for (const row of rows) {
+        const provider = normalizeProviderId(row.provider);
+        const providerSessionId = row.provider_session_id || row.providerSessionId || '';
+        const sessionFilePath = row.session_file_path || row.sessionFilePath || '';
+        if (!provider || !providerSessionId || !sessionFilePath) continue;
+        if (!isIgnoredProviderSessionFile({ provider, providerSessionId, sessionFilePath, row })) {
+          continue;
+        }
+        sessionStore.archiveByProviderSessionId({ provider, providerSessionId });
+        count += 1;
+      }
+    }
+    return { count };
+  }
+
   return {
     syncDiscoveredSessionsForProjects,
+    archiveIgnoredProviderSessionsForProjects,
   };
 }
 
